@@ -13,8 +13,9 @@
 #include "openvino/op/subtract.hpp"
 #include "openvino/op/multiply.hpp"
 #include "openvino/op/convert.hpp"
-// #include "openvino/op/broadcast.hpp"
+#include "openvino/op/broadcast.hpp"
 #include "openvino/op/concat.hpp"
+#include "openvino/op/if.hpp"
 #include "openvino/op/reshape.hpp"
 #include "openvino/op/round.hpp"
 #include "openvino/op/transpose.hpp"
@@ -27,7 +28,100 @@ namespace {
 // Chat template hardcodes char sequence instead of referring to tag values, so NATIVE_TAG is hardcoded as well.
 const std::string NATIVE_TAG = "<|vision_start|><|image_pad|><|vision_end|>";
 
+std::pair<std::shared_ptr<ov::Model>, std::shared_ptr<ov::op::v0::Result>> patch_preprocess_branch_image(
+    std::shared_ptr<ov::op::v0::Parameter> raw_images_1,
+    std::shared_ptr<ov::op::v0::Parameter> resize_target_shape,
+    std::shared_ptr<ov::op::v0::Parameter> image_mean,
+    std::shared_ptr<ov::op::v0::Parameter> image_scale,
+    std::shared_ptr<ov::op::v0::Parameter> broadcast_shape) {
+    std::cout << "patch_preprocess_branch_image" << std::endl;
+    auto raw_images_f32_1 = std::make_shared<ov::op::v0::Convert>(raw_images_1, ov::element::f32);
+    auto img_trans_1 = std::make_shared<ov::op::v1::Transpose>(
+        raw_images_f32_1,
+        std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{4}, std::vector<int32_t>{0, 3, 1, 2}));
+
+    ov::op::v0::Interpolate::Attributes attrs = {};
+    attrs.axes = {2, 3};
+    attrs.mode = "cubic";
+    attrs.antialias = true;
+    attrs.align_corners = true;
+    auto img_resized_1 = std::make_shared<ov::op::v0::Interpolate>(img_trans_1, resize_target_shape, attrs);
+    auto img_resized_rnd_1 =
+        std::make_shared<ov::op::v5::Round>(img_resized_1, ov::op::v5::Round::RoundMode::HALF_TO_EVEN);
+    auto resized_images_f32_planar_1 = std::make_shared<ov::op::v0::Clamp>(img_resized_rnd_1, 0, 255);
+    auto resized_images_m_1 = std::make_shared<ov::op::v1::Subtract>(resized_images_f32_planar_1, image_mean);
+    auto resized_images_s_1 = std::make_shared<ov::op::v1::Multiply>(resized_images_m_1, image_scale);
+
+    auto temporal_images = std::make_shared<ov::op::v3::Broadcast>(resized_images_s_1, broadcast_shape);
+    auto results = std::make_shared<ov::op::v0::Result>(temporal_images);
+    return {std::make_shared<ov::Model>(results,
+                                        ov::ParameterVector{raw_images_1,
+                                                            resize_target_shape,
+                                                            image_mean,
+                                                            image_scale,
+                                                            broadcast_shape},
+                                        "then_body"),
+            results};
+}
+
+std::pair<std::shared_ptr<ov::Model>, std::shared_ptr<ov::op::v0::Result>> patch_preprocess_branch_video(
+    std::shared_ptr<ov::op::v0::Parameter> same_image,
+    std::shared_ptr<ov::op::v0::Parameter> raw_images_1,
+    std::shared_ptr<ov::op::v0::Parameter> raw_images_2,
+    std::shared_ptr<ov::op::v0::Parameter> resize_target_shape,
+    std::shared_ptr<ov::op::v0::Parameter> image_mean,
+    std::shared_ptr<ov::op::v0::Parameter> image_scale) {
+    std::cout << "patch_preprocess_branch_video" << std::endl;
+    auto raw_images_f32_1 = std::make_shared<ov::op::v0::Convert>(raw_images_1, ov::element::f32);
+    auto raw_images_f32_2 = std::make_shared<ov::op::v0::Convert>(raw_images_2, ov::element::f32);
+    auto img_trans_1 = std::make_shared<ov::op::v1::Transpose>(
+        raw_images_f32_1,
+        std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{4}, std::vector<int32_t>{0, 3, 1, 2}));
+    img_trans_1->set_friendly_name("img_trans_1");
+    img_trans_1->output(0).get_tensor().set_names({"img_trans_1"});
+    auto img_trans_2 = std::make_shared<ov::op::v1::Transpose>(
+        raw_images_f32_2,
+        std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{4}, std::vector<int32_t>{0, 3, 1, 2}));
+    img_trans_2->set_friendly_name("img_trans_2");
+    img_trans_2->output(0).get_tensor().set_names({"img_trans_2"});
+
+    ov::op::v0::Interpolate::Attributes attrs = {};
+    attrs.axes = {2, 3};
+    attrs.mode = "cubic";
+    attrs.antialias = true;
+    attrs.align_corners = true;
+    auto img_resized_1 = std::make_shared<ov::op::v0::Interpolate>(img_trans_1, resize_target_shape, attrs);
+    auto img_resized_2 = std::make_shared<ov::op::v0::Interpolate>(img_trans_2, resize_target_shape, attrs);
+    auto img_resized_rnd_1 =
+        std::make_shared<ov::op::v5::Round>(img_resized_1, ov::op::v5::Round::RoundMode::HALF_TO_EVEN);
+    auto img_resized_rnd_2 =
+        std::make_shared<ov::op::v5::Round>(img_resized_2, ov::op::v5::Round::RoundMode::HALF_TO_EVEN);
+    auto resized_images_f32_planar_1 = std::make_shared<ov::op::v0::Clamp>(img_resized_rnd_1, 0, 255);
+    auto resized_images_f32_planar_2 = std::make_shared<ov::op::v0::Clamp>(img_resized_rnd_2, 0, 255);
+    auto resized_images_m_1 = std::make_shared<ov::op::v1::Subtract>(resized_images_f32_planar_1, image_mean);
+    auto resized_images_m_2 = std::make_shared<ov::op::v1::Subtract>(resized_images_f32_planar_2, image_mean);
+    auto resized_images_s_1 = std::make_shared<ov::op::v1::Multiply>(resized_images_m_1, image_scale);
+    auto resized_images_s_2 = std::make_shared<ov::op::v1::Multiply>(resized_images_m_2, image_scale);
+
+    int64_t concat_axis = 0;
+    ov::NodeVector inputs_to_concat = {resized_images_s_1, resized_images_s_2};
+    auto temporal_images = std::make_shared<ov::op::v0::Concat>(inputs_to_concat, concat_axis);
+
+    auto result_temperal_images = std::make_shared<ov::op::v0::Result>(temporal_images);
+    auto result_tmp = std::make_shared<ov::op::v0::Result>(same_image);
+    return {std::make_shared<ov::Model>(
+                ov::ResultVector{result_temperal_images, result_tmp},
+                ov::ParameterVector{same_image, raw_images_1, raw_images_2, resize_target_shape, image_mean, image_scale},
+                "else_body"),
+            result_temperal_images};
+}
+
 std::shared_ptr<ov::Model> patch_preprocess_into_model(std::shared_ptr<ov::Model> model_org) {
+    std::cout << "patch_preprocess_into_model" << std::endl;
+    auto same_image = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::Shape{1});
+    same_image->set_friendly_name("same_image");
+    same_image->output(0).get_tensor().set_names({"same_image"});
+
     auto raw_images_1 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
     auto raw_images_2 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
     auto resize_target_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{2});
@@ -56,42 +150,56 @@ std::shared_ptr<ov::Model> patch_preprocess_into_model(std::shared_ptr<ov::Model
     broadcast_shape->set_friendly_name("broadcast_shape");
     broadcast_shape->output(0).get_tensor().set_names({"broadcast_shape"});
 
+    auto then_raw_images_1 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
+    auto then_raw_images_2 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
+    auto then_resize_target_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{2});
+    auto then_image_mean = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, -1, 1, 1});
+    auto then_image_scale = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, -1, 1, 1});
+    auto then_broadcast_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{4});
+    auto model_then = patch_preprocess_branch_image(then_raw_images_1,
+                                                    then_resize_target_shape,
+                                                    then_image_mean,
+                                                    then_image_scale,
+                                                    then_broadcast_shape);
+
+    auto else_same_image = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::Shape{1});
+    auto else_raw_images_1 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
+    auto else_raw_images_2 = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
+    auto else_resize_target_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{2});
+    auto else_image_mean = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, -1, 1, 1});
+    auto else_image_scale = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, -1, 1, 1});
+    auto model_else = patch_preprocess_branch_video(else_same_image,
+                                                    else_raw_images_1,
+                                                    else_raw_images_2,
+                                                    else_resize_target_shape,
+                                                    else_image_mean,
+                                                    else_image_scale);
+
+    auto if_op = std::make_shared<ov::op::v8::If>();
+    if_op->set_then_body(model_then.first);
+    if_op->set_else_body(model_else.first);
+    if_op->set_input(same_image->output(0), nullptr, else_same_image);
+    
+    if_op->set_input(raw_images_1->output(0), nullptr, else_raw_images_1);
+    if_op->set_input(raw_images_2->output(0), nullptr, else_raw_images_2);
+    if_op->set_input(resize_target_shape->output(0), nullptr, else_resize_target_shape);
+    if_op->set_input(image_mean->output(0), nullptr, else_image_mean);
+    if_op->set_input(image_scale->output(0), nullptr, else_image_scale);
+
+    if_op->set_input(raw_images_1->output(0), then_raw_images_1, nullptr);
+    if_op->set_input(resize_target_shape->output(0), then_resize_target_shape, nullptr);
+    if_op->set_input(image_mean->output(0), then_image_mean, nullptr);
+    if_op->set_input(image_scale->output(0), then_image_scale, nullptr);
+    if_op->set_input(broadcast_shape->output(0), then_broadcast_shape, nullptr);
+
+    auto temporal_images = if_op->set_output(model_then.second, model_else.second);
+
     temp_shape8d->set_friendly_name("temp_shape8d");
     temp_shape8d->output(0).get_tensor().set_names({"temp_shape8d"});
     temp_shape4d->set_friendly_name("temp_shape4d");
     temp_shape4d->output(0).get_tensor().set_names({"temp_shape4d"});
     last_shape->set_friendly_name("last_shape");
     last_shape->output(0).get_tensor().set_names({"last_shape"});
-
-    auto raw_images_f32_1 = std::make_shared<ov::op::v0::Convert>(raw_images_1, ov::element::f32);
-    auto raw_images_f32_2 = std::make_shared<ov::op::v0::Convert>(raw_images_2, ov::element::f32);
-    auto img_trans_1 = std::make_shared<ov::op::v1::Transpose>(raw_images_f32_1, 
-            std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{4}, std::vector<int32_t>{0, 3, 1, 2})
-        );
-    auto img_trans_2 = std::make_shared<ov::op::v1::Transpose>(
-        raw_images_f32_2,
-        std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{4}, std::vector<int32_t>{0, 3, 1, 2}));
-
-    ov::op::v0::Interpolate::Attributes attrs = { };
-    attrs.axes = {2,3};
-    attrs.mode = "cubic";
-    attrs.antialias = true;
-    attrs.align_corners = true;
-    auto img_resized_1 = std::make_shared<ov::op::v0::Interpolate>(img_trans_1, resize_target_shape, attrs);
-    auto img_resized_2 = std::make_shared<ov::op::v0::Interpolate>(img_trans_2, resize_target_shape, attrs);
-    auto img_resized_rnd_1 = std::make_shared<ov::op::v5::Round>(img_resized_1, ov::op::v5::Round::RoundMode::HALF_TO_EVEN);
-    auto img_resized_rnd_2 = std::make_shared<ov::op::v5::Round>(img_resized_2, ov::op::v5::Round::RoundMode::HALF_TO_EVEN);
-    auto resized_images_f32_planar_1 = std::make_shared<ov::op::v0::Clamp>(img_resized_rnd_1, 0, 255);
-    auto resized_images_f32_planar_2 = std::make_shared<ov::op::v0::Clamp>(img_resized_rnd_2, 0, 255);
-    auto resized_images_m_1 = std::make_shared<ov::op::v1::Subtract>(resized_images_f32_planar_1, image_mean);
-    auto resized_images_m_2 = std::make_shared<ov::op::v1::Subtract>(resized_images_f32_planar_2, image_mean);
-    auto resized_images_s_1 = std::make_shared<ov::op::v1::Multiply>(resized_images_m_1, image_scale);
-    auto resized_images_s_2 = std::make_shared<ov::op::v1::Multiply>(resized_images_m_2, image_scale);
-
-    // auto temporal_images = std::make_shared<ov::op::v3::Broadcast>(resized_images_s, broadcast_shape);
-    int64_t concat_axis = 0;
-    ov::NodeVector inputs_to_concat = {resized_images_s_1, resized_images_s_2};
-    auto temporal_images = std::make_shared<ov::op::v0::Concat>(inputs_to_concat, concat_axis);
 
     auto reshaped_8d = std::make_shared<ov::op::v1::Reshape>(temporal_images, temp_shape8d, true);
     auto transposed_8d = std::make_shared<ov::op::v1::Transpose>(reshaped_8d, 
@@ -111,7 +219,8 @@ std::shared_ptr<ov::Model> patch_preprocess_into_model(std::shared_ptr<ov::Model
     auto results = model_org->get_results();
 
     return std::make_shared<ov::Model>(results,
-                                       ov::ParameterVector{raw_images_1,
+                                       ov::ParameterVector{same_image,
+                                                           raw_images_1,
                                                            raw_images_2,
                                                            resize_target_shape,
                                                            image_mean,
@@ -544,6 +653,9 @@ std::vector<EncodedImage> VisionEncoderQwen2VL::encode_video(const std::vector<o
         ov::Tensor image_mean(ov::element::f32, ov::Shape{1,a_image_mean.size(),1,1}, a_image_mean.data());
         ov::Tensor image_scale(ov::element::f32, ov::Shape{1,a_image_scale.size(),1,1}, a_image_scale.data());
     
+        ov::Tensor same_image(ov::element::f32, ov::Shape{1}, std::vector<float>{0}.data());
+
+        encoder.set_tensor("same_image", same_image);
         encoder.set_tensor("raw_images_1", raw_image_1);
         encoder.set_tensor("raw_images_2", raw_image_2);
         encoder.set_tensor("resize_target_shape", target_shape);
@@ -619,6 +731,8 @@ EncodedImage VisionEncoderQwen2VL::encode(const ov::Tensor& image, const ov::Any
     ov::Tensor image_mean(ov::element::f32, ov::Shape{1,a_image_mean.size(),1,1}, a_image_mean.data());
     ov::Tensor image_scale(ov::element::f32, ov::Shape{1,a_image_scale.size(),1,1}, a_image_scale.data());
 
+    ov::Tensor same_image(ov::element::f32, ov::Shape{1}, std::vector<float>{0}.data());
+    encoder.set_tensor("same_image", same_image);
     encoder.set_tensor("raw_images_1", raw_images);
     encoder.set_tensor("raw_images_2", raw_images);
     encoder.set_tensor("resize_target_shape", target_shape);
