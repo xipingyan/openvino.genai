@@ -166,21 +166,13 @@ std::vector<ov::Tensor> InputsEmbedder::IInputsEmbedder::to_single_image_tensors
 std::vector<ov::genai::EncodedImage> InputsEmbedder::IInputsEmbedder::encode_images(const std::vector<ov::Tensor>& images, const bool& is_video) {
     std::vector<ov::Tensor> single_images = to_single_image_tensors(images);
     if (is_video) {
-        auto t1 = std::chrono::high_resolution_clock::now();
-        auto res = m_vision_encoder->encode_video(single_images);
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::cout << "encode video time: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-                  << std::endl;
+        return m_vision_encoder->encode_video(single_images);
     }
 
-    auto t1 = std::chrono::high_resolution_clock::now();
     std::vector<EncodedImage> embeds;
     for (const ov::Tensor& image : single_images) {
         embeds.emplace_back(m_vision_encoder->encode(image));
     }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "image video time: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-              << std::endl;
     return embeds;
 }
 
