@@ -30,7 +30,7 @@ TokenIds ContinuousBatchingPipeline::ContinuousBatchingForPromptLookupImpl::gene
 
         // find ngram match in input_ids
         size_t ngram_i = 0;
-        for (size_t input_i = 0; input_i < input_length - ngram_size; input_i++) {
+        for (int32_t input_i = 0; input_i < input_length - ngram_size; input_i++) {
             if (ngram[ngram_i] != input_ids[input_i]) {
                 ngram_i = 0;
                 continue;

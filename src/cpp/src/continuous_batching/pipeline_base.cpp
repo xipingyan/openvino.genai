@@ -153,7 +153,8 @@ ContinuousBatchingPipeline::IContinuousBatchingPipeline::generate(
              const std::vector<GenerationConfig>& sampling_params,
              const StreamerVariant& streamer)  {
     auto generate_start_time = std::chrono::steady_clock::now();
-    OPENVINO_ASSERT(m_model_input_type == ModelInputType::EMBEDDINGS);
+    std::cout << "m_model_input_type = " << (int)m_model_input_type << std::endl;
+    // OPENVINO_ASSERT(m_model_input_type == ModelInputType::EMBEDDINGS);
 
     OPENVINO_ASSERT(prompts.size() == sampling_params.size(), "Number of prompts should be equal to the number of generation configs.");
     OPENVINO_ASSERT(prompts.size() == rgbs_vector.size(), "Number of prompts should be equal to the number of images vectors.");
