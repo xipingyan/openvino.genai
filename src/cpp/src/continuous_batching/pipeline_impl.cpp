@@ -82,6 +82,8 @@ void ContinuousBatchingPipeline::ContinuousBatchingImpl::_pull_awaiting_requests
     m_pipeline_metrics.requests = m_requests.size();
 }
 
+void ContinuousBatchingPipeline::ContinuousBatchingImpl::generate_candidates() {}
+
 void ContinuousBatchingPipeline::ContinuousBatchingImpl::initialize_pipeline(
     std::shared_ptr<ov::Model> model,
     const SchedulerConfig& scheduler_config,
@@ -350,7 +352,15 @@ void ContinuousBatchingPipeline::ContinuousBatchingImpl::step() {
 
         free_fork_timer.end();
     }
-    
+
+    // if (m_model_input_type == ModelInputType::EMBEDDINGS)
+    {
+        static ManualTimer candidates_timer("generate_candidates()");
+        candidates_timer.start();
+        generate_candidates();
+        candidates_timer.end();
+    }
+
     // append embeddings for generated tokens
     if (m_model_input_type == ModelInputType::EMBEDDINGS)
         m_model_runner->append_embeddings(m_requests, scheduler_output);

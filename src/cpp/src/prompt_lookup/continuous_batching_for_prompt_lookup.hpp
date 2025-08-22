@@ -45,8 +45,6 @@ public:
                                  generation_config,
                                  true} {};
 
-    void generate_candidates();
-
     // { generated_len, validation_len }
     using SequenceLen = std::pair<uint64_t, uint64_t>;
     std::map<uint64_t, SequenceLen> get_generated_request_len();
@@ -56,6 +54,7 @@ public:
     size_t get_processed_tokens_per_iteration();
 
     using ContinuousBatchingPipeline::ContinuousBatchingImpl::drop_requests;
+    void generate_candidates() override;
 protected:
     TokenIds generate_candidates(const TokenIds& input_ids, size_t num_pred_tokens, size_t max_ngram_size);
 };
