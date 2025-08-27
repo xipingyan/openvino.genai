@@ -53,10 +53,13 @@ TokenIds ContinuousBatchingPipeline::ContinuousBatchingForPromptLookupImpl::gene
 
     return std::vector<int64_t>{};
 }
-
+extern TokenIds g_input_ids;
 void ContinuousBatchingPipeline::ContinuousBatchingForPromptLookupImpl::generate_candidates() {
     for (auto& request : m_requests) {
-        const auto prompt = request->get_prompt_ids();
+        auto prompt = request->get_prompt_ids();
+        if (g_input_ids.size() > 0 && prompt.size() == 0)
+            prompt = g_input_ids;
+
         size_t max_validation_len = 0;
         for (auto& running_sequence : request->get_running_sequences()) {
             const auto generated_tokens = running_sequence->get_generated_ids();
