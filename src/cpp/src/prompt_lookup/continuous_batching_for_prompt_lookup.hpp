@@ -27,8 +27,23 @@ public:
                             properties,
                             generation_config,
                             true } {};
-                            
-    void generate_candidates();
+
+    ContinuousBatchingForPromptLookupImpl(const std::shared_ptr<ov::Model>& model,
+                                          std::shared_ptr<InputsEmbedder> inputs_embedder,
+                                          const Tokenizer& tokenizer,
+                                          const SchedulerConfig& scheduler_config,
+                                          const std::string& device,
+                                          const ov::AnyMap& properties,
+                                          const ov::genai::GenerationConfig& generation_config,
+                                          bool is_validation_mode_enabled = false)
+        : ContinuousBatchingImpl{model,
+                                 inputs_embedder,
+                                 tokenizer,
+                                 scheduler_config,
+                                 device,
+                                 properties,
+                                 generation_config,
+                                 true} {};
 
     // { generated_len, validation_len }
     using SequenceLen = std::pair<uint64_t, uint64_t>;
@@ -39,6 +54,7 @@ public:
     size_t get_processed_tokens_per_iteration();
 
     using ContinuousBatchingPipeline::ContinuousBatchingImpl::drop_requests;
+    void generate_candidates() override;
 protected:
     TokenIds generate_candidates(const TokenIds& input_ids, size_t num_pred_tokens, size_t max_ngram_size);
 };
