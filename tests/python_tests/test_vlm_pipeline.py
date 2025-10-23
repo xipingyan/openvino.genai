@@ -75,6 +75,7 @@ class VlmModelInfo:
 PROMPTS: list[str] = [
     "What is on the image?",
     "What is special about this image?",
+    "What is on the video?"
 ]
 
 
@@ -360,6 +361,12 @@ def synthetic_video_32x32(synthetic_video):
 
 
 @pytest.fixture(scope="module")
+def video_frame_3(synthetic_video):
+    frm_num = min(len(synthetic_video), 3)
+    return synthetic_video[:frm_num]
+
+
+@pytest.fixture(scope="module")
 def cat_image_384x384(cat_image):
     return cat_image.resize((384, 384))
 
@@ -390,6 +397,11 @@ def synthetic_video_32x32_tensor(synthetic_video_32x32):
 
 
 @pytest.fixture(scope="module")
+def video_frame_3_tensor(video_frame_3):
+    return openvino.Tensor(video_frame_3)
+
+
+@pytest.fixture(scope="module")
 def handwritten_tensor(pytestconfig: pytest.Config) -> openvino.Tensor:
     return openvino.Tensor(from_cache_or_download(pytestconfig, TEST_IMAGE_URLS['handwritten'], "handwritten.png"))
 
@@ -402,6 +414,14 @@ def handwritten_tensor(pytestconfig: pytest.Config) -> openvino.Tensor:
 def test_images(request: pytest.FixtureRequest):
     return [request.getfixturevalue(image) for image in request.param]
 
+
+@pytest.fixture(scope="function", params=[
+    pytest.param([], id="no_videos"),
+    pytest.param(["synthetic_video_32x32_tensor"], id="single_video"),
+    pytest.param(["synthetic_video_32x32_tensor", "video_frame_3_tensor"], id="multiple_videos"),
+])
+def test_videos(request: pytest.FixtureRequest):
+    return [request.getfixturevalue(video) for video in request.param]
 
 @pytest.mark.precommit
 @parametrize_all_models
@@ -424,6 +444,26 @@ def test_vlm_pipeline(ov_pipe_model: VlmModelInfo, test_images: list[openvino.Te
     )
     assert res.texts[0] == "".join(result_from_streamer)
 
+@pytest.mark.precommit
+@parametrize_all_models_with_video
+def test_vlm_pipeline_only_input_video(ov_pipe_model: VlmModelInfo, test_videos: list[openvino.Tensor]):
+    ov_pipe = ov_pipe_model.pipeline
+    result_from_streamer = []
+
+    def streamer(word: str) -> bool:
+        nonlocal result_from_streamer
+        result_from_streamer.append(word)
+        return False
+
+    generation_config = _setup_generation_config(ov_pipe)
+
+    res = ov_pipe.generate(
+        PROMPTS[2],
+        videos=test_videos,
+        generation_config=generation_config,
+        streamer=streamer,
+    )
+    assert res.texts[0] == "".join(result_from_streamer)
 
 @pytest.mark.precommit
 @pytest.mark.parametrize(
