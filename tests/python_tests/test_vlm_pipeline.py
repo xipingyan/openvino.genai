@@ -420,7 +420,7 @@ def test_images(request: pytest.FixtureRequest):
     pytest.param(["synthetic_video_32x32_tensor"], id="single_video"),
     pytest.param(["synthetic_video_32x32_tensor", "video_frame_3_tensor"], id="multiple_videos"),
 ])
-def test_videos(request: pytest.FixtureRequest):
+def synthetic_video(request: pytest.FixtureRequest):
     return [request.getfixturevalue(video) for video in request.param]
 
 @pytest.mark.precommit
