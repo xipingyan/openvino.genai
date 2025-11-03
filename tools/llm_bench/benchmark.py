@@ -229,6 +229,8 @@ def get_argprser():
                         help="Path to .bin or .pt file with speaker embeddings for text to speech scenarios")
     parser.add_argument("--vocoder_path", type=str, default=None,
                         help="Path to vocoder  for text to speech scenarios")
+    parser.add_argument("-vf", "--video_frames", type=int, default=None,
+                        help="number of video frames to process")
     return parser.parse_args()
 
 
@@ -254,7 +256,6 @@ def main():
         **logging_kwargs
     )
     args = get_argprser()
-
     if args.tokens_len is not None and not args.streaming:
         log.error("--tokens_len requires --streaming to be set.")
         exit(1)
@@ -315,7 +316,8 @@ def main():
                 args.num_iters, memory_data_collector)
         else:
             iter_data_list, pretrain_time, iter_timestamp = CASE_TO_BENCH[model_args['use_case'].task](
-                model_path, framework, args.device, model_args, args.num_iters, memory_data_collector)
+                model_path, framework, args.device, model_args, args.num_iters,
+                memory_data_collector, args.video_frames)
         if args.report is not None or args.report_json is not None:
             model_precision = ''
             if framework == 'ov':
