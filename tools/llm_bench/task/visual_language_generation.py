@@ -334,8 +334,10 @@ def run_visual_language_generation_benchmark(
     log.info(f"Numbeams: {args['num_beams']}, benchmarking iter nums(exclude warm-up): {num_iters}, "
              f'prompt nums: {len(image_text_list)}, prompt idx: {prompt_idx_list}')
 
-    if use_genai: gen_fn = run_visual_language_generation_genai
-    else: gen_fn = run_visual_language_generation_optimum
+    if use_genai:
+        gen_fn = run_visual_language_generation_genai
+    else:
+        gen_fn = run_visual_language_generation_optimum
 
     proc_id = os.getpid()
     iter_timestamp = model_utils.init_timestamp(num_iters, image_text_list, prompt_idx_list)
@@ -350,8 +352,8 @@ def run_visual_language_generation_benchmark(
                     input_text, num, model, processor, args, iter_data_list, md5_list,
                     p_idx, bench_hook, model_precision, proc_id, mem_consumption, required_frames)
                 iter_timestamp[num][p_idx]['end'] = datetime.datetime.now().isoformat()
-                prefix = '[warm-up]' if num == 0 else '[{}]'.format(num)
-                log.info(f"{prefix}[P{p_idx}] start: {iter_timestamp[num][p_idx]['start']}, end: {iter_timestamp[num][p_idx]['end']}")
+                prefix = f"[warm-up][P{p_idx}]" if num == 0 else f"[{num}][P{p_idx}]"
+                log.info(f"{prefix} start: {iter_timestamp[num][p_idx]['start']}, end: {iter_timestamp[num][p_idx]['end']}")
     else:
         for idx, input_text in enumerate(image_text_list):
             p_idx = prompt_idx_list[idx]
@@ -363,8 +365,8 @@ def run_visual_language_generation_benchmark(
                     input_text, num, model, processor, args, iter_data_list, md5_list, prompt_idx_list[idx],
                     bench_hook, model_precision, proc_id, mem_consumption, required_frames)
                 iter_timestamp[num][p_idx]['end'] = datetime.datetime.now().isoformat()
-                prefix = '[warm-up]' if num == 0 else '[{}]'.format(num)
-                log.info(f"{prefix}[P{p_idx}] start: {iter_timestamp[num][p_idx]['start']}, end: {iter_timestamp[num][p_idx]['end']}")
+                prefix = f"[warm-up][P{p_idx}]" if num == 0 else f"[{num}][P{p_idx}]"
+                log.info(f"{prefix} start: {iter_timestamp[num][p_idx]['start']}, end: {iter_timestamp[num][p_idx]['end']}")
 
     metrics_print.print_average(iter_data_list, prompt_idx_list, args['batch_size'], True)
     return iter_data_list, pretrain_time, iter_timestamp
@@ -378,7 +380,7 @@ def get_image_text_prompt(args):
         if len(vlm_param_list) > 0:
             for vlm_file in vlm_param_list:
                 if args['prompt_file'] is not None and len(args['prompt_file']) > 0 and 'media' in vlm_file:
-                    if 'video' in vlm_file: log.warning('media and video cannot be specify in a single prompt file')
+                    if 'video' in vlm_file: raise ValueError('media and video cannot be specify in a single prompt file')
                     vlm_file['media'] = model_utils.resolve_media_file_path(vlm_file.get('media'), args['prompt_file'][0])
                 elif args['prompt_file'] is not None and len(args['prompt_file']) > 0 and 'video' in vlm_file:
                     vlm_file['video'] = model_utils.resolve_media_file_path(vlm_file.get('video'), args['prompt_file'][0])
