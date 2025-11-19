@@ -20,13 +20,14 @@ public:
     EncodedImage encode(const ov::Tensor& image, const ov::AnyMap& config_map) override;
     EncodedVideo encode_frames(const std::vector<ov::Tensor>& frames, const ov::AnyMap& config_map) override;
 
-private:
-    void encode_with_imagepreprocess_cpp(const std::vector<ov::Tensor>& image,
+protected:
+    virtual void encode_with_imagepreprocess_cpp(const std::vector<ov::Tensor>& images,
                                                  const ov::AnyMap& config_map,
                                                  ov::Tensor& out_tensor,
                                                  ImageSize& out_rsz_size,
                                                  size_t frame_num = 1,
                                                  size_t frame_id = 0);
+private:
     void encode_with_imagepreprocess_ov(const std::vector<ov::Tensor>& image,
                                         const ov::AnyMap& config_map,
                                         ov::Tensor& out_tensor,
