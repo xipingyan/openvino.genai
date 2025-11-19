@@ -649,7 +649,10 @@ std::unique_ptr<CircularBufferQueue<ov::InferRequest>> create_vision_encoder_ire
         });
 }
 
+extern bool g_enable_custom_vit;
 bool check_image_preprocess_env() {
+    if (g_enable_custom_vit)
+        return false;
     const char* env = std::getenv("IMAGE_PREPROCESS");
     return !(env && std::string(env) == "CPP");
 }

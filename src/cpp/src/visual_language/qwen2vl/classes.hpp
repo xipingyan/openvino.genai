@@ -11,7 +11,7 @@
 #include "visual_language/inputs_embedder.hpp"
 
 namespace ov::genai {
-
+extern bool g_enable_custom_vit;
 class VisionEncoderQwen2VL : public VisionEncoder {
 public:
     explicit VisionEncoderQwen2VL(const std::filesystem::path& model_dir, const std::string& device, const ov::AnyMap properties);
