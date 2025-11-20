@@ -68,13 +68,14 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
     create = (pfnCreateQwen2vl*)GetProcAddress(static_cast<HMODULE>(m), "createModelQwen2vl");
     release = (pfnReleaseQwen2vl*)GetProcAddress(static_cast<HMODULE>(m), "releaseModelQwen2vl");
     inference = (pfnInferenceVitQwen2vl*)GetProcAddress(static_cast<HMODULE>(m), "inferenceVitQwen2vl");
+    std::string model_weight_fn = (custom_vit_path + "\\weights\\qwen2p5.3b.bf16vit.q40llm");
 #else
     create = (pfnCreateQwen2vl*)dlsym(m, "createModelQwen2vl");
     release = (pfnReleaseQwen2vl*)dlsym(m, "releaseModelQwen2vl");
     inference = (pfnInferenceVitQwen2vl*)dlsym(m, "inferenceVitQwen2vl");
+    std::string model_weight_fn = (custom_vit_path + "/weights/qwen2p5.3b.bf16vit.q40llm");
 #endif
 
-    std::string model_weight_fn = (custom_vit_path + "/weights/qwen2p5.3b.bf16vit.q40llm");
     size_t len = model_weight_fn.length();
     char_weight_fn = new char[len + 1];
     std::strcpy(char_weight_fn, model_weight_fn.c_str());
@@ -251,6 +252,8 @@ std::pair<ov::Tensor, ov::Tensor> InputsEmbedderQwen2_5_VL_CustomVIT::run_video_
 
     ov::Shape image_fea_shape({1215,2048});
     ov::Tensor res_image(ov::element::f32, image_fea_shape);
+
+    std::cout << "== inputFiles = " << inputFiles[0] << std::endl;
 
     size_t remaining = 1;
     std::cout << "== start to call vit inference. " << std::endl;
