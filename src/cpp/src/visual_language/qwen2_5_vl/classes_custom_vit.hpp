@@ -64,6 +64,10 @@ private:
     pfnReleaseQwen2vl* release = nullptr;
     pfnInferenceVitQwen2vl* inference = nullptr;
     void load_custom_vit_lib();
+    void update_buffer(const size_t& width, const size_t& height);
+    void release_buffer();
+    size_t _width = 0;
+    size_t _height = 0;
 
     void* qwen2vlModel = nullptr;
     uint32_t batchSize = 1;

@@ -88,21 +88,6 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
         exit(0);
     }
 
-    outputEmbeds = (char**)malloc(batchSize * sizeof(char*));
-    outputRope = (uint32_t**)malloc(batchSize * sizeof(uint32_t*));
-
-    embedLength = (uint32_t*)malloc(batchSize * sizeof(uint32_t));
-    ropeLength = (uint32_t*)malloc(batchSize * sizeof(uint32_t));
-
-    size_t maxEmbedSize = ((1008 / 28) * (1008 / 28) + 800) * 3584 * sizeof(float);
-    size_t maxRopeSize = ((1008 / 28) * (1008 / 28) + 800) * 3 * sizeof(uint32_t);
-    for (int32_t ii = 0; ii < batchSize; ii++) {
-        outputEmbeds[ii] = (char*)malloc(maxEmbedSize);
-    }
-    for (int32_t ii = 0; ii < batchSize; ii++) {
-        outputRope[ii] = (uint32_t*)malloc(maxRopeSize);
-    }
-
     inputFiles = (char**)malloc(batchSize * sizeof(char*));
     memset(inputFiles, 0, batchSize * sizeof(char*));
     std::string img_fn = get_img_path();
@@ -119,14 +104,49 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
     }
 }
 
-InputsEmbedderQwen2_5_VL_CustomVIT::~InputsEmbedderQwen2_5_VL_CustomVIT() {
+void InputsEmbedderQwen2_5_VL_CustomVIT::update_buffer(const size_t& width, const size_t& height) {
+    if (_height == height || _width == width) {
+        return;
+    }
+
+    _height = height;
+    _width = width;
+    release_buffer();
+
+    outputEmbeds = (char**)malloc(batchSize * sizeof(char*));
+    outputRope = (uint32_t**)malloc(batchSize * sizeof(uint32_t*));
+
+    embedLength = (uint32_t*)malloc(batchSize * sizeof(uint32_t));
+    ropeLength = (uint32_t*)malloc(batchSize * sizeof(uint32_t));
+
+    size_t maxEmbedSize = ((_width / 28) * (_width / 28) + _height) * 3584 * sizeof(float);
+    size_t maxRopeSize = ((_width / 28) * (_width / 28) + _height) * 3 * sizeof(uint32_t);
+    for (int32_t ii = 0; ii < batchSize; ii++) {
+        outputEmbeds[ii] = (char*)malloc(maxEmbedSize);
+    }
+    for (int32_t ii = 0; ii < batchSize; ii++) {
+        outputRope[ii] = (uint32_t*)malloc(maxRopeSize);
+    }
+}
+
+void InputsEmbedderQwen2_5_VL_CustomVIT::release_buffer() {
     free(embedLength);
     free(ropeLength);
     for (int32_t ii = 0; ii < batchSize; ii++) {
-      free(outputEmbeds[ii]);
-      free(outputRope[ii]);
-      free(inputFiles[ii]);
+      free(outputEmbeds[ii]); outputEmbeds[ii] = nullptr;
+      free(outputRope[ii]); outputRope[ii] = nullptr;
     }
+    free(outputEmbeds);  outputEmbeds = nullptr;
+    free(outputRope); outputRope = nullptr;
+}
+
+InputsEmbedderQwen2_5_VL_CustomVIT::~InputsEmbedderQwen2_5_VL_CustomVIT() {
+    release_buffer();
+
+    for (int32_t ii = 0; ii < batchSize; ii++) {
+        free(inputFiles[ii]);
+    }
+
     if (nullptr != m) {
   #if defined(_MSC_VER)
       FreeLibrary(static_cast<HMODULE>(m));
@@ -134,8 +154,7 @@ InputsEmbedderQwen2_5_VL_CustomVIT::~InputsEmbedderQwen2_5_VL_CustomVIT() {
       dlclose(m);
   #endif
     }
-    free(outputEmbeds);
-    free(outputRope);
+
     free(inputFiles);
     free(char_weight_fn);
 }
@@ -193,6 +212,9 @@ void VisionEncoderQwen2_5_VL_CustomVIT::encode_with_imagepreprocess_cpp(const st
                                                                         size_t frame_id) {
     ProcessorConfig config = utils::from_any_map(config_map, m_processor_config);
     ov::Shape orig_shape = images[0].get_shape();
+    
+    update_buffer(orig_shape.at(2), orig_shape.at(1));
+
     ImageSize target_image_size = smart_resize(orig_shape.at(1),
                                                orig_shape.at(2),
                                                config.patch_size * config.merge_size,
@@ -230,10 +252,12 @@ std::pair<ov::Tensor, ov::Tensor> InputsEmbedderQwen2_5_VL_CustomVIT::run_video_
     ov::Shape image_fea_shape({1215,2048});
     ov::Tensor res_image(ov::element::f32, image_fea_shape);
 
-    // (char*)promptIn.c_str()
     size_t remaining = 1;
+    std::cout << "== start to call vit inference. " << std::endl;
     inference(qwen2vlModel, inputFiles, nullptr, (uint8_t**)outputEmbeds, outputRope, embedLength, ropeLength, remaining);
+    std::cout << "== inference done. " << std::endl;
     std::memcpy(res_image.data(), outputEmbeds[0], res_image.get_byte_size());
+    std::cout << "== copy output done. " << std::endl;
 
     // {
     //     FILE* pf = fopen("dump_embedding.dat", "rb");
