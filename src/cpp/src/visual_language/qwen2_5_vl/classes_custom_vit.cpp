@@ -88,6 +88,7 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
         std::cout << "== create custom vit fail." << std::endl;
         exit(0);
     }
+    std::cout << "== Call create done." << std::endl;
 
     inputFiles = (char**)malloc(batchSize * sizeof(char*));
     memset(inputFiles, 0, batchSize * sizeof(char*));
@@ -104,7 +105,7 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
         inputFiles[ii][len] = '\0';
     }
 
-    update_buffer(1256, 768);
+    update_buffer(1008, 800);
 }
 
 void InputsEmbedderQwen2_5_VL_CustomVIT::update_buffer(const size_t& width, const size_t& height) {
