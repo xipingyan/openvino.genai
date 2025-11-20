@@ -283,9 +283,9 @@ std::pair<ov::Tensor, ov::Tensor> InputsEmbedderQwen2_5_VL_CustomVIT::run_video_
 
     size_t remaining = 1;
     MY_COUT("== start to call vit inference. ")
-    auto t1 = std::chrono::high_resolution_clock();
+    auto t1 = std::chrono::high_resolution_clock::now();
     inference(qwen2vlModel, inputFiles, nullptr, (uint8_t**)outputEmbeds, outputRope, embedLength, ropeLength, remaining);
-    auto t2 = std::chrono::high_resolution_clock();
+    auto t2 = std::chrono::high_resolution_clock::now();
     std::cout << " == vit time: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;
     MY_COUT("== inference done. ")
     std::memcpy(res_image.data(), outputEmbeds[0], res_image.get_byte_size());
