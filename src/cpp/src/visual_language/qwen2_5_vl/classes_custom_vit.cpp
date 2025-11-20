@@ -12,15 +12,21 @@
 #endif
 namespace ov::genai {
 
+    #ifdef _DEBUG
+    #define MY_COUT(TXT) std::cout << TXT << std::endl;
+    #else
+    #define MY_COUT(TXT)
+    #endif
+
 inline bool init_global_var() {
     auto env = std::getenv("ENABLE_CUSTOM_VIT");
     if (env) {
         if (env == std::string("1")) {
-            std::cout << "== ENABLE_CUSTOM_VIT = true" << std::endl;
+            MY_COUT("== ENABLE_CUSTOM_VIT = true")
             return true;
         }
     }
-    std::cout << "== ENABLE_CUSTOM_VIT = false" << std::endl;
+    MY_COUT("== ENABLE_CUSTOM_VIT = false")
     return false;
 }
 bool g_enable_custom_vit = init_global_var();
@@ -28,7 +34,7 @@ bool g_enable_custom_vit = init_global_var();
 inline std::string init_custom_vit_path() {
     auto env = std::getenv("CUSTOM_VIT_PATH");
     if (env) {
-        std::cout << "== CUSTOM_VIT_PATH = " << env << std::endl;
+        MY_COUT("== CUSTOM_VIT_PATH = " << env)
         return std::string(env);
     }
     return std::string();
@@ -38,7 +44,7 @@ static std::string custom_vit_path = init_custom_vit_path();
 inline std::string get_img_path() {
     auto env = std::getenv("CUSTOM_VIT_IMG_PATH");
     if (env) {
-        std::cout << "== CUSTOM_VIT_IMG_PATH = " << env << std::endl;
+        MY_COUT("== CUSTOM_VIT_IMG_PATH = " << env)
         return std::string(env);
     }
     return std::string();
@@ -62,7 +68,7 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
         exit(1);
     }
 #endif
-    std::cout << "== vit_lib_path = " << vit_lib_path.c_str() << std::endl;
+MY_COUT( "== vit_lib_path = " << vit_lib_path.c_str())
 
 #if defined(_MSC_VER)
     create = (pfnCreateQwen2vl*)GetProcAddress(static_cast<HMODULE>(m), "createModelQwen2vl");
@@ -80,21 +86,21 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
     char_weight_fn = new char[len + 1];
     std::strcpy(char_weight_fn, model_weight_fn.c_str());
 
-    std::cout << "== char_weight_fn = " << char_weight_fn << std::endl;
+    MY_COUT("== char_weight_fn = " << char_weight_fn)
 
     uint32_t flag = 1;
     qwen2vlModel = create(batchSize, char_weight_fn, flag);
     if (nullptr == qwen2vlModel) {
-        std::cout << "== create custom vit fail." << std::endl;
+        MY_COUT("== create custom vit fail.")
         exit(0);
     }
-    std::cout << "== Call create done." << std::endl;
+    MY_COUT("== Call create done.")
 
     inputFiles = (char**)malloc(batchSize * sizeof(char*));
     memset(inputFiles, 0, batchSize * sizeof(char*));
     std::string img_fn = get_img_path();
     if (!file_exists(img_fn)) {
-        std::cout << "Fail, img file does't exit:" << img_fn << std::endl;
+        MY_COUT("Fail, img file does't exit:" << img_fn)
         exit(0);
     }
 
@@ -254,7 +260,7 @@ std::vector<ov::genai::EncodedImage> InputsEmbedderQwen2_5_VL_CustomVIT::encode_
     std::vector<EncodedImage> embeds;
     std::vector<ov::Tensor> single_images = to_single_image_tensors(images);
     for (ov::Tensor& image : single_images) {
-        std::cout << "== image = " << image.get_shape() << std::endl;
+        MY_COUT("== image = " << image.get_shape())
         
         embeds.emplace_back(m_vision_encoder->encode(image));
     }
@@ -273,14 +279,14 @@ std::pair<ov::Tensor, ov::Tensor> InputsEmbedderQwen2_5_VL_CustomVIT::run_video_
     ov::Shape image_fea_shape({1215,2048});
     ov::Tensor res_image(ov::element::f32, image_fea_shape);
 
-    std::cout << "== inputFiles = " << inputFiles[0] << std::endl;
+    MY_COUT("== inputFiles = " << inputFiles[0])
 
     size_t remaining = 1;
-    std::cout << "== start to call vit inference. " << std::endl;
+    MY_COUT("== start to call vit inference. ")
     inference(qwen2vlModel, inputFiles, nullptr, (uint8_t**)outputEmbeds, outputRope, embedLength, ropeLength, remaining);
-    std::cout << "== inference done. " << std::endl;
+    MY_COUT("== inference done. ")
     std::memcpy(res_image.data(), outputEmbeds[0], res_image.get_byte_size());
-    std::cout << "== copy output done. " << std::endl;
+    MY_COUT("== copy output done. ")
 
     // {
     //     FILE* pf = fopen("dump_embedding.dat", "rb");
