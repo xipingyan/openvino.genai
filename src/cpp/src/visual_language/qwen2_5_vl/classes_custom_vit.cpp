@@ -134,14 +134,33 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::update_buffer(const size_t& width, cons
 }
 
 void InputsEmbedderQwen2_5_VL_CustomVIT::release_buffer() {
-    free(embedLength);
-    free(ropeLength);
-    for (int32_t ii = 0; ii < batchSize; ii++) {
-      free(outputEmbeds[ii]); outputEmbeds[ii] = nullptr;
-      free(outputRope[ii]); outputRope[ii] = nullptr;
+    if (embedLength)
+        free(embedLength);
+    if (ropeLength)
+        free(ropeLength);
+
+    if (outputEmbeds) {
+        for (int32_t ii = 0; ii < batchSize; ii++) {
+            if (outputEmbeds[ii]) {
+                free(outputEmbeds[ii]);
+                outputEmbeds[ii] = nullptr;
+            }
+        }
+
+        free(outputEmbeds);
+        outputEmbeds = nullptr;
     }
-    free(outputEmbeds);  outputEmbeds = nullptr;
-    free(outputRope); outputRope = nullptr;
+    if (outputRope) {
+        for (int32_t ii = 0; ii < batchSize; ii++) {
+            if (outputRope[ii]) {
+                free(outputRope[ii]);
+                outputRope[ii] = nullptr;
+            }
+        }
+
+        free(outputRope);
+        outputRope = nullptr;
+    }
 }
 
 InputsEmbedderQwen2_5_VL_CustomVIT::~InputsEmbedderQwen2_5_VL_CustomVIT() {
