@@ -102,6 +102,8 @@ void InputsEmbedderQwen2_5_VL_CustomVIT::load_custom_vit_lib() {
         img_fn.copy(inputFiles[ii], len, 0);
         inputFiles[ii][len] = '\0';
     }
+
+    update_buffer(1256, 768);
 }
 
 void InputsEmbedderQwen2_5_VL_CustomVIT::update_buffer(const size_t& width, const size_t& height) {
@@ -212,8 +214,6 @@ void VisionEncoderQwen2_5_VL_CustomVIT::encode_with_imagepreprocess_cpp(const st
                                                                         size_t frame_id) {
     ProcessorConfig config = utils::from_any_map(config_map, m_processor_config);
     ov::Shape orig_shape = images[0].get_shape();
-    
-    update_buffer(orig_shape.at(2), orig_shape.at(1));
 
     ImageSize target_image_size = smart_resize(orig_shape.at(1),
                                                orig_shape.at(2),
