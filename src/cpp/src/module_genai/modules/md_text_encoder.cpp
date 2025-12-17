@@ -13,7 +13,9 @@ namespace genai {
 namespace module {
 
 TextEncoderModule::TextEncoderModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
-    
+    if (!initialize()) {
+        std::cerr << "Failed to initiate TextEncoderModule" << std::endl;
+    }
 }
 
 bool TextEncoderModule::initialize() {
@@ -48,12 +50,6 @@ bool TextEncoderModule::initialize(const std::filesystem::path& tokenizer_path,
 }
 
 TokenizedInputs TextEncoderModule::run(const std::string& prompt) {
-    // TODO: 似乎暂时缺少各模块的initiate?
-    const auto& params = module_desc->params;
-    auto it_path = params.find("model_path");
-    std::filesystem::path tokenizer_path = it_path->second;
-    m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, m_tokenization_params);
-
     OPENVINO_ASSERT(m_tokenizer_impl, "TextEncoderModule is not initialized. Call initialize() first.");
     check_arguments(m_tokenization_params, {ov::genai::add_special_tokens.name(),
                                             ov::genai::max_length.name(),
