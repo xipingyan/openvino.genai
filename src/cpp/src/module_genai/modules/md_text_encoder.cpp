@@ -48,8 +48,10 @@ bool TextEncoderModule::initialize(const std::filesystem::path& tokenizer_path,
 }
 
 TokenizedInputs TextEncoderModule::run(const std::string& prompt) {
-    // TODO: 似乎暂时缺少各模块的initiate？hard code here
-    std::filesystem::path tokenizer_path = "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4";
+    // TODO: 似乎暂时缺少各模块的initiate?
+    const auto& params = module_desc->params;
+    auto it_path = params.find("model_path");
+    std::filesystem::path tokenizer_path = it_path->second;
     m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, m_tokenization_params);
 
     OPENVINO_ASSERT(m_tokenizer_impl, "TextEncoderModule is not initialized. Call initialize() first.");
