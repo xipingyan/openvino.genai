@@ -26,9 +26,6 @@ public:
 
     void run() override;
 
-    bool initialize(const std::filesystem::path& tokenizer_path,
-                    const ov::AnyMap& properties = {});
-
     using PTR = std::shared_ptr<TextEncoderModule>;
     static PTR create(const IBaseModuleDesc::PTR& desc) {
         return PTR(new TextEncoderModule(desc));
@@ -37,9 +34,9 @@ public:
 private:
     std::shared_ptr<Tokenizer::TokenizerImpl> m_tokenizer_impl;
     ov::AnyMap m_tokenization_params = {};
-    std::string m_prompt = "Describe this image.";
-    // TODO: 假定只有单条 prompt
-    TokenizedInputs run(const std::string& prompt);
+    std::vector<std::string> m_prompts = {};
+    bool initialize();
+    TokenizedInputs run(const std::vector<std::string>& prompts);
 };
 
 }  // namespace module

@@ -27,35 +27,29 @@ bool TextEncoderModule::initialize() {
     }
     
     std::filesystem::path tokenizer_path = it_path->second;
-    return initialize(tokenizer_path, m_tokenization_params);
+    m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, m_tokenization_params);
+    return true;
 }
 
 void TextEncoderModule::run() {
     std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
               << module_desc->name << "]" << std::endl;
     
-    // TODO: 从 inputs 中获取 prompt 数据
-    if (m_prompt.empty()) {
-        return;
-    }
-    auto encoded = run(m_prompt);
-    // TODO: 设置outputs
+    prepare_inputs();
+    m_prompts = this->inputs["prompts_data"].data.as<std::vector<std::string>>();
+    auto encoded = run(m_prompts);
+
+    this->outputs["input_ids"].data = encoded.input_ids;
+    this->outputs["mask"].data = encoded.attention_mask;
 }
 
-bool TextEncoderModule::initialize(const std::filesystem::path& tokenizer_path,
-                                   const ov::AnyMap& properties) {
-    m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, properties);
-    m_tokenization_params = properties;
-    return true;
-}
-
-TokenizedInputs TextEncoderModule::run(const std::string& prompt) {
+TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts) {
     OPENVINO_ASSERT(m_tokenizer_impl, "TextEncoderModule is not initialized. Call initialize() first.");
     check_arguments(m_tokenization_params, {ov::genai::add_special_tokens.name(),
                                             ov::genai::max_length.name(),
                                             ov::genai::pad_to_max_length.name(),
                                             ov::genai::padding_side.name()});
-    return m_tokenizer_impl->encode(prompt, m_tokenization_params);
+    return m_tokenizer_impl->encode(prompts, m_tokenization_params);
 }
 
 }  // namespace module
