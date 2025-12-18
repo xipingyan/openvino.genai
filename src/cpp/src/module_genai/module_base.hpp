@@ -6,6 +6,8 @@
 #include "openvino/genai/visibility.hpp"
 #include "openvino/core/any.hpp"
 
+#include "module_genai/module_type.hpp"
+
 namespace ov {
 namespace genai {
 namespace module {
@@ -37,7 +39,7 @@ public:
     virtual ~IBaseModuleDesc() = default;
 
     std::string name = "Unknown";
-    int type = 0;
+    ModuleType type = ModuleType::Unknown;
     std::vector<InputPort> inputs;
     std::vector<OutputPort> outputs;
     std::string device;

@@ -35,8 +35,7 @@ void module_connect(PipelineModuleInstance& pipeline_instance) {
 void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleInstance& pipeline_instance) {
     for (auto& module_desc : pipeline_desc) {
         IBaseModule::PTR module_ptr = nullptr;
-        auto cur_module_type = static_cast<ModuleType>(module_desc.second->type);
-        switch (cur_module_type) {
+        switch (module_desc.second->type) {
         case ModuleType::ParameterModule:
             module_ptr = ParameterModule::create(module_desc.second);
             break;
@@ -52,7 +51,7 @@ void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleI
         default:
             break;
         }
-        OPENVINO_ASSERT(module_ptr, "No implementation for type: " + ModuleTypeConverter::toString(cur_module_type));
+        OPENVINO_ASSERT(module_ptr, "No implementation for type: " + ModuleTypeConverter::toString(module_desc.second->type));
         pipeline_instance.push_back(module_ptr);
     }
     module_connect(pipeline_instance);

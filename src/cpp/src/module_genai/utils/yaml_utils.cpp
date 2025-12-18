@@ -61,7 +61,7 @@ IBaseModuleDesc::PTR parse_module(const YAML::Node& node) {
         std::string md_type = node["type"].as<std::string>();
         module_type = ModuleTypeConverter::fromString(md_type);
         OPENVINO_ASSERT(module_type != ModuleType::Unknown, "Unknown ModuleType string: " + md_type);
-        desc->type = static_cast<int>(module_type);
+        desc->type = module_type;
     }
 
     // Parse common contribute.
