@@ -37,6 +37,12 @@ private:
     void* m_pipeline_impl = nullptr;
 };
 
+void OPENVINO_GENAI_EXPORTS PrintAllModulesConfig();
+
+std::vector<std::string> OPENVINO_GENAI_EXPORTS ListAllModules();
+
+void OPENVINO_GENAI_EXPORTS PrintModuleConfig(const std::string& module_name);
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov

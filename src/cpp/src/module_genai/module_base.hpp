@@ -3,24 +3,24 @@
 
 #pragma once
 
-#include "openvino/genai/visibility.hpp"
-#include "openvino/core/any.hpp"
-
+#include "module_genai/module_print_config.hpp"
 #include "module_genai/module_type.hpp"
+#include "openvino/core/any.hpp"
+#include "openvino/genai/visibility.hpp"
 
 namespace ov {
 namespace genai {
 namespace module {
 
-    enum class DataType : int {
-        Unknown = 0,
-        OVTensor = 1,
-        VecOVTensor = 2,
-        OVRemoteTensor = 3,
-        VecOVRemoteTensor = 4,
-        String = 10,
-        VecString = 11,
-    };
+enum class DataType : int {
+    Unknown = 0,
+    OVTensor = 1,
+    VecOVTensor = 2,
+    OVRemoteTensor = 3,
+    VecOVRemoteTensor = 4,
+    String = 10,
+    VecString = 11,
+};
 
 struct OutputPort {
     std::string name;
@@ -34,7 +34,7 @@ struct InputPort {
     std::string source_module_out_name;
 };
 
-class OPENVINO_GENAI_EXPORTS IBaseModuleDesc {
+class IBaseModuleDesc {
 public:
     virtual ~IBaseModuleDesc() = default;
 
@@ -70,28 +70,13 @@ public:
     };
 
     IBaseModule() = delete;
-    IBaseModule(const IBaseModuleDesc::PTR& desc) : module_desc(desc) {
-        std::cout << "Init IBaseModule with module name : " << module_desc->name << std::endl;
-        for (auto& input : desc->inputs) {
-            this->inputs[input.source_module_out_name] = InputModule();
-        }
-        for (auto& output : desc->outputs) {
-            this->outputs[output.name] = OutputModule();
-        }
-    }
+    IBaseModule(const IBaseModuleDesc::PTR& desc);
 
-    virtual void prepare_inputs() {
-        for (auto& input : this->inputs) {
-            const auto& parent_port_name = input.first;
-            input.second.data = input.second.module_ptr->outputs[parent_port_name].data;
-        }
-    }
+    virtual void prepare_inputs();
 
     virtual void run() = 0;
 
-    const std::string& get_module_name() const {
-        return module_desc->name;
-    }
+    const std::string& get_module_name() const;
 
     // Port name -> InputModule
     std::map<std::string, InputModule> inputs;

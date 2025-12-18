@@ -12,6 +12,25 @@ namespace ov {
 namespace genai {
 namespace module {
 
+void TextEncoderModule::print_static_config() {
+    std::cout << R"(
+  prompt_encoder:                       # Module Name
+    type: "TextEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "prompts"
+        type: "String"
+        source: "ParentModuleName.OutputPortName"
+    outputs:
+      - name: "prompt_embedding"
+        type: "OVRemoteTensor"
+      - name: "mask"
+        type: "OVRemoteTensor"
+    params:
+      model_path: "models/text_encoder.xml"  # Optional. OpenVINO IR
+    )" << std::endl;
+}
+
 TextEncoderModule::TextEncoderModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
     if (!initialize()) {
         std::cerr << "Failed to initiate TextEncoderModule" << std::endl;

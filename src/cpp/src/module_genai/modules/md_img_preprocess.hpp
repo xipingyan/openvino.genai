@@ -29,7 +29,11 @@ public:
     static PTR create(const IBaseModuleDesc::PTR& desc) {
         return PTR(new ImagePreprocesModule(desc));
     }
+
+    static void print_static_config();
 };
+
+REGISTER_MODULE_CONFIG(ImagePreprocesModule);
 
 }  // namespace module
 }  // namespace genai

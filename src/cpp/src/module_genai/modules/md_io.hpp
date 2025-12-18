@@ -29,7 +29,11 @@ public:
     static PTR create(const IBaseModuleDesc::PTR& desc) {
         return PTR(new ParameterModule(desc));
     }
+
+    static void print_static_config();
 };
+
+REGISTER_MODULE_CONFIG(ParameterModule);
 
 class ResultModule : public IBaseModule {
 protected:
@@ -48,8 +52,11 @@ public:
     static PTR create(const IBaseModuleDesc::PTR& desc) {
         return PTR(new ResultModule(desc));
     }
+
+    static void print_static_config();
 };
 
+REGISTER_MODULE_CONFIG(ResultModule);
 }  // namespace module
 }  // namespace genai
 }  // namespace ov

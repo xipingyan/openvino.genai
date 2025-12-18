@@ -30,6 +30,7 @@ public:
     static PTR create(const IBaseModuleDesc::PTR& desc) {
         return PTR(new TextEncoderModule(desc));
     }
+    static void print_static_config();
 
 private:
     std::shared_ptr<Tokenizer::TokenizerImpl> m_tokenizer_impl;
@@ -38,6 +39,8 @@ private:
     bool initialize();
     TokenizedInputs run(const std::vector<std::string>& prompts);
 };
+
+REGISTER_MODULE_CONFIG(TextEncoderModule);
 
 }  // namespace module
 }  // namespace genai

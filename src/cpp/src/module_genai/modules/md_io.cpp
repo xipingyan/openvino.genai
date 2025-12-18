@@ -6,6 +6,19 @@
 namespace ov {
 namespace genai {
 namespace module {
+
+void ParameterModule::print_static_config() {
+    std::cout << R"(
+  image:                        # Module Name
+    type: "ParameterModule"
+    outputs:
+      - name: "image1_data"     # Input Name, should algin with pipeline inputs.
+        type: "OVTensor"
+      - name: "image2_data"
+        type: "OVTensor"
+        )" << std::endl;
+}
+
 ParameterModule::ParameterModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
     is_input_module = true;
     // std::cout << "ParameterModule:" << m_desc << std::endl;
@@ -16,11 +29,22 @@ void ParameterModule::run(ov::AnyMap& inputs) {
               << module_desc->name << "]" << std::endl;
 
     for (auto& output : this->outputs) {
-        OPENVINO_ASSERT(inputs.find(output.first) != inputs.end(),
-                        "Can't find input data:" + output.first);
+        OPENVINO_ASSERT(inputs.find(output.first) != inputs.end(), "Can't find input data:" + output.first);
         output.second.data = inputs[output.first];
         std::cout << "    Pass " << output.first << " to output port" << std::endl;
     }
+}
+
+void ResultModule::print_static_config() {
+    std::cout << R"(
+  pipeline_result:          # Module Name
+    type: "ResultModule"
+    device: "CPU"
+    inputs:
+      - name: "raw_data"
+        type: "OVTensor"
+        source: "ParentModuleName.OutputPortName"
+    )" << std::endl;
 }
 
 ResultModule::ResultModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
