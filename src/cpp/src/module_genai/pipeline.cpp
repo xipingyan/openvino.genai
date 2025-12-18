@@ -6,8 +6,9 @@
 #include <optional>
 
 #include "module.hpp"
-#include "utils/yaml_utils.hpp"
 #include "modules/md_io.hpp"
+#include "pipeline_impl.hpp"
+#include "utils/yaml_utils.hpp"
 
 namespace ov {
 namespace genai {
@@ -16,40 +17,40 @@ namespace module {
 
 // config_path: yaml file.
 ModulePipeline::ModulePipeline(const std::filesystem::path& config_path) {
-    auto pipeline_desc = utils::load_config(config_path);
-
-    // Construct pipeline
-    construct_pipeline(pipeline_desc, m_modules);
-
-    // Sort pipeline
-    m_modules = sort_pipeline(m_modules);
+    ModulePipelineImpl* pImpl = new ModulePipelineImpl(config_path);
+    OPENVINO_ASSERT(pImpl != NULL, "Create ModulePipelineImpl return null.");
+    m_pipeline_impl = (ModulePipelineImpl*)pImpl;
 }
 
-ModulePipeline::~ModulePipeline() {}
+ModulePipeline::~ModulePipeline() {
+    auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
+    delete pImpl;
+    m_pipeline_impl = nullptr;
+}
 
 // input all parameters in config.yaml
 // "prompt": string
 // "image": image ov::Tensor or std::vector<ov::Tensor>
 // "video": video ov::Tensor
 void ModulePipeline::generate(ov::AnyMap& inputs, StreamerVariant streamer) {
-    for (auto& module : m_modules) {
-        if (module->is_input_module) {
-            std::dynamic_pointer_cast<ParameterModule>(module)->run(inputs);
-        } else if (module->is_output_module) {
-            std::dynamic_pointer_cast<ResultModule>(module)->run(this->outputs);
-        } else {
-            module->run();
-        }
-    }
+    auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
+    pImpl->generate(inputs, streamer);
 }
 
 ov::Any ModulePipeline::get_output(const std::string& output_name) {
-    return outputs[output_name];
+    auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
+    return pImpl->get_output(output_name);
 }
 
-void ModulePipeline::start_chat(const std::string& system_message) {}
+void ModulePipeline::start_chat(const std::string& system_message) {
+    auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
+    return pImpl->start_chat(system_message);
+}
 
-void ModulePipeline::finish_chat() {}
+void ModulePipeline::finish_chat() {
+    auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
+    return pImpl->finish_chat();
+}
 
 }  // namespace module
 }  // namespace genai

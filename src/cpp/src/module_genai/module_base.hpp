@@ -50,17 +50,17 @@ public:
     }
 };
 
-class OPENVINO_GENAI_EXPORTS IBaseModule {
+class IBaseModule {
 public:
     ~IBaseModule() = default;
     using PTR = std::shared_ptr<IBaseModule>;
-    struct OPENVINO_GENAI_EXPORTS InputModule {
+    struct InputModule {
         IBaseModule::PTR module_ptr;
         // std::string out_port_name;
         DataType dt_type;
         ov::Any data;
     };
-    struct OPENVINO_GENAI_EXPORTS OutputModule {
+    struct OutputModule {
         IBaseModule::PTR module_ptr;
         // std::string in_port_name;
         DataType dt_type;

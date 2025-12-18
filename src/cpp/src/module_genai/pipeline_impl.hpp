@@ -1,25 +1,25 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#pragma once
-
 #include <optional>
 
-#include "openvino/genai/generation_config.hpp"
-#include "openvino/genai/llm_pipeline.hpp"
+#include "module.hpp"
+#include "modules/md_io.hpp"
+#include "utils/yaml_utils.hpp"
 
 namespace ov {
 namespace genai {
 
 namespace module {
-
-class OPENVINO_GENAI_EXPORTS ModulePipeline {
+class ModulePipelineImpl {
+private:
+    PipelineModuleInstance m_modules;
 
 public:
     // config_path: yaml file.
-    ModulePipeline(const std::filesystem::path& config_path);
+    ModulePipelineImpl(const std::filesystem::path& config_path);
 
-    ~ModulePipeline();
+    ~ModulePipelineImpl();
 
     // input all parameters in config.yaml
     // "prompt": string
@@ -34,7 +34,7 @@ public:
     void finish_chat();
 
 private:
-    void* m_pipeline_impl = nullptr;
+    std::map<std::string, ov::Any> outputs;
 };
 
 }  // namespace module

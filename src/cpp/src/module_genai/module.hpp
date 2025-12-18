@@ -7,13 +7,14 @@
 #include <unordered_map>
 #include <vector>
 
-
-#include "openvino/genai/module_genai/pipeline.hpp"
+#include "module_base.hpp"
 
 namespace ov {
 namespace genai {
 
 namespace module {
+
+using PipelineModuleInstance = std::vector<IBaseModule::PTR>;
 
 using PipelineModuleDesc = std::unordered_map<std::string, IBaseModuleDesc::PTR>;
 

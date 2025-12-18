@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "openvino/genai/module_genai/pipeline.hpp"
+#include "module_genai/module_base.hpp"
 
 namespace ov {
 namespace genai {
