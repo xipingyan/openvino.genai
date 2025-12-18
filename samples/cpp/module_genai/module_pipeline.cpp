@@ -2,62 +2,70 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "load_image.hpp"
-#include <openvino/genai/visual_language/pipeline.hpp>
+#include "utils.hpp"
+#include <openvino/genai/module_genai/pipeline.hpp>
 #include <filesystem>
+#include <chrono>
 
-bool print_subword(std::string&& subword) {
+static std::string get_config_ymal_path(int argc, char *argv[]) {
+    if (argc > 1) {
+        return std::string(argv[1]);
+    }
+    return "config.yaml";
+}
+
+static bool print_subword(std::string &&subword)
+{
     return !(std::cout << subword << std::flush);
 }
 
-int main(int argc, char* argv[]) try {
-    if (argc < 3 || argc > 4) {
-        throw std::runtime_error(std::string{"Usage "} + argv[0] + " <MODEL_DIR> <IMAGE_FILE OR DIR_WITH_IMAGES> <DEVICE>");
+int test_genai_module_pipeline(int argc, char *argv[])
+{
+    std::cout << "== Init ModulePipeline" << std::endl;
+    std::string config_fn = get_config_ymal_path(argc, argv);
+    std::cout << "  == config_fn: " << config_fn << std::endl;
+    ov::genai::module::ModulePipeline pipe(config_fn);
+    ov::genai::module::PrintAllModulesConfig();
+
+    std::string prompt = "Please describle this image";
+    ov::Tensor image = utils::load_image("test_image.jpg");
+
+    // std::cout << "question:\n";
+    // std::getline(std::cin, prompt);
+    for (int l = 0; l < 1; l++)
+    {
+        std::cout << "== Loop: [" << l << "] " << std::endl;
+        std::cout << "Input image1_data first value: " << (int)image.data<uint8_t>()[0] << ", data type: " << image.get_element_type() << std::endl;
+        // pipe.start_chat();
+
+        ov::AnyMap inputs;
+        inputs["prompts_data"] = prompt;
+        inputs["image1_data"] = image;
+        inputs["image2_data"] = image;
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+        pipe.generate(inputs);
+        // auto aa = pipe.generate(inputs, ov::genai::streamer(print_subword));
+        auto t2 = std::chrono::high_resolution_clock::now();
+        // std::cout << "result: text =" << aa.texts[0].c_str() << ", score=" << aa.scores[0] << ", tm=" << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;
+
+        // pipe.finish_chat();
+
+        auto output_raw_data = pipe.get_output("raw_data").as<ov::Tensor>();
+        std::cout << "Output raw data first value: " << output_raw_data.data<float>()[0] << std::endl;
     }
+    return EXIT_SUCCESS;
+}
 
-    std::vector<ov::Tensor> rgbs = utils::load_images(argv[2]);
-
-    // GPU and NPU can be used as well.
-    // Note: If NPU is selected, only language model will be run on NPU
-    std::string device = (argc == 4) ? argv[3] : "CPU";
-    ov::AnyMap enable_compile_cache;
-    if (device == "GPU") {
-        // Cache compiled models on disk for GPU to save time on the
-        // next run. It's not beneficial for CPU.
-        enable_compile_cache.insert({ov::cache_dir("vlm_cache")});
+int main(int argc, char *argv[])
+{
+    try
+    {
+        test_genai_module_pipeline(argc, argv);
     }
-    ov::genai::VLMPipeline pipe(argv[1], device, enable_compile_cache);
-
-    ov::genai::GenerationConfig generation_config;
-    generation_config.max_new_tokens = 100;
-
-    std::string prompt;
-
-    pipe.start_chat();
-    std::cout << "question:\n";
-
-    std::getline(std::cin, prompt);
-    pipe.generate(prompt,
-                  ov::genai::images(rgbs),
-                  ov::genai::generation_config(generation_config),
-                  ov::genai::streamer(print_subword));
-    std::cout << "\n----------\n"
-        "question:\n";
-    while (std::getline(std::cin, prompt)) {
-        pipe.generate(prompt,
-                      ov::genai::generation_config(generation_config),
-                      ov::genai::streamer(print_subword));
-        std::cout << "\n----------\n"
-            "question:\n";
+    catch (const std::exception &error)
+    {
+        std::cerr << "Catch exceptions: " << error.what() << '\n';
     }
-    pipe.finish_chat();
-} catch (const std::exception& error) {
-    try {
-        std::cerr << error.what() << '\n';
-    } catch (const std::ios_base::failure&) {}
-    return EXIT_FAILURE;
-} catch (...) {
-    try {
-        std::cerr << "Non-exception object thrown\n";
-    } catch (const std::ios_base::failure&) {}
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

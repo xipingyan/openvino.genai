@@ -1,29 +1,21 @@
-# Copyright (C) 2023-2025 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.20)
 
-find_package(OpenVINOGenAI REQUIRED
-    PATHS
-        "${CMAKE_BINARY_DIR}"  # Reuse the package from the build.
-        ${OpenVINO_DIR}  # GenAI may be installed alogside OpenVINO.
-    NO_CMAKE_FIND_ROOT_PATH
-)
+set(TARGET_NAME "module_genai_app")
 
-file(DOWNLOAD
-    https://raw.githubusercontent.com/nothings/stb/f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31/stb_image.h
-    ${CMAKE_BINARY_DIR}/stb_image.h
-    EXPECTED_HASH MD5=27932e6fb3a2f26aee2fc33f2cb4e696)
+project($TARGET_NAME)
 
-# create main sample executable
+find_package(OpenVINO REQUIRED)
+find_package(OpenVINOGenAI REQUIRED)
+find_package(OpenCV REQUIRED)
 
-add_executable(module_genai module_pipeline.cpp load_image.cpp)
-target_include_directories(module_genai PRIVATE "${CMAKE_BINARY_DIR}")
-target_link_libraries(module_genai PRIVATE openvino::genai)
+if(OpenCV_FOUND)
+    message(STATUS "OpenCV found. Version: ${OpenCV_VERSION}")
+else()
+    message(FATAL_ERROR "OpenCV not found! Check your installation and environment.")
+endif()
 
-set_target_properties(module_genai PROPERTIES
-    # Ensure out of box LC_RPATH on macOS with SIP
-    INSTALL_RPATH_USE_LINK_PATH ON)
+add_executable(${TARGET_NAME} load_image.cpp module_pipeline.cpp)
 
-install(TARGETS module_genai
-        RUNTIME DESTINATION samples_bin/
-        COMPONENT samples_bin
-        EXCLUDE_FROM_ALL)
+target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}")
+
+target_link_libraries(${TARGET_NAME} PRIVATE openvino::genai ${OpenCV_LIBS})

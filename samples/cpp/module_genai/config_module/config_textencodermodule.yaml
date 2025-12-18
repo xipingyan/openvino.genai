@@ -1,0 +1,35 @@
+# ----------------------------------------------------------------------
+# 全局配置 (GLOBAL CONFIGURATION) 待定，是否需要。
+# ----------------------------------------------------------------------
+global_context:
+  default_device: "GPU"
+  enable_shared_memory: True
+  device_id: "GPU.0"
+
+# ----------------------------------------------------------------------
+# 模块定义 (MODULES DEFINITION) - 修正了 YAML 引用和参数格式
+# ----------------------------------------------------------------------
+pipeline_modules:
+
+  # --- 1. Parameter 模块 ---
+  prompts:
+    type: "ParameterModule"
+    outputs:
+      - name: "prompts_data"
+        type: "VecString"
+
+  # --- 2. Prompt Encode 模块 ---
+  prompt_encoder:
+    type: "TextEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "prompts_input"
+        type: "VecString"
+        source: "prompts.prompts_data"
+    outputs:
+      - name: "input_ids"
+        type: "OVTensor"
+      - name: "mask"
+        type: "OVTensor"
+    params:
+      model_path: "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4"
