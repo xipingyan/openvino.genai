@@ -16,16 +16,17 @@ void TextEncoderModule::print_static_config() {
     std::cout << R"(
   prompt_encoder:                       # Module Name
     type: "TextEncoderModule"
+    description: "Encode prompt to prompt ids."
     device: "GPU"
     inputs:
       - name: "prompts"
-        type: "String"
+        type: "String"            # Support DataType: [String, VecString]
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "prompt_embedding"
-        type: "OVRemoteTensor"
+        type: "OVRemoteTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
       - name: "mask"
-        type: "OVRemoteTensor"
+        type: "OVRemoteTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
     params:
       model_path: "models/text_encoder.xml"  # Optional. OpenVINO IR
     )" << std::endl;

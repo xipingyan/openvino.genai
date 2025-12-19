@@ -11,8 +11,9 @@ void ParameterModule::print_static_config() {
     std::cout << R"(
   image:                        # Module Name
     type: "ParameterModule"
+    description: "Input parameters. Supported DataType: [OVTensor, VecOVTensor, String, VecString]"
     outputs:
-      - name: "image1_data"     # Input Name, should algin with pipeline inputs.
+      - name: "image1_data"     # Input Name, should algin with pipeline.generate inputs.
         type: "OVTensor"
       - name: "image2_data"
         type: "OVTensor"
@@ -39,6 +40,7 @@ void ResultModule::print_static_config() {
     std::cout << R"(
   pipeline_result:          # Module Name
     type: "ResultModule"
+    description: "Output result. Supported DataType: [OVTensor, VecOVTensor, String, VecString]"
     device: "CPU"
     inputs:
       - name: "raw_data"

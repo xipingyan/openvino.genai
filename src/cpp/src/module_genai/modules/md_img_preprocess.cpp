@@ -15,16 +15,17 @@ void ImagePreprocesModule::print_static_config() {
   image_preprocessor:       # Module Name
     type: "ImagePreprocessModule"
     device: "CPU"
+    description: "Image or Video preprocessing."
     inputs:
       - name: "InputName_1"     # single image
-        type: "OVTensor"
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "InputName_2"     # multiple images
         type: "VecOVTensor"
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "raw_data"        # Output port name
-        type: "OVTensor"        # DataType
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
       - name: "thw"
         type: "OVTensor"
     params:
@@ -35,20 +36,6 @@ void ImagePreprocesModule::print_static_config() {
 }
 
 ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {}
-
-inline ov::Tensor get_input_tensor(const std::string& name,
-                                   std::map<std::string, IBaseModule::InputModule>& inputs,
-                                   const bool& optional = false) {
-    // inputs[name].module_ptr->outputs
-    // for (auto& input : inputs) {
-    //     if (input.out_port_name == name) {
-    //         input.module_ptr->outputs
-    //         return input.data.as<ov::Tensor>();
-    //     }
-    // }
-    OPENVINO_ASSERT(!optional, "Can't find input tensor with name " + name);
-    return ov::Tensor();
-}
 
 void ImagePreprocesModule::run() {
     prepare_inputs();
