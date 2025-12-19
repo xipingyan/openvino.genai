@@ -32,10 +32,15 @@ void ImagePreprocesModule::print_static_config() {
       target_resolution: [224, 224]   # optional
       mean: [0.485, 0.456, 0.406]     # optional
       std: [0.229, 0.224, 0.225]      # optional
+      model_path: "models/openvino_vision_embeddings_model.xml"
     )" << std::endl;
 }
 
-ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {}
+ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
+    std::string model_path = desc->params["model_path"]
+}
+
+ImagePreprocesModule::~ImagePreprocesModule() {}
 
 void ImagePreprocesModule::run() {
     prepare_inputs();

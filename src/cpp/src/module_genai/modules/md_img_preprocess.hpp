@@ -8,20 +8,21 @@
 #include "module_genai/module.hpp"
 #include "module_genai/module_type.hpp"
 
+#include "visual_language/qwen2vl/classes.hpp"
+
 namespace ov {
 namespace genai {
 namespace module {
-
-
 class ImagePreprocesModule : public IBaseModule {
 protected:
     ImagePreprocesModule() = delete;
     ImagePreprocesModule(const IBaseModuleDesc::PTR& desc);
 
+private:
+    std::shared_ptr<VisionEncoderQwen2VL> encoder_ptr = nullptr;
+
 public:
-    ~ImagePreprocesModule() {
-        std::cout << "~ImagePreprocesModule is called." << std::endl;
-    }
+    ~ImagePreprocesModule();
 
     void run() override;
 
