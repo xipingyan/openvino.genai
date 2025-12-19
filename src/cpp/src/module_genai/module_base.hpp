@@ -7,6 +7,7 @@
 #include "module_genai/module_type.hpp"
 #include "openvino/core/any.hpp"
 #include "openvino/genai/visibility.hpp"
+#include "visual_language/vision_encoder.hpp"
 
 namespace ov {
 namespace genai {

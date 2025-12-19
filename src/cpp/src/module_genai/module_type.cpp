@@ -14,7 +14,7 @@ const std::unordered_map<ModuleType, std::string> ModuleTypeConverter::kTypeToSt
     {ModuleType::ParameterModule, "ParameterModule"},
     {ModuleType::ImagePreprocessModule, "ImagePreprocessModule"},
     {ModuleType::TextTokenizerModule, "TextTokenizerModule"},
-    {ModuleType::ImageEncoderModule, "ImageEncoderModule"},
+    {ModuleType::VisionEncoderModule, "VisionEncoderModule"},
     {ModuleType::TextEncoderModule, "TextEncoderModule"},
     {ModuleType::FeaturePrunerModule, "FeaturePrunerModule"},
     {ModuleType::FeatureFusionModule, "FeatureFusionModule"},

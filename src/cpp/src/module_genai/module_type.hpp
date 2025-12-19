@@ -24,7 +24,7 @@ namespace module {
         TextTokenizerModule = 11,
         
         // 2. Embedding/Encoder Modules
-        ImageEncoderModule = 20,
+        VisionEncoderModule = 20,
         TextEncoderModule = 21,
         
         // 3. Fusion/Pruning Modules

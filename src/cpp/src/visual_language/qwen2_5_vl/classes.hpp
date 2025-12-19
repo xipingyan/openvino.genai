@@ -13,6 +13,20 @@
 
 namespace ov::genai {
 
+namespace qwen2_5_vl_utils {
+
+std::pair<ov::Tensor, std::vector<int32_t>> get_window_index(
+    const std::vector<std::array<size_t, 3>>& grids_thw,
+    const ProcessorConfig& processor_config,
+    const VLMConfig& vlm_config
+);
+
+ov::Tensor get_window_attention_mask(const size_t hidden_states_size, const std::vector<int32_t>& cu_window_seqlens);
+
+ov::Tensor get_cu_window_seqlens(const std::vector<int32_t>& cu_window_seqlens);
+
+}
+
 class VisionEncoderQwen2_5_VL : public VisionEncoderQwen2VL {
 public:
     using VisionEncoderQwen2VL::VisionEncoderQwen2VL;
