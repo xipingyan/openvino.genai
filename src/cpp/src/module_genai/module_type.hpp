@@ -21,11 +21,11 @@ namespace module {
         
         // 1. Preprocessing Modules
         ImagePreprocessModule = 10,
-        TextTokenizerModule = 11,
+        TextEncoderModule = 11,
         
         // 2. Embedding/Encoder Modules
         VisionEncoderModule = 20,
-        TextEncoderModule = 21,
+        TextEmbeddingModule = 21,
         
         // 3. Fusion/Pruning Modules
         FeaturePrunerModule = 30,

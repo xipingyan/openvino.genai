@@ -13,9 +13,9 @@ namespace module {
 const std::unordered_map<ModuleType, std::string> ModuleTypeConverter::kTypeToString = {
     {ModuleType::ParameterModule, "ParameterModule"},
     {ModuleType::ImagePreprocessModule, "ImagePreprocessModule"},
-    {ModuleType::TextTokenizerModule, "TextTokenizerModule"},
     {ModuleType::VisionEncoderModule, "VisionEncoderModule"},
     {ModuleType::TextEncoderModule, "TextEncoderModule"},
+    {ModuleType::TextEmbeddingModule, "TextEmbeddingModule"},
     {ModuleType::FeaturePrunerModule, "FeaturePrunerModule"},
     {ModuleType::FeatureFusionModule, "FeatureFusionModule"},
     {ModuleType::LLMInferenceModule, "LLMInferenceModule"},
