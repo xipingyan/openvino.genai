@@ -25,7 +25,7 @@ IBaseModule::IBaseModule(const IBaseModuleDesc::PTR& desc) : module_desc(desc) {
 void IBaseModule::prepare_inputs() {
     for (auto& input : this->inputs) {
         const auto& parent_port_name = input.second.parent_port_name;
-        input.second.data = input.second.module_ptr->outputs[parent_port_name].data;
+        input.second.data = input.second.module_ptr.lock()->outputs[parent_port_name].data;
     }
 }
 
