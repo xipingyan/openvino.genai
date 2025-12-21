@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(TARGET_NAME "module_genai_app")
+set(TARGET_NAME "module_genai_ut_app")
 
 project($TARGET_NAME)
 
@@ -14,7 +14,8 @@ else()
     message(FATAL_ERROR "OpenCV not found! Check your installation and environment.")
 endif()
 
-add_executable(${TARGET_NAME} load_image.cpp ut_pipelines.cpp ut_modules.cpp)
+file(GLOB SRC_FILES *.cpp)
+add_executable(${TARGET_NAME} ${SRC_FILES})
 
 target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}")
 

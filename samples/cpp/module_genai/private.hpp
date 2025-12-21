@@ -1,0 +1,11 @@
+
+// Copyright (C) 2023-2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include <openvino/genai/module_genai/pipeline.hpp>
+#include "utils.hpp"
+
+void test_genai_module_ut_modules(int argc, char* argv[]);
+void test_genai_module_ut_pipelines(int argc, char* argv[]);

@@ -1,13 +1,10 @@
-# ----------------------------------------------------------------------
-# 全局配置 (GLOBAL CONFIGURATION) 待定，是否需要。
-# ----------------------------------------------------------------------
 global_context:
   default_device: "GPU"
   enable_shared_memory: True
   device_id: "GPU.0"
 
 # ----------------------------------------------------------------------
-# 模块定义 (MODULES DEFINITION) - 修正了 YAML 引用和参数格式
+# MODULES DEFINITION
 # ----------------------------------------------------------------------
 pipeline_modules:
 
@@ -32,4 +29,4 @@ pipeline_modules:
       - name: "mask"
         type: "OVTensor"
     params:
-      model_path: "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4"
+      model_path: "../config_pipeline/Qwen2.5-VL-3B-Instruct/"

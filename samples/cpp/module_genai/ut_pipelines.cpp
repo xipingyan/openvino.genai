@@ -19,7 +19,7 @@ static bool print_subword(std::string &&subword)
     return !(std::cout << subword << std::flush);
 }
 
-int test_genai_module_pipeline(int argc, char *argv[])
+int test_genai_module_ut_pipelines(int argc, char *argv[])
 {
     std::cout << "== Init ModulePipeline" << std::endl;
     std::string config_fn = get_config_ymal_path(argc, argv);
@@ -53,19 +53,6 @@ int test_genai_module_pipeline(int argc, char *argv[])
 
         auto output_raw_data = pipe.get_output("raw_data").as<ov::Tensor>();
         std::cout << "Output raw data first value: " << output_raw_data.data<float>()[0] << std::endl;
-    }
-    return EXIT_SUCCESS;
-}
-
-int main(int argc, char *argv[])
-{
-    try
-    {
-        test_genai_module_pipeline(argc, argv);
-    }
-    catch (const std::exception &error)
-    {
-        std::cerr << "Catch exceptions: " << error.what() << '\n';
     }
     return EXIT_SUCCESS;
 }
