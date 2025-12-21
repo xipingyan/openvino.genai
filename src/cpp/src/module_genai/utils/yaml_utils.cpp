@@ -5,6 +5,7 @@
 #include "module_genai/utils/data_type_converter.hpp"
 
 #include <yaml-cpp/yaml.h>
+#include <filesystem>
 
 #include "module_genai/modules/md_img_preprocess.hpp"
 #include "module_genai/modules/md_io.hpp"
@@ -54,8 +55,10 @@ OutputPort parse_output_port(const YAML::Node& node, bool is_input) {
     return port;
 }
 
-IBaseModuleDesc::PTR parse_module(const YAML::Node& node) {
+IBaseModuleDesc::PTR parse_module(const YAML::Node& node, const std::string& root_path) {
     IBaseModuleDesc::PTR desc = IBaseModuleDesc::create();
+    desc->config_root_path = root_path;
+
     ModuleType module_type = ModuleType::Unknown;
     if (node["type"]) {
         std::string md_type = node["type"].as<std::string>();
@@ -97,6 +100,8 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
     try {
         YAML::Node config = YAML::LoadFile(cfg_path);
 
+        std::string root_path = std::filesystem::path(cfg_path).parent_path().string();
+
         const YAML::Node& global = config["global_context"];
         if (global) {
             std::string device = global["default_device"] ? global["default_device"].as<std::string>() : "N/A";
@@ -115,7 +120,7 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
                 std::string module_name = it->first.as<std::string>();
                 const YAML::Node& module_config = it->second;
 
-                auto module_desc = parse_module(module_config);
+                auto module_desc = parse_module(module_config, root_path);
                 module_desc->name = module_name;
                 pipeline_desc[module_name] = module_desc;
 

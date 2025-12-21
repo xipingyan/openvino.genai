@@ -56,12 +56,12 @@ ResultModule::ResultModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc)
 void ResultModule::run(ov::AnyMap& outputs) {
     prepare_inputs();
 
-    auto raw_data = this->inputs["raw_data"].data.as<ov::Tensor>();
-
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
-
-    outputs["raw_data"] = raw_data;
+    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << std::endl;
+    for (auto& port_name : module_desc->inputs) {
+        auto raw_data = this->inputs[port_name.source_module_out_name].data;
+        outputs[port_name.source_module_out_name] = raw_data;
+        std::cout << "    Get output data from input port: " << port_name.source_module_out_name << std::endl;
+    }
 }
 
 }  // namespace module

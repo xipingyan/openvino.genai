@@ -20,6 +20,10 @@ enum class DataType : int {
     VecOVRemoteTensor = 4,
     String = 10,
     VecString = 11,
+    Int = 20,
+    VecInt = 21,
+    Float = 30,
+    VecFloat = 31
 };
 
 struct OutputPort {
@@ -50,6 +54,9 @@ public:
     static PTR create() {
         return std::make_shared<IBaseModuleDesc>();
     }
+
+    std::string get_full_path(const std::string& fn);
+    std::string config_root_path;
 };
 
 class IBaseModule {

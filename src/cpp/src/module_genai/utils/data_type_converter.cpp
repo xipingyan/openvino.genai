@@ -17,7 +17,11 @@ const std::unordered_map<DataType, std::string> DataTypeConverter::kTypeToString
     {DataType::OVRemoteTensor, "OVRemoteTensor"},
     {DataType::VecOVRemoteTensor, "VecOVRemoteTensor"},
     {DataType::String, "String"},
-    {DataType::VecString, "VecString"}};
+    {DataType::VecString, "VecString"},
+    {DataType::Int, "Int"},
+    {DataType::VecInt, "VecInt"},
+    {DataType::Float, "Float"},
+    {DataType::VecFloat, "VecFloat"}};
 
 const std::unordered_map<std::string, DataType> DataTypeConverter::kStringToType =
     DataTypeConverter::create_string_to_type_map();

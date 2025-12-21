@@ -48,6 +48,7 @@ bool TextEncoderModule::initialize() {
     
     std::filesystem::path tokenizer_path = it_path->second;
     m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, m_tokenization_params);
+    OPENVINO_ASSERT(m_tokenizer_impl->m_ireq_queue_tokenizer != nullptr, std::string("Load tokenizer model fail: ") + tokenizer_path.c_str());
     return true;
 }
 

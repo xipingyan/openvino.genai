@@ -14,7 +14,7 @@ else()
     message(FATAL_ERROR "OpenCV not found! Check your installation and environment.")
 endif()
 
-add_executable(${TARGET_NAME} load_image.cpp module_pipeline.cpp)
+add_executable(${TARGET_NAME} load_image.cpp ut_pipelines.cpp ut_modules.cpp)
 
 target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}")
 

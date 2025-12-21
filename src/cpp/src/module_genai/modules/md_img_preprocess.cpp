@@ -26,8 +26,8 @@ void ImagePreprocesModule::print_static_config() {
     outputs:
       - name: "raw_data"        # Output port name
         type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
-      - name: "thw"
-        type: "OVTensor"
+      - name: "source_size"     # Output port name
+        type: "VecInt"          # Support DataType: [VecInt]
     params:
       target_resolution: [224, 224]   # optional
       mean: [0.485, 0.456, 0.406]     # optional
@@ -37,7 +37,14 @@ void ImagePreprocesModule::print_static_config() {
 }
 
 ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
-    std::string model_path = desc->params["model_path"]
+    // std::string model_path = desc->get_full_path(desc->params["model_path"]);
+    std::string model_path = desc->params["model_path"];
+    std::string device = desc->params["device"];
+    if (device.empty()) {
+        device = "CPU";
+    }
+
+    encoder_ptr = std::make_shared<VisionEncoderQwen2VL>(std::filesystem::path(model_path), device, ov::AnyMap{});
 }
 
 ImagePreprocesModule::~ImagePreprocesModule() {}
@@ -46,33 +53,14 @@ void ImagePreprocesModule::run() {
     prepare_inputs();
 
     auto image1_data = this->inputs["image1_data"].data.as<ov::Tensor>();
-    auto image2_data = this->inputs["image2_data"].data.as<ov::Tensor>();
-
-    ov::Tensor img_f32 = ov::Tensor(ov::element::f32, image1_data.get_shape());
-    float* out_data = img_f32.data<float>();
-    if (image1_data.get_element_type() == ov::element::u8) {
-        uint8_t* in_data = image1_data.data<uint8_t>();
-        for (int i = 0; i < image1_data.get_size(); i++) {
-            out_data[i] = in_data[i] / 2;
-        }
-    } else if (image1_data.get_element_type() == ov::element::f32) {
-        float* in_data = image1_data.data<float>();
-        for (int i = 0; i < image1_data.get_size(); i++) {
-            out_data[i] = in_data[i] / 2;
-        }
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(700));
-
+    auto encoded_img = encoder_ptr->encode(image1_data, ov::AnyMap{});
+  
     auto thw_tensor = ov::Tensor(ov::element::i32, ov::Shape(3));
     thw_tensor.data<int>()[0] = 3;
     thw_tensor.data<int>()[1] = 4;
     thw_tensor.data<int>()[2] = 5;
-    this->outputs["raw_data"].data = img_f32;
-    this->outputs["thw"].data = thw_tensor;
+    this->outputs["raw_data"].data = encoded_img.resized_source;
+    this->outputs["source_size"].data = std::vector<int>{encoded_img.resized_source_size.height, encoded_img.resized_source_size.width};
 }
 
 }  // namespace module

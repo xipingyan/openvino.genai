@@ -3,9 +3,13 @@
 
 #include "module_genai/module_base.hpp"
 
+#include <filesystem>
+
 namespace ov {
 namespace genai {
 namespace module {
+
+namespace fs = std::filesystem;
 
 IBaseModule::IBaseModule(const IBaseModuleDesc::PTR& desc) : module_desc(desc) {
     std::cout << "Init IBaseModule with module name : " << module_desc->name << std::endl;
@@ -26,6 +30,18 @@ void IBaseModule::prepare_inputs() {
 
 const std::string& IBaseModule::get_module_name() const {
     return module_desc->name;
+}
+
+std::string IBaseModuleDesc::get_full_path(const std::string& fn) {
+    if (fs::exists(fn)) {
+        return fn;
+    }
+
+    fs::path joined_path = fs::path(config_root_path) / fn;
+    if (fs::exists(joined_path)) {
+        return joined_path.string();
+    }
+    OPENVINO_ASSERT(false, "File path is invalid: " + fn);
 }
 
 }  // namespace module
