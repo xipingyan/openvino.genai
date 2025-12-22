@@ -12,6 +12,8 @@ ut_build.sh
 
 #### Module Unit Test
 
+Preprare your model, take qwen2.5-vl as example: `openvino.genai/samples/cpp/module_genai/ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/`
+
 ```
 ./ut_modules.sh
 ```
