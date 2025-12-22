@@ -16,14 +16,14 @@ pipeline_modules:
     type: "ParameterModule"
     outputs:
       - name: "prompts_data"
-        type: "VecString"
+        type: "String"
 
   prompt_encoder:
     type: "TextEncoderModule"
     device: "GPU"
     inputs:
-      - name: "prompts_input"
-        type: "VecString"
+      - name: "prompts"
+        type: "String"
         source: "pipeline_params.prompts_data"
     outputs:
       - name: "input_ids"
@@ -59,14 +59,14 @@ pipeline_modules:
         std::vector<int64_t> values = {1986, 374, 264, 6077, 9934, 13};
         std::copy(values.begin(), values.end(), data_ptr);
 
-        CHECK_RESULT(compare_tensors(output, expected_input_ids), "input_ids do not match expected values");
+        CHECK(compare_tensors(output, expected_input_ids), "input_ids do not match expected values");
 
         auto mask = pipe.get_output("mask").as<ov::Tensor>();
         auto expected_mask = ov::Tensor(ov::element::i64, ov::Shape{1, 6});
         int64_t* mask_data_ptr = expected_mask.data<int64_t>();
         std::vector<int64_t> mask_values = {1, 1, 1, 1, 1, 1};
         std::copy(mask_values.begin(), mask_values.end(), mask_data_ptr);
-        CHECK_RESULT(compare_tensors(mask, expected_mask), "mask not match expected values");
+        CHECK(compare_tensors(mask, expected_mask), "mask not match expected values");
     }
 };
 

@@ -23,8 +23,7 @@ void module_connect(PipelineModuleInstance& pipeline_instance) {
                                    });
             OPENVINO_ASSERT(it != std::end(pipeline_instance), "Can't find module, please check config yaml.");
 
-            // IBaseModule::InputModule inp_module = {*it};
-            module_ptr->inputs[input.source_module_out_name].module_ptr = *it;
+            module_ptr->inputs[input.name].module_ptr = *it;
 
             // IBaseModule::OutputModule outp_module = {module_ptr};
             (*it)->outputs[input.source_module_out_name].module_ptr = module_ptr;

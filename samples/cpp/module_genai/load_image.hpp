@@ -13,5 +13,3 @@ std::vector<ov::Tensor> load_images(const std::filesystem::path& image_path);
 ov::Tensor load_video(const std::filesystem::path& input_path);
 ov::Tensor create_countdown_frames();
 }
-
-int test_genai_module_pipeline(int argc, char* argv[]);

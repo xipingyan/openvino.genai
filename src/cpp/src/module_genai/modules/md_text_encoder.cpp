@@ -19,8 +19,11 @@ void TextEncoderModule::print_static_config() {
     description: "Encode prompt to prompt ids."
     device: "GPU"
     inputs:
+      - name: "prompt"
+        type: "String"            # [Optional] Support DataType: [String]
+        source: "ParentModuleName.OutputPortName"
       - name: "prompts"
-        type: "String"            # Support DataType: [String, VecString]
+        type: "VecString"         # [Optional] Support DataType: [VecString]
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "prompt_embedding"
@@ -58,7 +61,15 @@ void TextEncoderModule::run() {
               << module_desc->name << "]" << std::endl;
     
     prepare_inputs();
-    m_prompts = this->inputs["prompts_data"].data.as<std::vector<std::string>>();
+    std::vector<std::string> m_prompts = {};
+    if (this->inputs.find("prompts") != this->inputs.end()) {
+        m_prompts = this->inputs["prompts"].data.as<std::vector<std::string>>();
+    }
+    if (this->inputs.find("prompt") != this->inputs.end()) {
+        std::string single_prompt = this->inputs["prompt"].data.as<std::string>();
+        m_prompts.insert(m_prompts.begin(), single_prompt);
+    }
+
     auto encoded = run(m_prompts);
 
     this->outputs["input_ids"].data = encoded.input_ids;

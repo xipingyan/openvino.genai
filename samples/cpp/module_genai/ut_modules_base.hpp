@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "utils.hpp"
+#include "load_image.hpp"
 
 class ModuleTestBase {
 public:
@@ -57,8 +58,31 @@ protected:
         return std::memcmp(output.data(), expected.data(), byte_size) == 0;
     }
 
-#ifndef CHECK_RESULT
-#    define CHECK_RESULT(cond, msg)                                            \
+    bool compare_big_tensor(const ov::Tensor& output, const std::vector<float>& expected_top, const float& thr = 1e-3) {
+        int real_size = std::min(expected_top.size(), output.get_size());
+        for (int i = 0; i < real_size; ++i) {
+            float val = static_cast<float>(output.data<float>()[i]);
+            if (std::fabs(val - expected_top[i]) > thr) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool compare_shape(const ov::Shape& shape1, const ov::Shape& shape2) {
+        if (shape1.size() != shape2.size()) {
+            return false;
+        }
+        for (size_t i = 0; i < shape1.size(); ++i) {
+            if (shape1[i] != shape2[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+#ifndef CHECK
+#    define CHECK(cond, msg)                                            \
         do {                                                                   \
             if (!(cond)) {                                                     \
                 throw std::runtime_error(std::string("Check failed: ") + msg); \

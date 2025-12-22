@@ -15,58 +15,61 @@ pipeline_modules:
   pipeline_params:
     type: "ParameterModule"
     outputs:
-      - name: "prompts_data"
-        type: "VecString"
+      - name: "img1"
+        type: "OVTensor"
 
-  prompt_encoder:
-    type: "TextEncoderModule"
-    device: "GPU"
+  image_preprocessor:       # Module Name
+    type: "ImagePreprocessModule"
+    device: "CPU"
+    description: "Image or Video preprocessing."
     inputs:
-      - name: "prompts_input"
-        type: "VecString"
-        source: "pipeline_params.prompts_data"
+      - name: "image1_data"     # single image
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+        source: "pipeline_params.img1"
     outputs:
-      - name: "input_ids"
-        type: "OVTensor"
-      - name: "mask"
-        type: "OVTensor"
+      - name: "raw_data"        # Output port name
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+      - name: "source_size"     # Output port name
+        type: "VecInt"          # Support DataType: [VecInt]
     params:
+      target_resolution: [224, 224]   # optional
+      mean: [0.485, 0.456, 0.406]     # optional
+      std: [0.229, 0.224, 0.225]      # optional
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
 
   pipeline_results:
     type: "ResultModule"
     device: "CPU"
     inputs:
-      - name: "input_ids"
+      - name: "raw_data"
         type: "OVTensor"
-        source: "prompt_encoder.input_ids"
-      - name: "mask"
-        type: "OVTensor"
-        source: "prompt_encoder.mask"
+        source: "image_preprocessor.raw_data"
+      - name: "source_size"
+        type: "VecInt"
+        source: "image_preprocessor.source_size"
 )";
     }
 
     ov::AnyMap prepare_inputs() override {
         ov::AnyMap inputs;
-        inputs["prompts_data"] = std::vector<std::string>{"This is a sample prompt."};
+      
+        auto img1 = utils::load_image("ut_test_data/cat_120_100.png");
+        CHECK(img1, "Failed to load test image: ut_test_data/cat_120_100.png");
+        inputs["img1"] = img1;
         return inputs;
     }
 
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto output = pipe.get_output("input_ids").as<ov::Tensor>();
-        auto expected_input_ids = ov::Tensor(ov::element::i64, ov::Shape{1, 6});
-        int64_t* data_ptr = expected_input_ids.data<int64_t>();
-        std::vector<int64_t> values = {1986, 374, 264, 6077, 9934, 12};
-        std::copy(values.begin(), values.end(), data_ptr);
+        auto raw_data = pipe.get_output("raw_data").as<ov::Tensor>();
+        std::vector<float> expected_input_ids = { 
+            -0.0712891, 0.251953, 0.0825195, 0.078125, 0.122559, 0.0986328, 0.0844727, -0.0932617, 0.130859, -0.0274658
+        };
+        CHECK(compare_big_tensor(raw_data, expected_input_ids, 1e-3), "input_ids do not match expected values");
+        CHECK(compare_shape(raw_data.get_shape(), ov::Shape{64,1280}), "raw_data shape not match expected shape");
 
-        CHECK_RESULT(compare_tensors(output, expected_input_ids), "input_ids do not match expected values");
-
-        auto mask = pipe.get_output("mask").as<ov::Tensor>();
-        auto expected_mask = ov::Tensor(ov::element::i64, ov::Shape{1, 6});
-        int64_t* mask_data_ptr = expected_mask.data<int64_t>();
-        std::vector<int64_t> mask_values = {1, 1, 1, 1, 1, 1};
-        std::copy(mask_values.begin(), mask_values.end(), mask_data_ptr);
-        CHECK_RESULT(compare_tensors(mask, expected_mask), "mask not match expected values");
+        auto source_size = pipe.get_output("source_size").as<std::vector<int>>();
+        auto expected_source_size = std::vector<int>{8, 8};
+        CHECK(source_size == expected_source_size, "source_size not match expected values");
     }
 };
 

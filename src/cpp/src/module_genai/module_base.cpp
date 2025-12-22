@@ -14,7 +14,8 @@ namespace fs = std::filesystem;
 IBaseModule::IBaseModule(const IBaseModuleDesc::PTR& desc) : module_desc(desc) {
     std::cout << "Init IBaseModule with module name : " << module_desc->name << std::endl;
     for (auto& input : desc->inputs) {
-        this->inputs[input.source_module_out_name] = InputModule();
+        this->inputs[input.name] = InputModule();
+        this->inputs[input.name].parent_port_name = input.source_module_out_name;
     }
     for (auto& output : desc->outputs) {
         this->outputs[output.name] = OutputModule();
@@ -23,7 +24,7 @@ IBaseModule::IBaseModule(const IBaseModuleDesc::PTR& desc) : module_desc(desc) {
 
 void IBaseModule::prepare_inputs() {
     for (auto& input : this->inputs) {
-        const auto& parent_port_name = input.first;
+        const auto& parent_port_name = input.second.parent_port_name;
         input.second.data = input.second.module_ptr->outputs[parent_port_name].data;
     }
 }

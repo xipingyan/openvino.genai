@@ -65,13 +65,13 @@ public:
     using PTR = std::shared_ptr<IBaseModule>;
     struct InputModule {
         IBaseModule::PTR module_ptr;
-        // std::string out_port_name;
         DataType dt_type;
+
         ov::Any data;
+        std::string parent_port_name;
     };
     struct OutputModule {
         IBaseModule::PTR module_ptr;
-        // std::string in_port_name;
         DataType dt_type;
         ov::Any data;
     };

@@ -35,7 +35,6 @@ public:
 private:
     std::shared_ptr<Tokenizer::TokenizerImpl> m_tokenizer_impl;
     ov::AnyMap m_tokenization_params = {};
-    std::vector<std::string> m_prompts = {};
     bool initialize();
     TokenizedInputs run(const std::vector<std::string>& prompts);
 };
