@@ -3,9 +3,9 @@
 
 #include "../ut_modules_base.hpp"
 
-class TextEncoderModuleTest : public ModuleTestBase {
+class ImagePreprocesModuleTest : public ModuleTestBase {
 public:
-    DEFINE_MODULE_TEST_CONSTRUCTOR(TextEncoderModuleTest)
+  DEFINE_MODULE_TEST_CONSTRUCTOR(ImagePreprocesModuleTest)
 
 protected:
     std::string get_yaml_content() override {
@@ -56,7 +56,7 @@ pipeline_modules:
         auto output = pipe.get_output("input_ids").as<ov::Tensor>();
         auto expected_input_ids = ov::Tensor(ov::element::i64, ov::Shape{1, 6});
         int64_t* data_ptr = expected_input_ids.data<int64_t>();
-        std::vector<int64_t> values = {1986, 374, 264, 6077, 9934, 13};
+        std::vector<int64_t> values = {1986, 374, 264, 6077, 9934, 12};
         std::copy(values.begin(), values.end(), data_ptr);
 
         CHECK_RESULT(compare_tensors(output, expected_input_ids), "input_ids do not match expected values");
@@ -70,4 +70,4 @@ pipeline_modules:
     }
 };
 
-REGISTER_MODULE_TEST(TextEncoderModuleTest);
+REGISTER_MODULE_TEST(ImagePreprocesModuleTest);

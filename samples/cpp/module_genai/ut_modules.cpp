@@ -16,6 +16,7 @@ int test_genai_module_ut_modules(int argc, char *argv[])
 
     int passed = 0;
     int failed = 0;
+    std::vector<std::string> failed_tests;
 
     for (const auto& [name, creator] : tests) {
         std::cout << "--------------------------------------------------" << std::endl;
@@ -28,9 +29,11 @@ int test_genai_module_ut_modules(int argc, char *argv[])
         } catch (const std::exception& e) {
             std::cout << "Test " << name << " FAILED: " << e.what() << std::endl;
             failed++;
+            failed_tests.emplace_back(name);
         } catch (...) {
             std::cout << "Test " << name << " FAILED: Unknown error" << std::endl;
             failed++;
+            failed_tests.emplace_back(name);
         }
     }
 
@@ -38,8 +41,8 @@ int test_genai_module_ut_modules(int argc, char *argv[])
     std::cout << "Tests Completed. Passed: " << passed << ", Failed: " << failed << std::endl;
     if (failed > 0) {
         std::cout << "All failed:" << std::endl;
-        for (const auto& [name, _] : tests) {
-            std::cout << " - " << name << std::endl;
+        for (const auto& failed_name : failed_tests) {
+            std::cout << " - " << failed_name << std::endl;
         }
     }
 

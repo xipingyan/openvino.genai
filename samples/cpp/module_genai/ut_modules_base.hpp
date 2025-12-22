@@ -67,6 +67,14 @@ protected:
 #endif
 };
 
+#ifndef DEFINE_MODULE_TEST_CONSTRUCTOR
+#    define DEFINE_MODULE_TEST_CONSTRUCTOR(CLASS_NAME) \
+        CLASS_NAME() = delete;                         \
+        CLASS_NAME(const std::string& test_name) {     \
+            m_test_name = test_name;                   \
+        }
+#endif
+
 class TestRegistry {
 public:
     using Creator = std::function<std::shared_ptr<ModuleTestBase>()>;
