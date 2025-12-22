@@ -33,12 +33,13 @@ const std::string& IBaseModule::get_module_name() const {
 }
 
 std::string IBaseModuleDesc::get_full_path(const std::string& fn) {
-    if (fs::exists(fn)) {
+    // Check if fn is absolute path or file exists
+    if (fs::exists(fn) || fs::path(fn).is_absolute()) {
         return fn;
     }
 
     fs::path joined_path = fs::path(config_root_path) / fn;
-    if (fs::exists(joined_path)) {
+    if (fs::exists(joined_path) || fs::path(joined_path).is_absolute()) {
         return joined_path.string();
     }
     OPENVINO_ASSERT(false, "File path is invalid: " + fn);

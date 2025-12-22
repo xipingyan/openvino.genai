@@ -100,7 +100,9 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
     try {
         YAML::Node config = YAML::LoadFile(cfg_path);
 
-        std::string root_path = std::filesystem::path(cfg_path).parent_path().string();
+        std::string root_path = std::filesystem::path(cfg_path).has_parent_path()
+                                    ? std::filesystem::path(cfg_path).parent_path().string()
+                                    : std::filesystem::current_path().string();
 
         const YAML::Node& global = config["global_context"];
         if (global) {
