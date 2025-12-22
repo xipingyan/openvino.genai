@@ -17,17 +17,27 @@ void ImagePreprocesModule::print_static_config() {
     device: "CPU"
     description: "Image or Video preprocessing."
     inputs:
-      - name: "InputName_1"     # single image
-        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+      - name: "image"           # [optional]
+        type: "OVTensor"        # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "InputName_2"     # multiple images
-        type: "VecOVTensor"
+      - name: "images"          # [Optional] multiple images
+        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video"           # [optional] video frames
+        type: "OVTensor"        # Support DataType: [OVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "videos"          # [Optional] multiple videos
+        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "raw_data"        # Output port name
-        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+        type: "OVTensor"        # Support DataType: [OVTensor]
       - name: "source_size"     # Output port name
         type: "VecInt"          # Support DataType: [VecInt]
+      - name: "raw_datas"       # batch processed vision output
+        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
+      - name: "source_sizes"    # Output port name
+        type: "VecVecInt"       # Support DataType: [VecVecInt]
     params:
       target_resolution: [224, 224]   # optional
       mean: [0.485, 0.456, 0.406]     # optional
@@ -51,13 +61,9 @@ ImagePreprocesModule::~ImagePreprocesModule() {}
 void ImagePreprocesModule::run() {
     prepare_inputs();
 
-    auto image1_data = this->inputs["image1_data"].data.as<ov::Tensor>();
+    auto image1_data = this->inputs["image"].data.as<ov::Tensor>();
     auto encoded_img = encoder_ptr->encode(image1_data, ov::AnyMap{});
-  
-    auto thw_tensor = ov::Tensor(ov::element::i32, ov::Shape(3));
-    thw_tensor.data<int>()[0] = 3;
-    thw_tensor.data<int>()[1] = 4;
-    thw_tensor.data<int>()[2] = 5;
+
     this->outputs["raw_data"].data = encoded_img.resized_source;
     this->outputs["source_size"].data = std::vector<int>{encoded_img.resized_source_size.height, encoded_img.resized_source_size.width};
 }

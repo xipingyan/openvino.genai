@@ -23,7 +23,7 @@ pipeline_modules:
     device: "CPU"
     description: "Image or Video preprocessing."
     inputs:
-      - name: "image1_data"     # single image
+      - name: "image"           # single image
         type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
         source: "pipeline_params.img1"
     outputs:
