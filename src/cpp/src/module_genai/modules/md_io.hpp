@@ -17,9 +17,7 @@ protected:
     ParameterModule(const IBaseModuleDesc::PTR& desc);
 
 public:
-    ~ParameterModule() {
-        std::cout << "~ParameterModule is called." << std::endl;
-    }
+    ~ParameterModule() {}
 
     void run() override {};
 
@@ -41,9 +39,7 @@ protected:
     ResultModule(const IBaseModuleDesc::PTR& desc);
 
 public:
-    ~ResultModule() {
-        std::cout << "~ResultModule is called." << std::endl;
-    }
+    ~ResultModule()  {}
 
     void run() override {};
     void run(ov::AnyMap& outputs);

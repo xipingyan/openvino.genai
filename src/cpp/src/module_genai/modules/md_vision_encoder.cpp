@@ -45,7 +45,7 @@ void VisionEncoderModule::print_static_config() {
 
 VisionEncoderModule::VisionEncoderModule(const IBaseModuleDesc::PTR &desc) : IBaseModule(desc) {
     if (!initialize()) {
-        std::cerr << "Failed to initiate VisionEncoderModule" << std::endl;
+        GENAI_ERR("Failed to initiate VisionEncoderModule");
     }
 }
 
@@ -53,15 +53,15 @@ bool VisionEncoderModule::initialize() {
     const auto &params = module_desc->params;
     auto it_path = params.find("model_path");
     if (it_path == params.end()) {
-        std::cerr << "VisionEncoderModule[" << module_desc->name << "]: 'model_path' not found in params" << std::endl;
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'model_path' not found in params");
         return false;
     }
 
     std::filesystem::path model_path = it_path->second;
 
     if (!std::filesystem::exists(model_path / "openvino_vision_embeddings_merger_model.xml")) {
-        std::cerr << "VisionEncoderModule[" << module_desc->name << "]: model file not found at "
-                  << (model_path / "openvino_vision_embeddings_merger_model.xml") << std::endl;
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: model file not found at " + 
+            (model_path / "openvino_vision_embeddings_merger_model.xml").string());
         return false;
     }
 
@@ -90,17 +90,18 @@ bool VisionEncoderModule::initialize() {
 }
 
 void VisionEncoderModule::run() {
+    GENAI_INFO("Running module: " + module_desc->name);
+
     prepare_inputs();
     if (this->inputs.find("preprocessed_image") == this->inputs.end() || this->inputs["preprocessed_image"].data == nullptr) {
-        std::cerr << "VisionEncoderModule[" << module_desc->name << "]: 'preprocessed_image' input not found" << std::endl;
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'preprocessed_image' input not found");
         return;
     }
     if (this->inputs.find("source_size") == this->inputs.end() || this->inputs["source_size"].data.as<std::vector<int>>().empty()) {
-        std::cerr << "VisionEncoderModule[" << module_desc->name << "]: 'source_size' input not found" << std::endl;
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'source_size' input not found");
         return;
     }
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
+
     ov::Tensor image_embedding;
     ov::Tensor video_embedding;
     EncodedImage encoded;

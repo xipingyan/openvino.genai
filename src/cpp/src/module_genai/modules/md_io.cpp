@@ -26,13 +26,12 @@ ParameterModule::ParameterModule(const IBaseModuleDesc::PTR& desc) : IBaseModule
 }
 
 void ParameterModule::run(ov::AnyMap& inputs) {
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
+    GENAI_INFO("Running module: " + module_desc->name);
 
     for (auto& output : this->outputs) {
         OPENVINO_ASSERT(inputs.find(output.first) != inputs.end(), "Can't find input data:" + output.first);
         output.second.data = inputs[output.first];
-        std::cout << "    Pass " << output.first << " to output port" << std::endl;
+        GENAI_INFO("    Pass " + output.first + " to output port");
     }
 }
 
@@ -54,13 +53,12 @@ ResultModule::ResultModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc)
 }
 
 void ResultModule::run(ov::AnyMap& outputs) {
+    GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
-
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << std::endl;
+    
     for (auto& port_name : module_desc->inputs) {
         auto raw_data = this->inputs[port_name.source_module_out_name].data;
         outputs[port_name.source_module_out_name] = raw_data;
-        std::cout << "    Get output data from input port: " << port_name.source_module_out_name << std::endl;
     }
 }
 

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "module_base.hpp"
+#include "logger.hpp"
 
 namespace ov {
 namespace genai {

@@ -3,6 +3,7 @@
 
 #include "module_genai/utils/yaml_utils.hpp"
 #include "module_genai/utils/data_type_converter.hpp"
+#include "logger.hpp"
 
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
@@ -109,12 +110,9 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
             std::string device = global["default_device"] ? global["default_device"].as<std::string>() : "N/A";
             bool shared_mem = global["enable_shared_memory"] ? global["enable_shared_memory"].as<bool>() : false;
 
-            std::cout << "  Default Device: " << device << std::endl;
-            std::cout << "  Enable Shared Memory: " << (shared_mem ? "True" : "False") << std::endl;
+            GENAI_INFO("  Default Device: " + device);
+            GENAI_INFO("  Enable Shared Memory: " + std::string(shared_mem ? "True" : "False"));
         }
-
-        std::cout << "\n" << std::endl;
-        std::cout << "#### 🧩 Pipeline Modules #####################" << std::endl;
 
         const YAML::Node& modules_node = config["pipeline_modules"];
         if (modules_node && modules_node.IsMap()) {
@@ -126,16 +124,16 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
                 module_desc->name = module_name;
                 pipeline_desc[module_name] = module_desc;
 
-                std::cout << module_desc << std::endl;
+                GENAI_INFO((std::stringstream() << module_desc).str());
             }
         } else {
-            std::cout << "Error: 'pipeline_modules' key not found or is not a map." << std::endl;
+            GENAI_ERR("'pipeline_modules' key not found or is not a map.");
         }
 
     } catch (const YAML::BadFile& e) {
-        std::cerr << "Error: Could not find or open 'config.yaml'. Please make sure the file exists." << std::endl;
+        GENAI_ERR("Could not find or open 'config.yaml'. Please make sure the file exists.");
     } catch (const YAML::Exception& e) {
-        std::cerr << "Error parsing YAML: " << e.what() << std::endl;
+        GENAI_ERR(std::string("Error parsing YAML: ") + e.what());
     }
     return pipeline_desc;
 }

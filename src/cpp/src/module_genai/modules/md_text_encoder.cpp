@@ -37,7 +37,7 @@ void TextEncoderModule::print_static_config() {
 
 TextEncoderModule::TextEncoderModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
     if (!initialize()) {
-        std::cerr << "Failed to initiate TextEncoderModule" << std::endl;
+        GENAI_ERR("Failed to initiate TextEncoderModule");
     }
 }
 
@@ -57,8 +57,7 @@ bool TextEncoderModule::initialize() {
 }
 
 void TextEncoderModule::run() {
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
+    GENAI_INFO("Running module: " + module_desc->name);
     
     prepare_inputs();
     std::vector<std::string> m_prompts = {};

@@ -20,9 +20,7 @@ protected:
     TextEncoderModule(const IBaseModuleDesc::PTR& desc);
 
 public:
-    ~TextEncoderModule() {
-        std::cout << "~TextEncoderModule is called." << std::endl;
-    }
+    ~TextEncoderModule() {}
 
     void run() override;
 

@@ -59,6 +59,7 @@ ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : I
 ImagePreprocesModule::~ImagePreprocesModule() {}
 
 void ImagePreprocesModule::run() {
+    GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
 
     auto image1_data = this->inputs["image"].data.as<ov::Tensor>();

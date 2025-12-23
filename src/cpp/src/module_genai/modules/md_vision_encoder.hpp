@@ -20,9 +20,7 @@ protected:
     VisionEncoderModule(const IBaseModuleDesc::PTR &desc);
 
 public:
-    ~VisionEncoderModule() {
-        std::cout << "~VisionEncoderModule is called." << std::endl;
-    }
+    ~VisionEncoderModule() {}
 
     void run() override;
 
