@@ -106,12 +106,15 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
                                     : std::filesystem::current_path().string();
 
         const YAML::Node& global = config["global_context"];
+        std::string model_type;
         if (global) {
             std::string device = global["default_device"] ? global["default_device"].as<std::string>() : "N/A";
             bool shared_mem = global["enable_shared_memory"] ? global["enable_shared_memory"].as<bool>() : false;
+            model_type = global["model_type"] ? global["model_type"].as<std::string>() : "N/A";
 
             GENAI_INFO("  Default Device: " + device);
             GENAI_INFO("  Enable Shared Memory: " + std::string(shared_mem ? "True" : "False"));
+            GENAI_INFO("  Model Type: " + model_type);
         }
 
         const YAML::Node& modules_node = config["pipeline_modules"];
@@ -122,6 +125,7 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
 
                 auto module_desc = parse_module(module_config, root_path);
                 module_desc->name = module_name;
+                module_desc->model_type = model_type;
                 pipeline_desc[module_name] = module_desc;
 
                 GENAI_INFO((std::stringstream() << module_desc).str());

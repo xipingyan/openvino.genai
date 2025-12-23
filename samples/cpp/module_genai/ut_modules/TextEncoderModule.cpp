@@ -10,6 +10,8 @@ public:
 protected:
     std::string get_yaml_content() override {
         return R"(
+global_context:
+  model_type: "qwen2_5_vl"
 pipeline_modules:
 
   pipeline_params:

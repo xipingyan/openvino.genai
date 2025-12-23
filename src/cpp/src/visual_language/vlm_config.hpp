@@ -23,6 +23,8 @@ enum class VLMModelType {
     GEMMA3,
 };
 
+VLMModelType to_vlm_model_type(const std::string& value);
+
 /// @brief A Configuration class passed to VLMPipeline and used to
 /// change VLMPipeline's behavior. Corresponds to config.json.
 class VLMConfig {

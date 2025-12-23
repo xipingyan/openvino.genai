@@ -50,6 +50,7 @@ public:
     std::string device;
     std::string description;
     std::unordered_map<std::string, std::string> params;
+    std::string model_type;
 
     using PTR = std::shared_ptr<IBaseModuleDesc>;
     static PTR create() {

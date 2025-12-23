@@ -53,8 +53,15 @@ ImagePreprocesModule::ImagePreprocesModule(const IBaseModuleDesc::PTR& desc) : I
         device = "CPU";
     }
 
-    encoder_ptr = std::make_shared<VisionEncoderQwen2VL>(std::filesystem::path(model_path), device, ov::AnyMap{});
+    VLMModelType model_type = to_vlm_model_type(desc->model_type);
+
+    if (model_type == VLMModelType::QWEN2_VL || model_type == VLMModelType::QWEN2_5_VL) {
+        encoder_ptr = std::make_shared<VisionEncoderQwen2VL>(std::filesystem::path(model_path), device, ov::AnyMap{});
+    } else {
+        GENAI_ERR("ImagePreprocesModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
+    }
 }
+    
 
 ImagePreprocesModule::~ImagePreprocesModule() {}
 
