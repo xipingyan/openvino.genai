@@ -64,8 +64,8 @@ pipeline_modules:
         std::vector<float> expected_input_ids = { 
             -0.0712891, 0.251953, 0.0825195, 0.078125, 0.122559, 0.0986328, 0.0844727, -0.0932617, 0.130859, -0.0274658
         };
-        CHECK(compare_big_tensor(raw_data, expected_input_ids, 1e-3), "input_ids do not match expected values");
-        CHECK(compare_shape(raw_data.get_shape(), ov::Shape{64,1280}), "raw_data shape not match expected shape");
+        CHECK(compare_big_tensor(raw_data, expected_input_ids, 1e-3), "raw_data do not match expected values");
+        CHECK(compare_shape(raw_data.get_shape(), ov::Shape{64,1280}), "raw_data's shape not match expected shape");
 
         auto source_size = pipe.get_output("source_size").as<std::vector<int>>();
         auto expected_source_size = std::vector<int>{8, 8};

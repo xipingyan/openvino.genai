@@ -60,13 +60,15 @@ protected:
 
     bool compare_big_tensor(const ov::Tensor& output, const std::vector<float>& expected_top, const float& thr = 1e-3) {
         int real_size = std::min(expected_top.size(), output.get_size());
+        bool bresult = true;
         for (int i = 0; i < real_size; ++i) {
             float val = static_cast<float>(output.data<float>()[i]);
             if (std::fabs(val - expected_top[i]) > thr) {
-                return false;
+                bresult = false;
+                std::cout << "Mismatch at index " << i << ": expected " << expected_top[i] << ", got " << val << std::endl;
             }
         }
-        return true;
+        return bresult;
     }
 
     bool compare_shape(const ov::Shape& shape1, const ov::Shape& shape2) {
