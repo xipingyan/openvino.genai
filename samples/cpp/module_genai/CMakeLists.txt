@@ -7,6 +7,7 @@ project($TARGET_NAME)
 find_package(OpenVINO REQUIRED)
 find_package(OpenVINOGenAI REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 if(OpenCV_FOUND)
     message(STATUS "OpenCV found. Version: ${OpenCV_VERSION}")
@@ -19,4 +20,4 @@ add_executable(${TARGET_NAME} ${SRC_FILES})
 
 target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}" "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/cpp/src")
 
-target_link_libraries(${TARGET_NAME} PRIVATE openvino::genai ${OpenCV_LIBS})
+target_link_libraries(${TARGET_NAME} PRIVATE openvino::genai ${OpenCV_LIBS} ${YAML_CPP_LIBRARIES})

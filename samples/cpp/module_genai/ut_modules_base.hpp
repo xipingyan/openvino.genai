@@ -15,6 +15,16 @@
 
 #include "utils.hpp"
 #include "load_image.hpp"
+#include <yaml-cpp/yaml.h>
+
+#ifndef CHECK
+#    define CHECK(cond, msg)                                                   \
+        do {                                                                   \
+            if (!(cond)) {                                                     \
+                throw std::runtime_error(std::string("Check failed: ") + msg); \
+            }                                                                  \
+        } while (0)
+#endif
 
 class ModuleTestBase {
 public:
@@ -42,11 +52,93 @@ protected:
     virtual ov::AnyMap prepare_inputs() = 0;
     virtual void verify_outputs(ov::genai::module::ModulePipeline& pipe) = 0;
 
-    virtual std::string generate_yaml() {
+    std::string save_yaml(const YAML::Node& config) {
         std::string filename = "temp_" + m_test_name + ".yaml";
         std::ofstream out(filename);
-        out << get_yaml_content();
+        out << config;
         out.close();
+        return filename;
+    }
+
+    virtual std::string generate_yaml() {
+        std::string cur_module_cfg = get_yaml_content();
+        YAML::Node config = YAML::Load(cur_module_cfg);
+
+        OPENVINO_ASSERT(config["pipeline_modules"], "Test yaml config miss 'pipeline_modules'.");
+
+        YAML::Node modules = config["pipeline_modules"];
+        std::map<std::string, std::string> extracted_params;
+        std::map<std::string, std::string> extracted_results;
+
+        if (modules.size() != 1) {
+            return save_yaml(config);
+        }
+
+        // 1. 遍历提取数据
+        std::string test_module_name;
+        for (auto it = modules.begin(); it != modules.end(); ++it) {
+            test_module_name = it->first.as<std::string>();
+            // 处理 inputs
+            YAML::Node inputs = it->second["inputs"];
+            if (inputs && inputs.IsSequence()) {
+                for (const auto& input : inputs) {
+                    std::string source = input["source"].as<std::string>("");
+                    if (source.find("pipeline_params.") == 0) {
+                        std::string param_name = source.substr(16);
+                        std::string type = input["type"].as<std::string>("");
+                        extracted_params[param_name] = type;
+                    }
+                }
+            }
+
+            // 处理 outputs
+            YAML::Node outputs = it->second["outputs"];
+            if (outputs && outputs.IsSequence()) {
+                for (const auto& output : outputs) {
+                    std::string name = output["name"].as<std::string>("");
+                    std::string type = output["type"].as<std::string>("");
+                    extracted_results[name] = type;
+                }
+            }
+        }
+
+        // 2. 构建 pipeline_params 节点 (使用独立的 Node)
+        YAML::Node params_node;
+        params_node["type"] = "ParameterModule";
+        YAML::Node p_outputs_seq;  // 创建 Sequence 节点
+        for (const auto& param : extracted_params) {
+            YAML::Node item;
+            item["name"] = param.first;
+            item["type"] = param.second;
+            p_outputs_seq.push_back(item);
+        }
+        if (p_outputs_seq.size() > 0) {
+            params_node["outputs"] = p_outputs_seq;
+        }
+        config["pipeline_modules"]["pipeline_params"] = params_node;
+
+        // 3. 构建 pipeline_results 节点 (使用另一个独立的 Node)
+        YAML::Node results_node;
+        results_node["type"] = "ResultModule";
+        YAML::Node r_inputs_seq;  // 创建 Sequence 节点
+        for (const auto& result : extracted_results) {
+            YAML::Node item;
+            item["name"] = result.first;
+            item["type"] = result.second;
+            item["source"] = test_module_name + "." + result.first;
+            r_inputs_seq.push_back(item);
+        }
+        if (r_inputs_seq.size() > 0) {
+            results_node["inputs"] = r_inputs_seq;
+        }
+        config["pipeline_modules"]["pipeline_results"] = results_node;
+
+        // 4. 导出文件
+        std::string filename = "temp_" + m_test_name + ".yaml";
+        std::ofstream out(filename);
+        out << config;  // 直接输出 config
+        out.close();
+
         return filename;
     }
 
@@ -96,15 +188,6 @@ protected:
         }
         return true;
     }
-
-#ifndef CHECK
-#    define CHECK(cond, msg)                                            \
-        do {                                                                   \
-            if (!(cond)) {                                                     \
-                throw std::runtime_error(std::string("Check failed: ") + msg); \
-            }                                                                  \
-        } while (0)
-#endif
 };
 
 #ifndef DEFINE_MODULE_TEST_CONSTRUCTOR

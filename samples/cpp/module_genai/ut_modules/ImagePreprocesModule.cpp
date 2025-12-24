@@ -13,13 +13,7 @@ protected:
 global_context:
   model_type: "qwen2_5_vl"
 pipeline_modules:
-
-  pipeline_params:
-    type: "ParameterModule"
-    outputs:
-      - name: "img1"
-        type: "OVTensor"
-
+  # ParameterModule will be auto padding with name: pipeline_params
   image_preprocessor:       # Module Name
     type: "ImagePreprocessModule"
     device: "CPU"
@@ -38,17 +32,7 @@ pipeline_modules:
       mean: [0.485, 0.456, 0.406]     # optional
       std: [0.229, 0.224, 0.225]      # optional
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-
-  pipeline_results:
-    type: "ResultModule"
-    device: "CPU"
-    inputs:
-      - name: "raw_data"
-        type: "OVTensor"
-        source: "image_preprocessor.raw_data"
-      - name: "source_size"
-        type: "VecInt"
-        source: "image_preprocessor.source_size"
+  # ResultModule will be auto padding with name: pipeline_results
 )";
     }
 
