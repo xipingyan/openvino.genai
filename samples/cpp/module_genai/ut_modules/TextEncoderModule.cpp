@@ -13,7 +13,6 @@ protected:
 global_context:
   model_type: "qwen2_5_vl"
 pipeline_modules:
-<<<<<<< HEAD
 
   pipeline_params:
     type: "ParameterModule"
@@ -40,9 +39,6 @@ pipeline_modules:
       mean: [0.485, 0.456, 0.406]     # optional
       std: [0.229, 0.224, 0.225]      # optional
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-=======
-  # ParameterModule will be auto padding with name: pipeline_params
->>>>>>> b2767cad (padding input output module)
   prompt_encoder:
     type: "TextEncoderModule"
     device: "GPU"
@@ -65,7 +61,6 @@ pipeline_modules:
         type: "VecInt"
     params:
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-<<<<<<< HEAD
 
   pipeline_results:
     type: "ResultModule"
@@ -80,9 +75,6 @@ pipeline_modules:
       - name: "images_sequence"
         type: "VecInt"
         source: "prompt_encoder.images_sequence"
-=======
-  # ResultModule will be auto padding with name: pipeline_results
->>>>>>> b2767cad (padding input output module)
 )";
     }
 
