@@ -28,7 +28,12 @@ void module_connect(PipelineModuleInstance& pipeline_instance) {
             module_ptr->inputs[input.name].module_ptr = *it;
 
             // IBaseModule::OutputModule outp_module = {module_ptr};
-            (*it)->outputs[input.source_module_out_name].module_ptr = module_ptr;
+            auto& module_ptrs = (*it)->outputs[input.source_module_out_name].module_ptrs;  
+            if (std::find(module_ptrs.begin(), 
+                          module_ptrs.end(),
+                          module_ptr) == module_ptrs.end()) {
+                module_ptrs.push_back(module_ptr);
+            }
         }
     }
 }

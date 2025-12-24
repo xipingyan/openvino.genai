@@ -17,11 +17,21 @@ PipelineModuleInstance sort_pipeline(PipelineModuleInstance& pipeline_instrance)
     // Module name -> input module number
     std::unordered_map<std::string, int> in_degree;
     for (const auto& pair : module_map) {
-        in_degree[pair.first] = pair.second->inputs.size();
+        int in_degree_count = 0;
+        std::unordered_map<std::string, int> input_map;
+        for (const auto& input : pair.second->module_desc->inputs) {
+            if (input_map.find(input.source_module_name) == input_map.end()) {
+                in_degree_count++;
+                input_map[input.source_module_name] = 1;
+            }
+        }
+        in_degree[pair.first] = in_degree_count;
         adjacency_list[pair.first] = {};
         for (auto& output : pair.second->outputs) {
-            if (output.second.module_ptr) {
-                adjacency_list[pair.first].push_back(output.second.module_ptr->get_module_name());
+            if (!output.second.module_ptrs.empty()) {
+                for (const auto& module_ptr : output.second.module_ptrs) {
+                    adjacency_list[pair.first].push_back(module_ptr->get_module_name());
+                }
             }
             else {
                 std::cout << "** Warning: module output port [" << output.first << "] has no child module." << std::endl;

@@ -58,6 +58,20 @@ protected:
         return std::memcmp(output.data(), expected.data(), byte_size) == 0;
     }
 
+    template<typename T>
+    bool compare_big_tensor(const ov::Tensor& output, const std::vector<T>& expected_top) {
+        int real_size = std::min(expected_top.size(), output.get_size());
+        bool bresult = true;
+        for (int i = 0; i < real_size; ++i) {
+            T val = static_cast<T>(output.data<T>()[i]);
+            if (val != expected_top[i]) {
+                bresult = false;
+                std::cout << "Mismatch at index " << i << ": expected " << expected_top[i] << ", got " << val << std::endl;
+            }
+        }
+        return bresult;
+    }
+
     bool compare_big_tensor(const ov::Tensor& output, const std::vector<float>& expected_top, const float& thr = 1e-3) {
         int real_size = std::min(expected_top.size(), output.get_size());
         bool bresult = true;

@@ -32,7 +32,7 @@ public:
 
 private:
     bool initialize();
-    std::pair<ov::Tensor, ov::Tensor> embed(const EncodedImage &image);
+    std::pair<ov::Tensor, ov::Tensor> embed(const EncodedImage &image, const std::vector<int>& images_sequence);
     ov::Tensor get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw);
     size_t calc_vec_tokens_num(const std::vector<std::array<size_t, 3UL>>& vec_grid_thw) const;
     size_t calc_tokens_num(size_t grid_t, size_t grid_h, size_t grid_w) const;

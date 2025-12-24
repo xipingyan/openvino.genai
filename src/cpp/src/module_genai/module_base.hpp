@@ -75,7 +75,7 @@ public:
         std::string parent_port_name;
     };
     struct OutputModule {
-        IBaseModule::PTR module_ptr;
+        std::vector<IBaseModule::PTR> module_ptrs;
         DataType dt_type;
         ov::Any data;
     };

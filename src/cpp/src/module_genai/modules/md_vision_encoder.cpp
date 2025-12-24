@@ -33,6 +33,9 @@ void VisionEncoderModule::print_static_config() {
       - name: "source_size"
         type: "VecInt"                                     # Support DataType: [VecInt]
         source: "ParentModuleName.OutputPortName"
+      - name: "images_sequence"
+        type: "VecInt"                                     # Support DataType: [VecInt]
+        source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "image_embedding"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
@@ -47,6 +50,7 @@ VisionEncoderModule::VisionEncoderModule(const IBaseModuleDesc::PTR &desc) : IBa
     VLMModelType model_type = to_vlm_model_type(desc->model_type);
     if (model_type != VLMModelType::QWEN2_VL && model_type != VLMModelType::QWEN2_5_VL) {
         GENAI_ERR("VisionEncoderModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
+        return;
     }
     if (!initialize()) {
         GENAI_ERR("Failed to initiate VisionEncoderModule");
@@ -105,6 +109,10 @@ void VisionEncoderModule::run() {
         GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'source_size' input not found");
         return;
     }
+    if (this->inputs.find("images_sequence") == this->inputs.end() || this->inputs["images_sequence"].data.as<std::vector<int>>().empty()) {
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'images_sequence' input not found");
+        return;
+    }
 
     ov::Tensor image_embedding;
     ov::Tensor video_embedding;
@@ -112,18 +120,19 @@ void VisionEncoderModule::run() {
     encoded.resized_source_size.height = this->inputs["source_size"].data.as<std::vector<int>>()[0];
     encoded.resized_source_size.width = this->inputs["source_size"].data.as<std::vector<int>>()[1];
     encoded.resized_source = this->inputs["preprocessed_image"].data.as<ov::Tensor>();
-    std::tie(video_embedding, image_embedding) = embed(encoded);
+    std::vector<int> images_sequence = this->inputs["images_sequence"].data.as<std::vector<int>>();
+    std::tie(video_embedding, image_embedding) = embed(encoded, images_sequence);
     
     this->outputs["image_embedding"].data = image_embedding;
     this->outputs["video_embedding"].data = video_embedding;
 }
 
 
-std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage &image) {
+std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage &image, const std::vector<int>& images_sequence) {
     OPENVINO_ASSERT(m_ireq_queue_vision_embeddings_merger, "VisionEncoderModule is not initialized. Call initialize() first.");
 
-    std::vector<size_t> images_sequence = {0};
-    auto [reordered_image_embeds, reordered_images_grid_thw] = qwen2_vl_utils::reorder_image_embeds_and_grid_thw({image}, images_sequence);
+    std::vector<size_t> vec_images_sequence(images_sequence.begin(), images_sequence.end());
+    auto [reordered_image_embeds, reordered_images_grid_thw] = qwen2_vl_utils::reorder_image_embeds_and_grid_thw({image}, vec_images_sequence);
     auto [reordered_video_embeds, reordered_videos_grid_thw] = qwen2_vl_utils::reorder_video_embeds_and_grid_thw({}, {});
 
     ov::Tensor concatenated_embeds = qwen2_vl_utils::concatenate_video_image_embeds(reordered_video_embeds, reordered_image_embeds);

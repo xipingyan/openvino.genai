@@ -19,6 +19,8 @@ pipeline_modules:
     outputs:
       - name: "img1"
         type: "OVTensor"
+      - name: "prompts_data"
+        type: "String"
 
   image_preprocessor:       # Module Name
     type: "ImagePreprocessModule"
@@ -38,7 +40,24 @@ pipeline_modules:
       mean: [0.485, 0.456, 0.406]     # optional
       std: [0.229, 0.224, 0.225]      # optional
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-
+  prompt_encoder:
+    type: "TextEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "prompts"
+        type: "String"
+        source: "pipeline_params.prompts_data"
+      - name: "encoded_image"
+        type: "OVTensor"
+        source: "image_preprocessor.raw_data"
+      - name: "source_size"
+        type: "VecInt"
+        source: "image_preprocessor.source_size"
+    outputs:
+      - name: "images_sequence"
+        type: "VecInt"
+    params:
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
   vision_encoder:
     type: "VisionEncoderModule"
     device: "GPU"
@@ -49,6 +68,9 @@ pipeline_modules:
       - name: "source_size"
         type: "VecInt"
         source: "image_preprocessor.source_size"
+      - name: "images_sequence"
+        type: "VecInt"
+        source: "prompt_encoder.images_sequence"
     outputs:
       - name: "image_embedding"
         type: "OVTensor"
@@ -70,6 +92,7 @@ pipeline_modules:
       
         auto img1 = utils::load_image("ut_test_data/cat_120_100.png");
         CHECK(img1, "Failed to load test image: ut_test_data/cat_120_100.png");
+        inputs["prompts_data"] = std::vector<std::string>{"This is a sample prompt."};
         inputs["img1"] = img1;
         return inputs;
     }
