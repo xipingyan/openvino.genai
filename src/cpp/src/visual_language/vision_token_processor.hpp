@@ -27,6 +27,7 @@ public:
      * @param config Optional CDPruner configuration
      */
     explicit VisionTokenProcessor(const std::string& device, 
+                                  EmbeddingsModel::Ptr embedding
                                   const cdpruner::Config& config = cdpruner::Config{});
 
     /**
@@ -38,6 +39,10 @@ public:
     ov::Tensor process(const std::vector<ov::Tensor>& visual_features,
                       const ov::Tensor& text_features);
 
+    ov::Tensor get_prompt_embedding(const std::string& prompt) {
+        // Placeholder implementation
+        return ov::Tensor();
+    };
     /**
      * @brief Check if processor is available and ready
      * @return true if processor is initialized and available

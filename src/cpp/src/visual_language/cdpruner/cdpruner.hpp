@@ -16,6 +16,19 @@
 namespace ov::genai::cdpruner {
 
 /**
+ * @brief Result structure for CDPruner visual token pruning pipeline.
+ * Contains all necessary information about the pruning operation and its results.
+ */
+struct PruningResult {
+    bool is_pruned = false;                                ///< Whether pruning was actually applied
+    size_t original_visual_tokens = 0;                     ///< Original number of visual tokens before pruning
+    size_t pruned_visual_tokens = 0;                       ///< Number of visual tokens after pruning
+    ov::Tensor pruned_embeddings;                          ///< Pruned visual embeddings tensor
+    ov::Tensor pruned_input_ids;                           ///< Input IDs with pruned visual tokens removed
+    std::vector<std::vector<bool>> keep_flags_per_region;  ///< Keep flags for each visual region
+};
+
+/**
  * @brief Statistics about the pruning operation
  */
 struct PruningStatistics {
@@ -60,6 +73,25 @@ public:
      * @return Concatenated pruned visual features [B, T*num_frames, D] where T is calculated from pruning_ratio
      */
     ov::Tensor apply_pruning(const std::vector<ov::Tensor>& visual_features_list, const ov::Tensor& text_features);
+
+    /**
+     * @brief Adjust position IDs after visual token pruning.
+     * Default implementation does nothing. Models supporting CDPruner should override.
+     * @param position_ids_inout The position IDs to adjust (modified in-place)
+     * @param input_ids The input token IDs
+     * @param vision_start_token_id Vision region start token ID
+     * @param image_pad_token_id Image padding token ID
+     * @param images_grid_thw Grid dimensions for each image
+     * @param images_sequence Image sequence
+     * @param keep_flags_per_region_out Output parameter for keep flags
+     */
+    void update_position_ids(ov::Tensor& position_ids_inout,
+                                     const ov::Tensor& input_ids,
+                                     int64_t vision_start_token_id,
+                                     int64_t image_pad_token_id,
+                                     const std::vector<std::array<size_t, 3>>& images_grid_thw,
+                                     const std::vector<size_t>& images_sequence,
+                                     std::vector<std::vector<bool>>& keep_flags_per_region_out) const;
 
     /**
      * @brief Get current configuration

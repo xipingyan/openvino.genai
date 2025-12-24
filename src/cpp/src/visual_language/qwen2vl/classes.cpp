@@ -1148,23 +1148,23 @@ ov::Tensor InputsEmbedderQwen2VL::get_inputs_embeds(const std::string& unified_p
 
     // [CDPruner] Check if pruning is active and execute pipeline if applicable
     if (is_cdpruner_active(images)) {
-        PruningResult pruning_result = execute_cdpruner_pipeline(input_ids,
-                                                                 text_embeds,
-                                                                 merged_image_embeddings_tensor,
-                                                                 images,
-                                                                 images_grid_thw,
-                                                                 images_sequence,
-                                                                 image_pad_token_id,
-                                                                 vision_start_token_id,
-                                                                 vision_end_token_id);
+        // split merged embeddings into token processor
+        std::vector<size_t> image_embeds_splits;
+        for (auto& img_thw : images_grid_thw) {
+            size_t num_image_tokens = calc_tokens_num(img_thw[0], img_thw[1], img_thw[2]);
+            image_embeds_splits.push_back(num_image_tokens);
+        }    
+        std::vector<size_t> video_embeds_splits;
+        for (auto& vid_thw : video_grid_thw) {
+            size_t num_video_tokens = calc_tokens_num(vid_thw[0], vid_thw[1], vid_thw[2]);
+            video_embeds_splits.push_back(num_video_tokens);
+        }
+        // Get prompt embeddings before pruning
 
-        return merge_text_and_image_embeddings_with_pruning(input_ids,
-                                                            text_embeds,
-                                                            pruning_result.pruned_embeddings,
-                                                            image_pad_token_id,
-                                                            vision_start_token_id,
-                                                            vision_end_token_id,
-                                                            pruning_result.keep_flags_per_region);
+        ov::Tensor prompt_embedding = m_token_processor->get_prompt_embedding(input_ids, text_embeds, image_embeds_splits, video_embeds_splits, vision_start_token_id, vision_end_token_id, image_pad_token_id, video_pad_token_id);
+        
+        auto pruned_img_embeds = m_token_processor->process(image_embeds_splits, );
+        auto pruned_video_embeds = m_token_processor->process();
     }
 
     return qwen2_vl_utils::merge_text_and_video_image_embeddings(input_ids,
@@ -1173,6 +1173,7 @@ ov::Tensor InputsEmbedderQwen2VL::get_inputs_embeds(const std::string& unified_p
                                                                  merged_video_embeddings_tensor,
                                                                  image_pad_token_id,
                                                                  video_pad_token_id);
+                                                                 
 }
 
 std::vector<ov::genai::EncodedVideo> InputsEmbedderQwen2VL::encode_videos(const std::vector<ov::Tensor>& videos) {
