@@ -17,6 +17,6 @@ endif()
 file(GLOB SRC_FILES *.cpp ut_modules/*.cpp)
 add_executable(${TARGET_NAME} ${SRC_FILES})
 
-target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}")
+target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}" "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/cpp/src")
 
 target_link_libraries(${TARGET_NAME} PRIVATE openvino::genai ${OpenCV_LIBS})

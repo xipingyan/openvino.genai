@@ -29,8 +29,12 @@ void TextEmbeddingModule::print_static_config() {
 }
 
 TextEmbeddingModule::TextEmbeddingModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
+    VLMModelType model_type = to_vlm_model_type(desc->model_type);
+    if (model_type != VLMModelType::QWEN2_VL && model_type != VLMModelType::QWEN2_5_VL) {
+        GENAI_ERR("TextEmbeddingModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
+    }
     if (!initialize()) {
-        std::cerr << "Failed to initiate TextEmbeddingModule" << std::endl;
+        GENAI_ERR("Failed to initiate TextEmbeddingModule");
     }
 }
 
@@ -38,7 +42,7 @@ bool TextEmbeddingModule::initialize() {
     const auto& params = module_desc->params;
     auto it_dir = params.find("model_path");
     if (it_dir == params.end()) {
-        std::cerr << "TextEmbeddingModule[" << module_desc->name << "]: 'model_path' not found in params" << std::endl;
+        GENAI_ERR("TextEmbeddingModule[" + module_desc->name + "]: 'model_path' not found in params");
         return false;
     }
 
@@ -50,7 +54,7 @@ bool TextEmbeddingModule::initialize() {
         try {
             scale_emb = std::stof(it_scale->second);
         } catch (const std::exception&) {
-            std::cerr << "TextEmbeddingModule[" << module_desc->name << "]: invalid 'scale_emb' value, fallback to 1.0" << std::endl;
+            GENAI_ERR("TextEmbeddingModule[" + module_desc->name + "]: invalid 'scale_emb' value, fallback to 1.0");
         }
     }
 
@@ -62,17 +66,16 @@ bool TextEmbeddingModule::initialize() {
 }
 
 void TextEmbeddingModule::run() {
-    std::cout << "Run: " << ModuleTypeConverter::toString(static_cast<ModuleType>(module_desc->type)) << "["
-              << module_desc->name << "]" << std::endl;
-
-    OPENVINO_ASSERT(m_embedding_model, "TextEmbeddingModule is not initialized. Call initialize() first.");
+    GENAI_INFO("Running module: " + module_desc->name);
 
     prepare_inputs();
-    OPENVINO_ASSERT(this->inputs.count("input_ids") != 0,
-                    "TextEmbeddingModule expects 'input_ids' in its inputs.");
+    if (this->inputs.find("input_ids") == this->inputs.end()) {
+        GENAI_ERR("TextEmbeddingModule[" + module_desc->name + "]: 'input_ids' input not found")
+    }
     ov::Tensor input_ids = this->inputs["input_ids"].data.as<ov::Tensor>();
 
-    bool return_remote_tensor = true;
+    // TODO: use remote tensor?
+    bool return_remote_tensor = false;
     CircularBufferQueueElementGuard<EmbeddingsRequest> embeddings_request_guard(m_embedding_model->get_request_queue().get());
     EmbeddingsRequest& req = embeddings_request_guard.get();
 

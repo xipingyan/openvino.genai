@@ -5,11 +5,8 @@
 #include "modules/md_img_preprocess.hpp"
 #include "modules/md_io.hpp"
 #include "modules/md_text_encoder.hpp"
-<<<<<<< HEAD
 #include "modules/md_vision_encoder.hpp"
-=======
 #include "modules/md_text_embedding.hpp"
->>>>>>> 7d60bfeb (add TextEmbeddingModule)
 #include "utils/yaml_utils.hpp"
 
 namespace ov {
