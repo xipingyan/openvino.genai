@@ -46,6 +46,8 @@ ov::genai::GenerationConfig update_config_from_kwargs(ov::genai::GenerationConfi
 
 ov::genai::StreamerVariant pystreamer_to_streamer(const PyBindStreamerVariant& py_streamer);
 
+bool py_object_is_any_map(const py::object& py_obj);
+
 ov::AnyMap py_object_to_any_map(const py::object& py_obj);
 
 ov::genai::JsonContainer py_object_to_json_container(const py::object& obj);

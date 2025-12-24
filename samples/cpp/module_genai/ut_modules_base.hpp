@@ -74,11 +74,11 @@ protected:
             return save_yaml(config);
         }
 
-        // 1. 遍历提取数据
+        // only one node recursive
         std::string test_module_name;
         for (auto it = modules.begin(); it != modules.end(); ++it) {
             test_module_name = it->first.as<std::string>();
-            // 处理 inputs
+            // get inputs
             YAML::Node inputs = it->second["inputs"];
             if (inputs && inputs.IsSequence()) {
                 for (const auto& input : inputs) {
@@ -91,7 +91,7 @@ protected:
                 }
             }
 
-            // 处理 outputs
+            // get outputs
             YAML::Node outputs = it->second["outputs"];
             if (outputs && outputs.IsSequence()) {
                 for (const auto& output : outputs) {
@@ -102,44 +102,38 @@ protected:
             }
         }
 
-        // 2. 构建 pipeline_params 节点 (使用独立的 Node)
+        // pipeline_params
         YAML::Node params_node;
         params_node["type"] = "ParameterModule";
-        YAML::Node p_outputs_seq;  // 创建 Sequence 节点
+        YAML::Node outputs_seq;
         for (const auto& param : extracted_params) {
             YAML::Node item;
             item["name"] = param.first;
             item["type"] = param.second;
-            p_outputs_seq.push_back(item);
+            outputs_seq.push_back(item);
         }
-        if (p_outputs_seq.size() > 0) {
-            params_node["outputs"] = p_outputs_seq;
+        if (outputs_seq.size() > 0) {
+            params_node["outputs"] = outputs_seq;
         }
         config["pipeline_modules"]["pipeline_params"] = params_node;
 
-        // 3. 构建 pipeline_results 节点 (使用另一个独立的 Node)
+        // pipeline_results
         YAML::Node results_node;
         results_node["type"] = "ResultModule";
-        YAML::Node r_inputs_seq;  // 创建 Sequence 节点
+        YAML::Node inputs_seq;
         for (const auto& result : extracted_results) {
             YAML::Node item;
             item["name"] = result.first;
             item["type"] = result.second;
             item["source"] = test_module_name + "." + result.first;
-            r_inputs_seq.push_back(item);
+            inputs_seq.push_back(item);
         }
-        if (r_inputs_seq.size() > 0) {
-            results_node["inputs"] = r_inputs_seq;
+        if (inputs_seq.size() > 0) {
+            results_node["inputs"] = inputs_seq;
         }
         config["pipeline_modules"]["pipeline_results"] = results_node;
 
-        // 4. 导出文件
-        std::string filename = "temp_" + m_test_name + ".yaml";
-        std::ofstream out(filename);
-        out << config;  // 直接输出 config
-        out.close();
-
-        return filename;
+        return save_yaml(config);
     }
 
     virtual bool compare_tensors(const ov::Tensor& output, const ov::Tensor& expected) {

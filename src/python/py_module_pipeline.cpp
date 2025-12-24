@@ -16,11 +16,10 @@
 
 namespace py = pybind11;
 namespace pyutils = ov::genai::pybind::utils;
-namespace common_utils = ov::genai::common_bindings::utils;
 
 
 auto module_generate_docstring = R"(
-    Generates sequences for VLMs.
+    Generates sequences or image, video for Modular LLM.
 
     :param prompt: input prompt
     :type prompt: str
@@ -34,30 +33,45 @@ auto module_generate_docstring = R"(
     :rtype: dict
 )";
 
-py::object call_module_generate(
+ov::AnyMap kwargs_to_intputs(const py::kwargs& kwargs) {
+    ov::AnyMap params = {};
+
+    for (const auto& item : kwargs) {
+        std::string key = py::cast<std::string>(item.first);
+        py::object value = py::cast<py::object>(item.second);
+
+        if (pyutils::py_object_is_any_map(value)) {
+            auto map = pyutils::py_object_to_any_map(value);
+            params.insert(map.begin(), map.end());
+        } else {
+            std::cout << "Error: Input unsupported data type with key: " << key << std::endl;
+        }
+    }
+    return params;
+}
+
+void call_module_generate(
     ov::genai::module::ModulePipeline& pipe,
     const py::kwargs& kwargs
 ) {
     {
         py::gil_scoped_release rel;
-        
-        pipe.generate();
+        auto inputs = kwargs_to_intputs(kwargs);
+        pipe.generate(inputs);
     }
 }
 
-void init_vlm_pipeline(py::module_& m) {
-
-    py::class_<ov::genai::module::ModulePipeline>(m, "ModulePipeline", "This class is used for generation with ModulePipeline")
-        .def(py::init([](
-            const std::filesystem::path& models_path,
-            const py::kwargs& kwargs
-        ) {
-            ScopedVar env_manager(pyutils::ov_tokenizers_module_path());
-            return std::make_unique<ov::genai::module::ModulePipeline>(models_path);
-        }),
-        py::arg("models_path"), "folder with exported model files",
-        R"(
-            VLMPipeline class constructor.
+void init_module_pipeline(py::module_& m) {
+    py::class_<ov::genai::module::ModulePipeline>(m,
+                                                  "ModulePipeline",
+                                                  "This class is used for generation with ModulePipeline")
+        .def(py::init([](const std::filesystem::path& models_path, const py::kwargs& kwargs) {
+                 return std::make_unique<ov::genai::module::ModulePipeline>(models_path);
+             }),
+             py::arg("models_path"),
+             "folder with exported model files",
+             R"(
+            Module Pipeline class constructor.
             models_path (os.PathLike): Path to the folder with exported model files.
         )")
 
@@ -65,12 +79,10 @@ void init_vlm_pipeline(py::module_& m) {
         .def("finish_chat", &ov::genai::module::ModulePipeline::finish_chat)
         .def(
             "generate",
-            [](ov::genai::module::ModulePipeline& pipe,
-                const py::kwargs& kwargs
-            ) -> py::typing::Union<ov::genai::VLMDecodedResults> {
-                return call_vlm_generate(pipe, prompt, images, videos, generation_config, streamer, kwargs);
+            [](ov::genai::module::ModulePipeline& pipe, const py::kwargs& inputs) -> void {
+                return call_module_generate(pipe, inputs);
             },
-            py::arg("inputs"), "AnyMap",
-            (module_generate_docstring + std::string(" \n ")).c_str()
-        );
+            (std::string("generate(**kwargs) -> None\n\n") + "Accepts arbitrary keyword arguments as AnyMap.\n\n" +
+             module_generate_docstring)
+                .c_str());
 }
