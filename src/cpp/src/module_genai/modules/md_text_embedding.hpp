@@ -20,9 +20,7 @@ protected:
     TextEmbeddingModule(const IBaseModuleDesc::PTR& desc);
 
 public:
-    ~TextEmbeddingModule() {
-        std::cout << "~TextEmbeddingModule is called." << std::endl;
-    }
+    ~TextEmbeddingModule() {}
 
     void run() override;
 

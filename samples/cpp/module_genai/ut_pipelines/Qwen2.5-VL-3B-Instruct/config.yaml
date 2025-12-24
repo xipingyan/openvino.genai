@@ -62,23 +62,8 @@ pipeline_modules:
         type: "OVTensor"
     params:
       model_path: "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4"
-  
-  # --- 3. Text Embedding 模块 ---
-  text_embedding:                     # Module Name
-    type: "TextEmbeddingModule"
-    device: "GPU"
-    inputs:
-      - name: "input_ids"
-        type: "OVTensor"              # Token ids tensor from TextEncoderModule
-        source: "prompt_encoder.input_ids"
-    outputs:
-      - name: "input_embedding"
-        type: "OVTensor"              # Or OVRemoteTensor depending on device / use case
-    params:
-      model_path: "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4"
-      scale_emb: "1.0"
 
-  # --- 4. Result Module ---
+  # --- 2. Result Module ---
   pipeline_result:
     type: "ResultModule"
     description: "Collects final results and formats the output structure."
