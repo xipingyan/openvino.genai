@@ -6,12 +6,28 @@
 #include <openvino/genai/module_genai/pipeline.hpp>
 #include <filesystem>
 #include <chrono>
+#include "ut_modules_base.hpp"
 
 static std::string get_config_ymal_path(int argc, char *argv[]) {
-    if (argc > 1) {
-        return std::string(argv[1]);
+    if (argc > 2) {
+        return std::string(argv[2]);
     }
     return "config.yaml";
+}
+
+static bool compare_big_tensor(const ov::Tensor& output,
+                               const std::vector<float>& expected_top,
+                               const float& thr = 1e-3) {
+    int real_size = std::min(expected_top.size(), output.get_size());
+    bool bresult = true;
+    for (int i = 0; i < real_size; ++i) {
+        float val = static_cast<float>(output.data<float>()[i]);
+        if (std::fabs(val - expected_top[i]) > thr) {
+            bresult = false;
+            std::cout << "Mismatch at index " << i << ": expected " << expected_top[i] << ", got " << val << std::endl;
+        }
+    }
+    return bresult;
 }
 
 static bool print_subword(std::string &&subword)
@@ -27,21 +43,18 @@ int test_genai_module_ut_pipelines(int argc, char *argv[])
     ov::genai::module::ModulePipeline pipe(config_fn);
     ov::genai::module::PrintAllModulesConfig();
 
-    std::string prompt = "Please describle this image";
-    ov::Tensor image = utils::load_image("test_image.jpg");
+    ov::Tensor image = utils::load_image("ut_test_data/cat_120_100.png");
 
     // std::cout << "question:\n";
     // std::getline(std::cin, prompt);
     for (int l = 0; l < 1; l++)
     {
         std::cout << "== Loop: [" << l << "] " << std::endl;
-        std::cout << "Input image1_data first value: " << (int)image.data<uint8_t>()[0] << ", data type: " << image.get_element_type() << std::endl;
         // pipe.start_chat();
 
         ov::AnyMap inputs;
-        inputs["prompts_data"] = prompt;
-        inputs["image1_data"] = image;
-        inputs["image2_data"] = image;
+        inputs["prompts_data"] = std::vector<std::string>{"Please describle this image"};
+        inputs["img1"] = image;
 
         auto t1 = std::chrono::high_resolution_clock::now();
         pipe.generate(inputs);
@@ -51,8 +64,13 @@ int test_genai_module_ut_pipelines(int argc, char *argv[])
 
         // pipe.finish_chat();
 
-        auto output_raw_data = pipe.get_output("raw_data").as<ov::Tensor>();
-        std::cout << "Output raw data first value: " << output_raw_data.data<float>()[0] << std::endl;
+        auto output_merged_embedding = pipe.get_output("merged_embedding").as<ov::Tensor>();
+
+        std::vector<float> expected_merged_embedding_start = {
+            -0.0235291, 0.000759125, -0.0151825, -0.0136642, -0.00987244, 0.00531387, -0.00151825, 0.00683212, 0.012146, 0.0220184
+        };
+        CHECK(compare_big_tensor(output_merged_embedding, expected_merged_embedding_start, 1e-2), "merged_embedding not match expected values");
+        std::cout << "Pipeline test passed" << std::endl;
     }
     return EXIT_SUCCESS;
 }

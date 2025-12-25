@@ -2,9 +2,7 @@
 # 全局配置 (GLOBAL CONFIGURATION) 待定，是否需要。
 # ----------------------------------------------------------------------
 global_context:
-  default_device: "GPU"
-  enable_shared_memory: True
-  device_id: "GPU.0"
+  model_type: "qwen2_5_vl"
 
 # ----------------------------------------------------------------------
 # 模块定义 (MODULES DEFINITION) - 修正了 YAML 引用和参数格式
@@ -12,56 +10,117 @@ global_context:
 pipeline_modules:
 
   # --- 0. Parameter 模块 ---
-  prompts:
+  pipeline_params:
     type: "ParameterModule"
     outputs:
+      - name: "img1"
+        type: "OVTensor"
       - name: "prompts_data"
-        type: "VecString"
-
-  image:
-    type: "ParameterModule"
-    outputs:
-      - name: "image1_data"
-        type: "OVTensor"
-      - name: "image2_data"
-        type: "OVTensor"
+        type: "String"
 
   # --- 1. 图像预处理模块 (Image Preprocessing) ---
-  image_preprocessor:
+  image_preprocessor:       # Module Name
     type: "ImagePreprocessModule"
-    device: "CPU"
+    device: "GPU"
+    description: "Image or Video preprocessing."
     inputs:
-      - name: "image_input_1"
-        type: "OVTensor"
-        source: "image.image1_data"
-      - name: "image_input_2"
-        type: "OVTensor"
-        source: "image.image2_data"
+      - name: "image"     # single image
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+        source: "pipeline_params.img1"
     outputs:
-      - name: "raw_data"
-        type: "OVTensor"
-      - name: "thw"
-        type: "OVTensor"
+      - name: "raw_data"        # Output port name
+        type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
+      - name: "source_size"     # Output port name
+        type: "VecInt"          # Support DataType: [VecInt]
     params:
-      target_resolution: [224, 224]
-      mean: [0.485, 0.456, 0.406]
-      std: [0.229, 0.224, 0.225]
+      target_resolution: [224, 224]   # optional
+      mean: [0.485, 0.456, 0.406]     # optional
+      std: [0.229, 0.224, 0.225]      # optional
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
 
   # --- 2. Prompt Encode 模块 ---
   prompt_encoder:
     type: "TextEncoderModule"
     device: "GPU"
     inputs:
-      - name: "prompts_input"
-        type: "VecString"
-        source: "prompts.prompts_data"
+      - name: "prompts"
+        type: "String"
+        source: "pipeline_params.prompts_data"
+      - name: "encoded_image"
+        type: "OVTensor"
+        source: "image_preprocessor.raw_data"
+      - name: "source_size"
+        type: "VecInt"
+        source: "image_preprocessor.source_size"
     outputs:
-      - name: "input_ids"
+      - name: "prompt_embedding"
         type: "OVTensor"
       - name: "mask"
         type: "OVTensor"
+      - name: "images_sequence"
+        type: "VecInt"
     params:
-      model_path: "/mnt/disk2/Qwen2.5-VL-7B-Instruct-INT4"
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+
+  # --- 3. Prompt Embedding 模块 ---
+  text_embedding:
+    type: "TextEmbeddingModule"
+    device: "GPU"
+    inputs:
+      - name: "input_ids"
+        type: "OVTensor"
+        source: "prompt_encoder.input_ids"
+    outputs:
+      - name: "input_embedding"
+        type: "OVTensor"
+    params:
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      scale_emb: "1.0"
+  
+  # --- 4. Vision Encoder 模块 ---
+  vision_encoder:
+    type: "VisionEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "preprocessed_image"
+        type: "OVTensor"
+        source: "image_preprocessor.raw_data"
+      - name: "source_size"
+        type: "VecInt"
+        source: "image_preprocessor.source_size"
+      - name: "images_sequence"
+        type: "VecInt"
+        source: "prompt_encoder.images_sequence"
+    outputs:
+      - name: "image_embedding"
+        type: "OVTensor"
+      - name: "video_embedding"
+        type: "OVTensor"
+    params:
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+
+  # --- 5. Embedding Merger 模块 ---
+  embedding_merger:
+    type: "EmbeddingMergerModule"
+    device: "GPU"
+    inputs:
+      - name: "input_ids"
+        type: "OVTensor"
+        source: "prompt_encoder.input_ids"
+      - name: "input_embedding"
+        type: "OVTensor"
+        source: "text_embedding.input_embedding"
+      - name: "image_embedding"
+        type: "OVTensor"
+        source: "vision_encoder.image_embedding"
+      - name: "video_embedding"
+        type: "OVTensor"
+        source: "vision_encoder.video_embedding"
+    outputs:
+      - name: "merged_embedding"
+        type: "OVTensor"
+    params:
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
 
   # --- 2. Result Module ---
   pipeline_result:
@@ -69,10 +128,10 @@ pipeline_modules:
     description: "Collects final results and formats the output structure."
     device: "CPU"
     inputs:
-      - name: "raw_data"
+      - name: "merged_embedding"
         type: "OVTensor"
-        source: "image_preprocessor.raw_data"
+        source: "embedding_merger.merged_embedding"
 
     outputs:
-      - name: "raw_data"
+      - name: "merged_embedding"
         type: "OVTensor"

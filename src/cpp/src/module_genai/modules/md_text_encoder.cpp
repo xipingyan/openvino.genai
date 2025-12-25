@@ -41,10 +41,10 @@ void TextEncoderModule::print_static_config() {
         type: "VecVecInt"         # [Optional] Support DataType: [VecVecInt]
         source: "ParentModuleName.OutputPortName"
     outputs:
-      - name: "prompt_embedding"
-        type: "OVRemoteTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
+      - name: "input_ids"
+        type: "OVTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
       - name: "mask"
-        type: "OVRemoteTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
+        type: "OVTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
       - name: "images_sequence"
         type: "VecInt"             # Support DataType: [VecInt]
     params:

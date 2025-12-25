@@ -7,4 +7,4 @@ source ../../../../openvino_toolkit_ubuntu${UBUNTU_VER}_2025.4.0.20398.8fdad5572
 
 cd ${SCRIPT_DIR_EXAMPLE_OV_CPP_RUN}
 
-./build/module_genai_ut_app "ut_pipelines"
+./build/module_genai_ut_app "ut_pipelines" "./ut_pipelines/Qwen2.5-VL-3B-Instruct/config.yaml"
