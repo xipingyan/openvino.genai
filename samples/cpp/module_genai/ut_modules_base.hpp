@@ -196,15 +196,6 @@ protected:
     
         return rand_tensor;
     }
-
-#ifndef CHECK
-#    define CHECK(cond, msg)                                            \
-        do {                                                                   \
-            if (!(cond)) {                                                     \
-                throw std::runtime_error(std::string("Check failed: ") + msg); \
-            }                                                                  \
-        } while (0)
-#endif
 };
 
 #ifndef DEFINE_MODULE_TEST_CONSTRUCTOR
