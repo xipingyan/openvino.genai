@@ -10,4 +10,8 @@ export LD_LIBRARY_PATH=${GENAI_ROOT_DIR}/../runtime/lib/intel64/:$LD_LIBRARY_PAT
 
 cd ${SCRIPT_DIR_GENAI_MODULE_PY}
 
-python module_pipeline_imp_process.py
+img_fn=${SCRIPT_DIR_GENAI_MODULE_PY}/../../cpp/module_genai/ut_test_data/cat_120_100.png
+model_dir=${SCRIPT_DIR_GENAI_MODULE_PY}/../../cpp/module_genai/ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/
+
+python module_pipeline_imp_process.py ${img_fn} ${model_dir} CPU
+#  --image_dir ${img_fn} --model_dir ${model_dir} --device CPU

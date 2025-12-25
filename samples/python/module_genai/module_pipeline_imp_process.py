@@ -9,6 +9,7 @@ import openvino_genai
 from PIL import Image
 from openvino import Tensor
 from pathlib import Path
+import yaml
 
 # pip install pillow
 
@@ -51,6 +52,7 @@ def read_images(path: str) -> list[Tensor]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('image_dir', default="", help="Image file or dir with images")
+    parser.add_argument('model_dir', default="", help="Path to the directory with models")
     parser.add_argument('device', nargs='?', default='CPU', help="Device to run the model on (default: CPU)")
     args = parser.parse_args()
 
@@ -64,7 +66,49 @@ def main():
         # It's not beneficial for CPU.
         enable_compile_cache["CACHE_DIR"] = "vlm_cache"
 
-    pipe = openvino_genai.ModulePipeline()
+    # yaml config
+    cfg_data = {
+        'global_context': {
+            'model_type': 'qwen2_5_vl'
+        },
+        'pipeline_modules': {
+            'image_preprocessor': {
+                'type': 'ImagePreprocessModule',
+                'device': args.device,
+                'description': 'Image or Video preprocessing.',
+                'inputs': [
+                    {
+                        'name': 'image',
+                        'type': 'OVTensor',
+                        'source': 'pipeline_params.img1'
+                    }
+                ],
+                'outputs': [
+                    {
+                        'name': 'raw_data',
+                        'type': 'OVTensor'
+                    },
+                    {
+                        'name': 'source_size',
+                        'type': 'VecInt'
+                    }
+                ],
+                'params': {
+                    'target_resolution': [224, 224],
+                    'mean': [0.485, 0.456, 0.406],
+                    'std': [0.229, 0.224, 0.225],
+                    'model_path': args.model_dir
+                }
+            }
+        }
+    }
+    cfg_yaml = yaml.dump(cfg_data)
+    # convert yaml str to local file
+    fn = "module_pipeline_imp_process.yaml"
+    with open(fn, "w") as f:
+        f.write(cfg_yaml)
+
+    pipe = openvino_genai.ModulePipeline(fn)
 
     # config = openvino_genai.GenerationConfig()
     # config.max_new_tokens = 100
