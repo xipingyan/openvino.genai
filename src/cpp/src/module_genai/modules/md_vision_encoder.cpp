@@ -79,7 +79,7 @@ bool VisionEncoderModule::initialize() {
 
     auto compiled_model = utils::singleton_core().compile_model(
         model, 
-        module_desc->device, {});
+        module_desc->device.empty() ? "CPU" : module_desc->device, {});
     m_with_cu_seqlens_input = utils::check_vl_sdpa_transformations(compiled_model);
     ov::genai::utils::print_compiled_model_properties(compiled_model,
         m_with_cu_seqlens_input ? "VLM vision embeddings merger model with VLSDPA optimization ENABLED" :
