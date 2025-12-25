@@ -26,6 +26,7 @@ namespace module {
         // 2. Embedding/Encoder Modules
         VisionEncoderModule = 20,
         TextEmbeddingModule = 21,
+        EmbeddingMergerModule = 22,
         
         // 3. Fusion/Pruning Modules
         FeaturePrunerModule = 30,

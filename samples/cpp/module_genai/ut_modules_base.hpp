@@ -12,6 +12,7 @@
 #include <openvino/genai/module_genai/pipeline.hpp>
 #include <string>
 #include <vector>
+#include <random>
 
 #include "utils.hpp"
 #include "load_image.hpp"
@@ -182,6 +183,28 @@ protected:
         }
         return true;
     }
+
+    ov::Tensor ut_randn_tensor(const ov::Shape& shape, size_t seed) {
+        ov::Tensor rand_tensor(ov::element::f32, shape);
+        float * rand_tensor_data = rand_tensor.data<float>();
+        std::mt19937 rng(seed);
+        std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    
+        for (size_t i = 0; i < rand_tensor.get_size(); ++i) {
+            rand_tensor_data[i] = dist(rng);
+        }
+    
+        return rand_tensor;
+    }
+
+#ifndef CHECK
+#    define CHECK(cond, msg)                                            \
+        do {                                                                   \
+            if (!(cond)) {                                                     \
+                throw std::runtime_error(std::string("Check failed: ") + msg); \
+            }                                                                  \
+        } while (0)
+#endif
 };
 
 #ifndef DEFINE_MODULE_TEST_CONSTRUCTOR
