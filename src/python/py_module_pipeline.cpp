@@ -59,6 +59,46 @@ ov::AnyMap kwargs_to_intputs(const py::kwargs& kwargs) {
     return params;
 }
 
+py::object output_to_pyobject(const ov::Any& value) {
+    if (value.is<int>()) {
+        return py::cast(value.as<int>());
+    }
+    else if (value.is<float>()) {
+        return py::cast(value.as<float>());
+    }
+    else if (value.is<double>()) {
+        return py::cast(value.as<double>());
+    }
+    else if (value.is<bool>()) {
+        return py::cast(value.as<bool>());
+    }
+    else if (value.is<std::vector<float>>()) {
+        return py::cast(value.as<std::vector<float>>());
+    }
+    else if (value.is<std::vector<int>>()) {
+        return py::cast(value.as<std::vector<int>>());
+    }
+    else if (value.is<std::string>()) {
+        return py::cast(value.as<std::string>());
+    }
+    else if (value.is<ov::Tensor>()) {
+        return py::cast(value.as<ov::Tensor>());
+    }
+    else if (value.is<std::vector<ov::Tensor>>()) {
+        return py::cast(value.as<std::vector<ov::Tensor>>());
+    }
+    else if (value.is<ov::AnyMap>()) {
+        ov::AnyMap any_map = value.as<ov::AnyMap>();
+        py::dict py_dict;
+        for (const auto& [k, v] : any_map) {
+            py_dict[py::cast(k)] = output_to_pyobject(v);
+        }
+        return py_dict;
+    }
+    
+    throw std::runtime_error("Unsupported type in ov::Any conversion");
+}
+
 void call_module_generate(
     ov::genai::module::ModulePipeline& pipe,
     const py::kwargs& kwargs
@@ -93,5 +133,13 @@ void init_module_pipeline(py::module_& m) {
             },
             (std::string("generate(**kwargs) -> None\n\n") + "Accepts arbitrary keyword arguments as AnyMap.\n\n" +
              module_generate_docstring)
-                .c_str());
+                .c_str())
+        .def(
+            "get_output",
+            [](ov::genai::module::ModulePipeline& pipe, const std::string& output_name) -> py::object {
+                ov::Any result = pipe.get_output(output_name);
+                return output_to_pyobject(result);
+            },
+            py::arg("output_name"),
+            "Get output by name.\n\n:param output_name: Name of the output.\n:return: Output value.");
 }

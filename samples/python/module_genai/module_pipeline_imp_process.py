@@ -128,13 +128,6 @@ def main():
                     }
                 ]
             }
-    #           pipeline_results:
-    # type: "ResultModule"
-    # device: "CPU"
-    # inputs:
-    #   - name: "input_embedding"
-    #     type: "OVTensor"
-    #     source: "text_embedding.input_embedding"
         }
     }
     cfg_yaml = yaml.dump(cfg_data)
@@ -149,7 +142,11 @@ def main():
     # config.max_new_tokens = 100
 
     # pipe.start_chat()
+    print("rgbs[0] shape:", rgbs[0].get_shape())
     pipe.generate(img1=rgbs[0])
+    source_size = pipe.get_output("source_size")
+    print("Output source_size:", source_size)
+
     # pipe.finish_chat()
 
 
