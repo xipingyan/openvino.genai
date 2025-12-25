@@ -43,6 +43,15 @@ ov::AnyMap kwargs_to_intputs(const py::kwargs& kwargs) {
         if (pyutils::py_object_is_any_map(value)) {
             auto map = pyutils::py_object_to_any_map(value);
             params.insert(map.begin(), map.end());
+        } else if (py::isinstance<ov::Tensor>(value)) {
+            params[key] = value.cast<ov::Tensor>();
+        } else if (py::isinstance<py::list>(value)) {
+            auto list = value.cast<py::list>();
+            if (list.size() > 0 && py::isinstance<ov::Tensor>(list[0])) {
+                params[key] = value.cast<std::vector<ov::Tensor>>();
+            } else {
+                std::cout << "Error: Input unsupported data type in list with key: " << key << std::endl;
+            }
         } else {
             std::cout << "Error: Input unsupported data type with key: " << key << std::endl;
         }
@@ -54,9 +63,9 @@ void call_module_generate(
     ov::genai::module::ModulePipeline& pipe,
     const py::kwargs& kwargs
 ) {
+    auto inputs = kwargs_to_intputs(kwargs);
     {
         py::gil_scoped_release rel;
-        auto inputs = kwargs_to_intputs(kwargs);
         pipe.generate(inputs);
     }
 }

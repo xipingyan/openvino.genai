@@ -38,9 +38,11 @@ def read_image(path: str) -> Tensor:
 
     '''
     pic = Image.open(path).convert("RGB")
-    image_data = np.array(pic)
-    return Tensor(image_data)
+    # image_data = np.array(pic)
+    # return Tensor(image_data)
 
+    # 3dim to 4dim with batch size 1
+    return Tensor(np.stack([pic], axis=0))
 
 def read_images(path: str) -> list[Tensor]:
     entry = Path(path)
@@ -72,6 +74,17 @@ def main():
             'model_type': 'qwen2_5_vl'
         },
         'pipeline_modules': {
+            'pipeline_params': {
+                'type': 'ParameterModule',
+                'device': args.device,
+                'description': 'Pipeline parameters module.',
+                'outputs': [
+                    {
+                        'name': 'img1',
+                        'type': 'OVTensor'
+                    }
+                ]
+            },
             'image_preprocessor': {
                 'type': 'ImagePreprocessModule',
                 'device': args.device,
@@ -94,12 +107,34 @@ def main():
                     }
                 ],
                 'params': {
-                    'target_resolution': [224, 224],
-                    'mean': [0.485, 0.456, 0.406],
-                    'std': [0.229, 0.224, 0.225],
+                    'target_resolution': str([224, 224]),
+                    'mean': str([0.485, 0.456, 0.406]),
+                    'std': str([0.229, 0.224, 0.225]),
                     'model_path': args.model_dir
                 }
+            },
+            'pipeline_results': {
+                'type': 'ResultModule',
+                'inputs': [
+                    {
+                        'name': 'raw_data',
+                        'type': 'OVTensor',
+                        'source': 'image_preprocessor.raw_data'
+                    },
+                    {
+                        'name': 'source_size',
+                        'type': 'VecInt',
+                        'source': 'image_preprocessor.source_size'
+                    }
+                ]
             }
+    #           pipeline_results:
+    # type: "ResultModule"
+    # device: "CPU"
+    # inputs:
+    #   - name: "input_embedding"
+    #     type: "OVTensor"
+    #     source: "text_embedding.input_embedding"
         }
     }
     cfg_yaml = yaml.dump(cfg_data)
@@ -114,10 +149,7 @@ def main():
     # config.max_new_tokens = 100
 
     # pipe.start_chat()
-    inputs = dict()
-    inputs["prompt"] = ""
-    inputs["images"] = rgbs
-    pipe.generate(inputs)
+    pipe.generate(img1=rgbs[0])
     # pipe.finish_chat()
 
 
