@@ -47,49 +47,42 @@ void LLMInferenceModule::print_static_config() {
 global_context:
   model_type: "qwen2_5_vl"
 pipeline_modules:
-  pipeline_params:
-    type: "ParameterModule"
-    outputs:
-      - name: "embeds_list"
-        type: "VecOVTensor"
-    outputs:
-      - name: "position_ids_list"
-        type: "VecOVTensor"
   llm_inference:
     type: "LLMInferenceModule"
     description: "LLM module for Continuous Batch pipeline"
     device: "CPU"
     inputs:
-      - name: "embeds_list"
+      - name: "embeds"              # [Optional] embedding feature.
+        type: "OVTensor"
+        source: "ParentModuleName.OutputPortName"
+      - name: "position_ids"        # [Optional]
+        type: "OVTensor"
+        source: "ParentModuleName.OutputPortName"
+      - name: "embeds_list"         # [Optional]
         type: "VecOVTensor"
-        source: "pipeline_params.embeds_list"
-      - name: "position_ids_list"
+        source: "ParentModuleName.OutputPortName"
+      - name: "position_ids_list"   # [Optional]
         type: "VecOVTensor"
-        source: "pipeline_params.position_ids_list"
+        source: "ParentModuleName.OutputPortName"
     outputs:
-      - name: "generated_text"
+      - name: "generated_text"      # Correspoding input: embeds
         type: "String"
+      - name: "generated_texts"     # Correspoding input: embeds_list
+        type: "VecString"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "model_path"
       max_new_tokens: "256"
       do_sample: "false"
       top_p: "1.0"
       top_k: "50"
       temperature: "1.0"
       repetition_penalty: "1.0"
-  pipeline_results:
-    type: "ResultModule"
-    device: "CPU"
-    inputs:
-      - name: "generated_text"
-        type: "String"
-        source: "llm_inference.generated_text"
     )" << std::endl;
 }
 
 LLMInferenceModule::LLMInferenceModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
     if (!initialize()) {
-        std::cerr << "Failed to initialize LLMInferenceModule" << std::endl;
+        GENAI_ERR("Failed to initialize LLMInferenceModule");
     }
 }
 
@@ -118,8 +111,8 @@ bool LLMInferenceModule::initialize() {
     }
     std::filesystem::path models_path = it_models_path->second;
 
-    // Get device
-    std::string device = module_desc->device.empty() ? "GPU" : module_desc->device;
+    // Get device: Default CPU.
+    std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
 
     // Force to use PA backend
     ov::AnyMap cfg{};
@@ -133,7 +126,7 @@ bool LLMInferenceModule::initialize() {
             try {
                 target = converter(it->second);
             } catch (...) {
-                std::cerr << "Failed to parse parameter: " << key << std::endl;
+                GENAI_ERR("Failed to parse parameter: " + key);
             }
         }
     };
@@ -169,43 +162,26 @@ void LLMInferenceModule::run() {
 
     prepare_inputs();
 
-    if (this->inputs.count("embeds") == 0 && this->inputs.count("embeds_list") == 0) {
-    	GENAI_ERR("LlmInferenceModule[" + module_desc->name + "]: 'embeds' input not found");
-    	return;
+    std::vector<ov::Tensor> embeds_list;
+    std::vector<ov::Tensor> position_ids_list;
+    if (this->inputs.find("embeds") != this->inputs.end()) {
+        embeds_list.push_back(inputs["embeds"].data.as<ov::Tensor>());
+        position_ids_list.push_back(inputs["position_ids"].data.as<ov::Tensor>());
+    } else if (this->inputs.find("embeds_list") != this->inputs.end()) {
+        embeds_list = inputs["embeds_list"].data.as<std::vector<ov::Tensor>>();
+        position_ids_list = inputs["position_ids_list"].data.as<std::vector<ov::Tensor>>();
+    } else {
+        GENAI_ERR("TextEmbeddingModule[" + module_desc->name + "]: 'embeds or embeds_list' input not found")
     }
 
-    if(this->inputs.count("position_ids") == 0 && this->inputs.count("position_ids_list") == 0) {
-    	GENAI_ERR("LlmInferenceModule[" + module_desc->name + "]: 'position_ids' input not found");
-    	return;
-    }
-
-    ov::Tensor input_embeds;
-    std::vector<ov::Tensor> input_embeds_list;
-    std::pair<ov::Tensor, std::optional<int64_t>> input_position_ids;
     std::vector<std::pair<ov::Tensor, std::optional<int64_t>>> input_position_ids_list;
-    if (this->inputs.count("embeds")) {
-    	input_embeds = this->inputs["embeds"].data.as<ov::Tensor>();
-    }
-    if (this->inputs.count("embeds_list")) {
-    	input_embeds_list = this->inputs["embeds_list"].data.as<std::vector<ov::Tensor>>();
+    for (auto& pids : position_ids_list) {
+        input_position_ids_list.push_back({pids, std::optional<int64_t>(std::nullopt)});
     }
 
-    if (this->inputs.count("position_ids")) {
-    	input_position_ids = this->inputs["position_ids"].data.as<std::pair<ov::Tensor, std::optional<int64_t>>>();
-    }
-    if (this->inputs.count("position_ids_list")) {
-    	input_position_ids_list = this->inputs["position_ids_list"].data.as<std::vector<std::pair<ov::Tensor, std::optional<int64_t>>>>();
-        //TODO, Fixme, unit test purpose only, to be deleted after solution available for parameter passing around
-        input_position_ids_list = load_test_data_position_ids_list();
-    }
-
-    ov::genai::VLMDecodedResults vlm_results;
-    std::vector<ov::genai::GenerationConfig> configs_vec = {m_generation_config};
     std::vector<ov::genai::EncodedGenerationResult> results_vec;
-    std::optional<std::vector<ov::Tensor>> opt_token_type_ids = std::nullopt;
 
-    // TODO,FIXME: support single instance of embeds and input_position_ids case.
-    results_vec = m_cb_pipeline->generate(input_embeds_list, configs_vec, std::monostate{}, opt_token_type_ids, input_position_ids_list);
+    results_vec = m_cb_pipeline->generate(embeds_list, std::vector<GenerationConfig>{m_generation_config}, std::monostate(), std::nullopt, input_position_ids_list);
     std::string generated_text = "";
     if (results_vec.size()) {
         auto& results = results_vec[0];

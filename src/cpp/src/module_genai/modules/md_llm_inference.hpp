@@ -21,7 +21,7 @@ namespace genai {
 namespace module {
 
 /// @brief Unified generation module supporting multiple modalities
-/// Supports: LLM, VLM, Text2Image, Image2Image, Inpainting, Text2Speech
+/// Supports: LLM, VLM
 class LLMInferenceModule : public IBaseModule {
 protected:
     LLMInferenceModule() = delete;
