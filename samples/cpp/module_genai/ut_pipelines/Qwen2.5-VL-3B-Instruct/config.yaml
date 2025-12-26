@@ -16,7 +16,7 @@ pipeline_modules:
       - name: "img1"
         type: "OVTensor"
       - name: "prompts_data"
-        type: "String"
+        type: "VecString"
 
   # --- 1. 图像预处理模块 (Image Preprocessing) ---
   image_preprocessor:       # Module Name
@@ -44,7 +44,7 @@ pipeline_modules:
     device: "CPU"
     inputs:
       - name: "prompts"
-        type: "String"
+        type: "VecString"
         source: "pipeline_params.prompts_data"
       - name: "encoded_image"
         type: "OVTensor"
@@ -53,7 +53,7 @@ pipeline_modules:
         type: "VecInt"
         source: "image_preprocessor.source_size"
     outputs:
-      - name: "prompt_embedding"
+      - name: "input_ids"
         type: "OVTensor"
       - name: "mask"
         type: "OVTensor"

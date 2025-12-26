@@ -49,9 +49,13 @@ ov::AnyMap kwargs_to_intputs(const py::kwargs& kwargs) {
             auto list = value.cast<py::list>();
             if (list.size() > 0 && py::isinstance<ov::Tensor>(list[0])) {
                 params[key] = value.cast<std::vector<ov::Tensor>>();
+            } else if (list.size() > 0 && py::isinstance<py::str>(list[0])) {
+                params[key] = value.cast<std::vector<std::string>>();
             } else {
                 std::cout << "Error: Input unsupported data type in list with key: " << key << std::endl;
             }
+        } else if (py::isinstance<py::str>(value)) {
+            params[key] = value.cast<std::string>();
         } else {
             std::cout << "Error: Input unsupported data type with key: " << key << std::endl;
         }

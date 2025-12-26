@@ -1,2 +1,7 @@
 pyyaml
 graphviz
+numpy
+pillow
+torch
+torchvision
+transformers
