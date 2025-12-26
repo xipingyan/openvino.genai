@@ -36,13 +36,19 @@ void VisionEncoderModule::print_static_config() {
       - name: "images_sequence"
         type: "VecInt"                                     # Support DataType: [VecInt]
         source: "ParentModuleName.OutputPortName"
+      - name: "input_ids"                                  # [Optional] When output position_ids is needed.
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
+        source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "image_embedding"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
       - name: "video_embedding"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "position_ids"                               # [Optional], depends on input_ids
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
     params:
       model_path: "model"
+      vision_start_token_id: 100001
     )" << std::endl;
 }
 
@@ -63,6 +69,13 @@ bool VisionEncoderModule::initialize() {
     if (it_path == params.end()) {
         GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'model_path' not found in params");
         return false;
+    }
+
+    auto it_vision_start_token_id = params.find("vision_start_token_id");;
+    if (it_vision_start_token_id != params.end()) {
+        m_vision_start_token_id = std::stoll(it_vision_start_token_id->second);
+    } else {
+        GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'vision_start_token_id' not found in params, using default 0");
     }
 
     std::filesystem::path model_path = it_path->second;
@@ -114,6 +127,14 @@ void VisionEncoderModule::run() {
         return;
     }
 
+    ov::Tensor input_ids;
+    if (this->inputs.find("input_ids") == this->inputs.end() || this->inputs["input_ids"].data == nullptr) {
+        GENAI_WARN("VisionEncoderModule[" + module_desc->name +
+                   "]: 'input_ids' input not found, position_ids output will be skipped");
+    } else {
+        input_ids = this->inputs["input_ids"].data.as<ov::Tensor>();
+    }
+
     ov::Tensor image_embedding;
     ov::Tensor video_embedding;
     EncodedImage encoded;
@@ -121,14 +142,16 @@ void VisionEncoderModule::run() {
     encoded.resized_source_size.width = this->inputs["source_size"].data.as<std::vector<int>>()[1];
     encoded.resized_source = this->inputs["preprocessed_image"].data.as<ov::Tensor>();
     std::vector<int> images_sequence = this->inputs["images_sequence"].data.as<std::vector<int>>();
-    std::tie(video_embedding, image_embedding) = embed(encoded, images_sequence);
+    std::tie(video_embedding, image_embedding) = embed(encoded, images_sequence, input_ids);
     
     this->outputs["image_embedding"].data = image_embedding;
     this->outputs["video_embedding"].data = video_embedding;
+    if (input_ids)
+        this->outputs["position_ids"].data = m_position_ids;
 }
 
 
-std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage &image, const std::vector<int>& images_sequence) {
+std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage &image, const std::vector<int>& images_sequence, const ov::Tensor& input_ids) {
     OPENVINO_ASSERT(m_ireq_queue_vision_embeddings_merger, "VisionEncoderModule is not initialized. Call initialize() first.");
 
     std::vector<size_t> vec_images_sequence(images_sequence.begin(), images_sequence.end());
@@ -193,6 +216,22 @@ std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage 
     std::memcpy(res_image.data(),
                 reinterpret_cast<uint8_t*>(processed_vision_embeds.data()) + res_video.get_byte_size(),
                 res_image.get_byte_size());
+
+    std::vector<size_t> videos_sequence(reordered_video_embeds.size());
+    std::iota(videos_sequence.begin(), videos_sequence.end(), 0);
+
+    if (input_ids) {
+        m_position_ids = create_position_ids(input_ids,
+                                             reordered_images_grid_thw,
+                                             vec_images_sequence,
+                                             0,
+                                             reordered_videos_grid_thw,
+                                             videos_sequence,
+                                             0,
+                                             m_vision_start_token_id,
+                                             {});
+    }
+
     return {res_video, res_image};
 }
 
@@ -278,6 +317,127 @@ size_t VisionEncoderModule::calc_vec_tokens_num(const std::vector<std::array<siz
 
 size_t VisionEncoderModule::calc_tokens_num(size_t grid_t, size_t grid_h, size_t grid_w) const {
     return grid_t * grid_h * grid_w / m_merge_length;
+}
+
+ov::Tensor VisionEncoderModule::create_position_ids(
+    const ov::Tensor& input_ids_tensor,
+    const std::vector<std::array<size_t, 3>>& images_grid_thw,
+    const std::vector<size_t>& images_sequence,
+    const size_t image_id,
+    const std::vector<std::array<size_t, 3>>& videos_grid_thw,
+    const std::vector<size_t>& videos_sequence,
+    const size_t video_id,
+    const int64_t vision_start_token_id,
+    const std::vector<std::pair<std::size_t, std::size_t>>& history_vision_count) {
+    const size_t spatial_merge_size = 2; // m_vision_encoder->get_processor_config().merge_size;
+    const size_t tokens_per_second = m_vlm_config.vision_config_tokens_per_second;
+    std::vector<std::array<size_t, 3>> reordered_images_grid_thw;
+
+    if (history_vision_count.size() > 0) {
+        size_t vid_idx = 0;
+        size_t img_idx = 0;
+        for (size_t i = 0; i < history_vision_count.size(); i++) {
+            size_t ed = vid_idx + history_vision_count[i].first;
+            for (; vid_idx < ed; vid_idx++) {
+                reordered_images_grid_thw.push_back(videos_grid_thw.at(vid_idx - video_id));
+            }
+            ed = img_idx + history_vision_count[i].second;
+            for (; img_idx < ed; img_idx++) {
+                reordered_images_grid_thw.push_back(images_grid_thw.at(img_idx - image_id));
+            }
+        }
+    } else {
+        for (size_t new_frame_id : videos_sequence) {
+            reordered_images_grid_thw.push_back(videos_grid_thw.at(new_frame_id - video_id));
+        }
+        for (size_t new_image_id : images_sequence) {
+            reordered_images_grid_thw.push_back(images_grid_thw.at(new_image_id - image_id));
+        }
+    }
+
+    const int64_t* input_ids = input_ids_tensor.data<int64_t>();
+    size_t batch_size = input_ids_tensor.get_shape().at(0);
+    size_t seq_len = input_ids_tensor.get_shape().at(1);
+
+    std::vector<size_t> vision_start_indices;
+    for (size_t i = 0; i < seq_len; ++i) {
+        if (input_ids[i] == vision_start_token_id) {
+            vision_start_indices.push_back(i);
+        }
+    }
+
+    ov::Tensor position_ids{ov::element::i64, {3, batch_size, seq_len}};
+    int64_t* pos_data = position_ids.data<int64_t>();
+    
+    size_t st = 0;
+    int64_t next_pos = 0;
+    size_t grid_idx = 0;
+
+    for (size_t i = 0; i < vision_start_indices.size(); ++i) {
+        size_t ed = vision_start_indices.at(i);
+
+        // Process text tokens before image
+        if (st < ed) {
+            for (size_t pos = st; pos < ed; ++pos) {
+                pos_data[pos] = next_pos;               // temporal
+                pos_data[seq_len + pos] = next_pos;     // height
+                pos_data[2 * seq_len + pos] = next_pos; // width
+                next_pos++;
+            }
+        }
+
+        // Process image start token
+        pos_data[ed] = next_pos;               // temporal
+        pos_data[seq_len + ed] = next_pos;     // height
+        pos_data[2 * seq_len + ed] = next_pos; // width
+        next_pos++;
+        ed++;
+
+        // Process image token with grid
+        if (grid_idx < reordered_images_grid_thw.size()) {
+            const auto& grid = reordered_images_grid_thw.at(grid_idx);
+            size_t llm_grid_t = grid.at(0);
+            size_t llm_grid_h = grid.at(1) / spatial_merge_size;
+            size_t llm_grid_w = grid.at(2) / spatial_merge_size;
+            size_t llm_grid_sz = llm_grid_h * llm_grid_w;
+            size_t ed_image = ed + llm_grid_t * llm_grid_sz;
+
+            // Fill temporal dimension
+            for (size_t t = 0; t < llm_grid_t; t++) {
+                std::fill_n(pos_data + ed + t * llm_grid_sz, llm_grid_sz, next_pos + t * tokens_per_second);
+            }
+
+            // Fill height and width dimensions
+            int64_t* height_data = pos_data + seq_len + ed;
+            int64_t* width_data = pos_data + 2 * seq_len + ed;
+            for (size_t t = 0; t < llm_grid_t; t++) {
+                size_t offset_sz = t * llm_grid_sz;
+                for (size_t h = 0; h < llm_grid_h; ++h) {
+                    size_t offset = h * llm_grid_w + offset_sz;
+                    std::fill_n(height_data + offset, llm_grid_w, next_pos + h);
+                    for (size_t w = 0; w < llm_grid_w; ++w) {
+                        width_data[offset + w] = next_pos + w;
+                    }
+                }
+            }
+
+            next_pos += std::max(((llm_grid_t - 1) * tokens_per_second + 1), std::max(llm_grid_h, llm_grid_w));
+            st = ed_image;
+            grid_idx++;
+        }
+    }
+
+    // Process remaining text tokens
+    if (st < seq_len) {
+        for (size_t pos = st; pos < seq_len; ++pos) {
+            pos_data[pos] = next_pos;               // temporal
+            pos_data[seq_len + pos] = next_pos;     // height
+            pos_data[2 * seq_len + pos] = next_pos; // width
+            next_pos++;
+        }
+    }
+
+    return position_ids;
 }
 
 }

@@ -56,6 +56,8 @@ pipeline_modules:
     outputs:
       - name: "images_sequence"
         type: "VecInt"
+      - name: "input_ids"
+        type: "OVTensor"
     params:
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
   vision_encoder:
@@ -71,11 +73,17 @@ pipeline_modules:
       - name: "images_sequence"
         type: "VecInt"
         source: "prompt_encoder.images_sequence"
+      - name: "input_ids"
+        type: "OVTensor"
+        source: "prompt_encoder.input_ids"
     outputs:
       - name: "image_embedding"
         type: "OVTensor"
+      - name: "position_ids"
+        type: "OVTensor"
     params:
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      vision_start_token_id: 151652
 
   pipeline_results:
     type: "ResultModule"
@@ -84,6 +92,9 @@ pipeline_modules:
       - name: "image_embedding"
         type: "OVTensor"
         source: "vision_encoder.image_embedding"
+      - name: "position_ids"
+        type: "OVTensor"
+        source: "vision_encoder.position_ids"
 )";
     }
 
@@ -103,6 +114,9 @@ pipeline_modules:
             -1.03223, 0.269775, 0.316406, 1.99805, -1.7666, 1.14746, 1.60254, 1.89453, 3.13086, 0.59082
         };
         CHECK(compare_big_tensor(image_embedding, expected_image_embedding, 0.2f), "image_embedding do not match expected values");
+
+        auto position_ids = pipe.get_output("position_ids").as<ov::Tensor>();
+        CHECK(compare_shape(position_ids.get_shape(), ov::Shape({3, 1, 43})), "position_ids shape do not match expected values");
     }
 };
 

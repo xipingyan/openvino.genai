@@ -6,6 +6,13 @@
 int test_genai_module_ut_modules(int argc, char *argv[])
 {
     std::cout << "== Starting Module Tests ==" << std::endl;
+
+    std::vector<std::string> filtered_tests;
+    if (argc > 2) {
+        for (int i = 2; i < argc; ++i) {
+            filtered_tests.emplace_back(argv[i]);
+        }
+    }
     
     const auto& tests = TestRegistry::get().get_tests();
     
@@ -20,7 +27,14 @@ int test_genai_module_ut_modules(int argc, char *argv[])
 
     for (const auto& [name, creator] : tests) {
         std::cout << "--------------------------------------------------" << std::endl;
+        if (!filtered_tests.empty() &&
+            std::find(filtered_tests.begin(), filtered_tests.end(), name) == filtered_tests.end()) {
+            std::cout << "Skipping Test: " << name << std::endl;
+            continue;
+        }
+
         std::cout << "Running Test: " << name << std::endl;
+
         try {
             auto test = creator();
             test->run();
