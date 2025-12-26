@@ -34,6 +34,7 @@ namespace module {
         
         // 4. Inference/Generator Modules
         LLMInferenceModule = 40,
+        TransformerModule = 41,
         
         // 5. Output/Result Modules
         ResultModule = 50,

@@ -51,6 +51,10 @@ ov::Tensor concat(ov::Tensor tensor_1, ov::Tensor tensor_2, int axis);
 
 void batch_copy(ov::Tensor src, ov::Tensor dst, size_t src_batch, size_t dst_batch, size_t batch_size = 1);
 ov::Tensor repeat(const ov::Tensor input, const size_t num_images_per_prompt);
+ov::Tensor squeeze(const ov::Tensor& tensor, size_t dim);
+ov::Tensor unsqueeze(const ov::Tensor& tensor, size_t dim);
+std::vector<ov::Tensor> split(const ov::Tensor& tensor);
+ov::Tensor stack(const std::vector<ov::Tensor>& tensors);
 
 } // namespace ov
 } // namespace genai
