@@ -75,6 +75,10 @@ protected:
             return save_yaml(config);
         }
 
+        // When only one module is specified, the ParameterModule and ResultModule will be automatically inferred and added.
+        std::string auto_padding_param_name = "pipeline_params";
+        std::string auto_padding_result_name = "pipeline_results";
+
         // only one node recursive
         std::string test_module_name;
         for (auto it = modules.begin(); it != modules.end(); ++it) {
@@ -83,11 +87,19 @@ protected:
             YAML::Node inputs = it->second["inputs"];
             if (inputs && inputs.IsSequence()) {
                 for (const auto& input : inputs) {
-                    std::string source = input["source"].as<std::string>("");
-                    if (source.find("pipeline_params.") == 0) {
-                        std::string param_name = source.substr(16);
+                    std::string input_name = input["name"].as<std::string>("");
+                    std::string source = input["source"].as<std::string>(std::string());
+                    if (source.empty()) {
+                        std::string type = input["type"].as<std::string>("");
+                        extracted_params[input_name] = type;
+                        it->second["inputs"][0]["source"] = auto_padding_param_name + "." + input_name;
+                        continue;
+                    } else if (source.find(auto_padding_param_name + ".") == 0) {
+                        std::string param_name = source.substr(auto_padding_param_name.size() + 1);
                         std::string type = input["type"].as<std::string>("");
                         extracted_params[param_name] = type;
+                    } else {
+                        OPENVINO_ASSERT(false, "Error: Input[" + input_name + "] source format error. ");
                     }
                 }
             }
@@ -116,7 +128,7 @@ protected:
         if (outputs_seq.size() > 0) {
             params_node["outputs"] = outputs_seq;
         }
-        config["pipeline_modules"]["pipeline_params"] = params_node;
+        config["pipeline_modules"][auto_padding_param_name] = params_node;
 
         // pipeline_results
         YAML::Node results_node;
@@ -132,7 +144,7 @@ protected:
         if (inputs_seq.size() > 0) {
             results_node["inputs"] = inputs_seq;
         }
-        config["pipeline_modules"]["pipeline_results"] = results_node;
+        config["pipeline_modules"][auto_padding_result_name] = results_node;
 
         return save_yaml(config);
     }
