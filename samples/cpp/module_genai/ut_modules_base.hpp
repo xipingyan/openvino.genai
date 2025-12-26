@@ -54,11 +54,15 @@ protected:
     virtual void verify_outputs(ov::genai::module::ModulePipeline& pipe) = 0;
 
     std::string save_yaml(const YAML::Node& config) {
+#if 1   // return yaml string
+        return YAML::Dump(config);
+#else
         std::string filename = "temp_" + m_test_name + ".yaml";
         std::ofstream out(filename);
         out << config;
         out.close();
         return filename;
+#endif
     }
 
     virtual std::string generate_yaml() {
