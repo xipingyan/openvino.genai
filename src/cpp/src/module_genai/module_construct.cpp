@@ -8,6 +8,7 @@
 #include "modules/md_vision_encoder.hpp"
 #include "modules/md_text_embedding.hpp"
 #include "modules/md_embedding_merger.hpp"
+#include "modules/md_llm_inference.hpp"
 #include "utils/yaml_utils.hpp"
 
 namespace ov {
@@ -63,6 +64,9 @@ void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleI
             break;
         case ModuleType::EmbeddingMergerModule:
             module_ptr = EmbeddingMergerModule::create(module_desc.second);
+            break;
+        case ModuleType::LLMInferenceModule:
+            module_ptr = LLMInferenceModule::create(module_desc.second);
             break;
         default:
             break;

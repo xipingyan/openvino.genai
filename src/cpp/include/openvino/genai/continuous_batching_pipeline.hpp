@@ -194,6 +194,22 @@ public:
         const std::vector<GenerationConfig>& sampling_params,
         const StreamerVariant& streamer=std::monostate{});
 
+	/**
+     * @brief Generate with pre-computed embeddings for VLM models
+     * @param input_embeds Pre-computed input embeddings
+     * @param sampling_params Generation configurations
+     * @param streamer Optional streamer
+     * @param token_type_ids Optional token type IDs
+     * @param position_ids Optional position IDs with offset
+     * @return Vector of encoded generation results
+     */
+    std::vector<EncodedGenerationResult> generate(
+        const std::vector<ov::Tensor>& input_ids,
+        const std::vector<ov::genai::GenerationConfig>& sampling_params,
+        const ov::genai::StreamerVariant& streamer,
+        const std::optional<std::vector<ov::Tensor>>& token_type_ids,
+        const std::optional<std::vector<std::pair<ov::Tensor, std::optional<int64_t>>>>& position_ids);
+
     /**
     * @brief start chat with keeping history in kv cache.
     * @param system_message optional system message.

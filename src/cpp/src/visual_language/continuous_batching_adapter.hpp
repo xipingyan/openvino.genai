@@ -88,4 +88,16 @@ public:
     virtual GenerationConfig get_generation_config() const override { return m_impl.get_config(); };
 
     virtual void set_generation_config(const GenerationConfig& new_config)  override { m_impl.set_config(new_config); };
+
+    /**
+     * Performs generation based on input embeddings with optional token_type_ids and position_ids
+     */
+    std::vector<EncodedGenerationResult> generate(
+        const std::vector<ov::Tensor>& input_embeds,
+        const std::vector<GenerationConfig>& sampling_params,
+        const StreamerVariant& streamer,
+        const std::optional<std::vector<ov::Tensor>>& token_type_ids = std::nullopt,
+        const std::optional<std::vector<std::pair<ov::Tensor, std::optional<int64_t>>>>& position_ids = std::nullopt) {
+        return m_impl.generate(input_embeds, sampling_params, streamer, token_type_ids, position_ids);
+    }
 };

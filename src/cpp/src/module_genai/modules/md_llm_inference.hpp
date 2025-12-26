@@ -1,0 +1,57 @@
+// Copyright (C) 2023-2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include <yaml-cpp/yaml.h>
+
+#include "module_genai/module.hpp"
+#include "module_genai/module_type.hpp"
+#include "continuous_batching/pipeline_base.hpp"
+#include "openvino/genai/continuous_batching_pipeline.hpp"
+
+#include "openvino/genai/llm_pipeline.hpp"
+#include "openvino/genai/visual_language/pipeline.hpp"
+
+#include "visual_language/pipeline_base.hpp"
+#include "visual_language/continuous_batching_adapter.hpp"
+
+namespace ov {
+namespace genai {
+namespace module {
+
+/// @brief Unified generation module supporting multiple modalities
+/// Supports: LLM, VLM, Text2Image, Image2Image, Inpainting, Text2Speech
+class LLMInferenceModule : public IBaseModule {
+protected:
+    LLMInferenceModule() = delete;
+    LLMInferenceModule(const IBaseModuleDesc::PTR& desc);
+
+public:
+    ~LLMInferenceModule() {}
+
+    void run() override;
+
+    using PTR = std::shared_ptr<LLMInferenceModule>;
+    static PTR create(const IBaseModuleDesc::PTR& desc) {
+        return PTR(new LLMInferenceModule(desc));
+    }
+    static void print_static_config();
+
+private:
+    
+    bool initialize();
+    bool load_generation_config(const std::string& config_path);
+    
+    // Pipeline instances (only one will be initialized based on model type)
+    std::shared_ptr<ov::genai::VLMPipeline::VLMContinuousBatchingAdapter> m_cb_pipeline;
+
+    // Generation configurations
+    ov::genai::GenerationConfig m_generation_config;
+};
+
+REGISTER_MODULE_CONFIG(LLMInferenceModule);
+
+}  // namespace module
+}  // namespace genai
+}  // namespace ov

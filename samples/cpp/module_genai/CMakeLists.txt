@@ -15,7 +15,7 @@ else()
     message(FATAL_ERROR "OpenCV not found! Check your installation and environment.")
 endif()
 
-file(GLOB SRC_FILES *.cpp ut_modules/*.cpp)
+file(GLOB SRC_FILES CONFIGURE_DEPENDS *.cpp ut_modules/*.cpp)
 add_executable(${TARGET_NAME} ${SRC_FILES})
 
 target_include_directories(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOUCE_DIR}" "${CMAKE_BINARY_DIR}" "${OpenCV_INCLUDE_DIRS}")

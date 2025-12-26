@@ -281,10 +281,13 @@ public:
     /// @param new_config A config to override default values with.
     void set_generation_config(const GenerationConfig& new_config);
 
+    // Implementation detail exposed for integration use-cases.
+    // Note: this adapter is used internally to back VLMPipeline with ContinuousBatchingPipeline.
+    class VLMContinuousBatchingAdapter;
+
 private:
     class VLMPipelineBase;
     class VLMPipelineImpl;
-    class VLMContinuousBatchingAdapter;
     std::unique_ptr<VLMPipelineBase> m_pimpl;
 };
 
