@@ -23,6 +23,16 @@ ModulePipelineImpl::ModulePipelineImpl(const std::filesystem::path& config_path)
     m_modules = sort_pipeline(m_modules);
 }
 
+ModulePipelineImpl::ModulePipelineImpl(const std::string& config_content) {
+    auto pipeline_desc = utils::load_config_from_string(config_content);
+
+    // Construct pipeline
+    construct_pipeline(pipeline_desc, m_modules);
+
+    // Sort pipeline
+    m_modules = sort_pipeline(m_modules);
+}
+
 ModulePipelineImpl::~ModulePipelineImpl() {}
 
 // input all parameters in config.yaml

@@ -22,6 +22,8 @@ std::pair<std::string, std::string> parse_source(const std::string& source);
 
 PipelineModuleDesc load_config(const std::string& cfg_path);
 
+PipelineModuleDesc load_config_from_string(const std::string& content);
+
 std::ostream& operator<<(std::ostream& os, const IBaseModuleDesc::PTR& desc);
 
 }  // namespace utils

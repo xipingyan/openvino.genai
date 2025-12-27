@@ -22,6 +22,12 @@ ModulePipeline::ModulePipeline(const std::filesystem::path& config_path) {
     m_pipeline_impl = (ModulePipelineImpl*)pImpl;
 }
 
+ModulePipeline::ModulePipeline(const std::string& config_content) {
+    ModulePipelineImpl* pImpl = new ModulePipelineImpl(config_content);
+    OPENVINO_ASSERT(pImpl != NULL, "Create ModulePipelineImpl return null.");
+    m_pipeline_impl = (ModulePipelineImpl*)pImpl;
+}
+
 ModulePipeline::~ModulePipeline() {
     auto* pImpl = (ModulePipelineImpl*)m_pipeline_impl;
     delete pImpl;

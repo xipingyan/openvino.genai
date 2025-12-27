@@ -19,6 +19,9 @@ public:
     // config_path: yaml file.
     ModulePipeline(const std::filesystem::path& config_path);
 
+    // config_content: yaml content string.
+    ModulePipeline(const std::string& config_content);
+
     ~ModulePipeline();
 
     // input all parameters in config.yaml
