@@ -30,7 +30,7 @@ pipeline_modules:
         type: "String"
     params:
       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-      max_new_tokens: "256"
+      max_new_tokens: "16"
       do_sample: "false"
       top_p: "1.0"
       top_k: "50"
@@ -70,14 +70,6 @@ pipeline_modules:
 
     bool load_test_data_position_ids_list(
     	std::vector<std::pair<ov::Tensor, std::optional<int64_t>>>& position_ids_list) {
-
-        // pair_count: 1
-        // pair_0_element_type: i64
-        // pair_0_shape: 3,1,30
-        // pair_0_byte_size: 720
-        // pair_0_has_rope_delta: true
-        // pair_0_rope_delta: -2
-
         ov::element::Type element_type = ov::element::i64;
         ov::Shape shape = {3, 1, 30};
         size_t byte_size = 720;
