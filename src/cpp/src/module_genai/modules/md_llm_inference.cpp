@@ -162,6 +162,7 @@ void LLMInferenceModule::run() {
 
     prepare_inputs();
 
+    bool is_batch = false;
     std::vector<ov::Tensor> embeds_list;
     std::vector<ov::Tensor> position_ids_list;
     if (this->inputs.find("embeds") != this->inputs.end()) {
@@ -170,6 +171,7 @@ void LLMInferenceModule::run() {
     } else if (this->inputs.find("embeds_list") != this->inputs.end()) {
         embeds_list = inputs["embeds_list"].data.as<std::vector<ov::Tensor>>();
         position_ids_list = inputs["position_ids_list"].data.as<std::vector<ov::Tensor>>();
+        is_batch = true;
     } else {
         GENAI_ERR("TextEmbeddingModule[" + module_desc->name + "]: 'embeds or embeds_list' input not found")
     }
@@ -188,7 +190,12 @@ void LLMInferenceModule::run() {
             generated_text = m_cb_pipeline->get_tokenizer().decode(results.m_generation_ids[0]);
     	    GENAI_INFO("LLM output: " + generated_text);
     	}
-        this->outputs["generated_text"].data = generated_text;
+
+        if (is_batch) {
+            this->outputs["generated_texts"].data = std::vector<std::string>{generated_text};
+        } else {
+            this->outputs["generated_text"].data = generated_text;
+        }
     }
 
     GENAI_INFO("LLMInferenceModule[" + module_desc->name + "] generation completed.");

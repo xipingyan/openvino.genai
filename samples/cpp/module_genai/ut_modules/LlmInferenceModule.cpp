@@ -19,12 +19,12 @@ pipeline_modules:
     description: "LLM module for Continuous Batch pipeline"
     device: "CPU"
     inputs:
-      - name: "embeds_list"
+      - name: "embeds"
+        type: "OVTensor"
+        source: "pipeline_params.embeds"
+      - name: "position_ids"
         type: "VecOVTensor"
-        source: "pipeline_params.embeds_list"
-      - name: "position_ids_list"
-        type: "VecOVTensor"
-        source: "pipeline_params.position_ids_list"
+        source: "pipeline_params.position_ids"
     outputs:
       - name: "generated_text"
         type: "String"
@@ -45,18 +45,16 @@ pipeline_modules:
         std::vector<ov::Tensor> input_embeds_list;
         load_test_data_input_embeds_list(input_embeds_list);
         CHECK(input_embeds_list.size(), "Failed to load input embeds list data");
-        inputs["embeds_list"] = input_embeds_list;
+        inputs["embeds"] = input_embeds_list[0];
 
         std::vector<std::pair<ov::Tensor, std::optional<int64_t>>> input_position_ids_list;
         load_test_data_position_ids_list(input_position_ids_list);
         CHECK(input_position_ids_list.size(), "Failed to load position ids list data");
-
         std::vector<ov::Tensor> only_position_ids_list;
         for (auto& pids : input_position_ids_list) {
             only_position_ids_list.push_back(pids.first);
         }
-
-        inputs["position_ids_list"] = only_position_ids_list;
+        inputs["position_ids"] = only_position_ids_list[0];
 
         return inputs;
     }
@@ -114,4 +112,72 @@ pipeline_modules:
     }
 };
 
+
+class LlmInferenceModuleTest_Batch : public LlmInferenceModuleTest {
+public:
+    LlmInferenceModuleTest_Batch(const std::string& test_name) : LlmInferenceModuleTest(test_name) {}
+
+protected:
+    virtual std::string get_yaml_content() override {
+        return R"(
+global_context:
+  model_type: "qwen2_5_vl"
+pipeline_modules:
+
+  llm_inference:
+    type: "LLMInferenceModule"
+    description: "LLM module for Continuous Batch pipeline"
+    device: "CPU"
+    inputs:
+      - name: "embeds_list"
+        type: "VecOVTensor"
+        source: "pipeline_params.embeds_list"
+      - name: "position_ids_list"
+        type: "VecOVTensor"
+        source: "pipeline_params.position_ids_list"
+    outputs:
+      - name: "generated_texts"
+        type: "VecString"
+    params:
+      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      max_new_tokens: "16"
+      do_sample: "false"
+      top_p: "1.0"
+      top_k: "50"
+      temperature: "1.0"
+      repetition_penalty: "1.0"
+)";
+    }
+
+    ov::AnyMap prepare_inputs() override {
+        ov::AnyMap inputs;
+
+        std::vector<ov::Tensor> input_embeds_list;
+        load_test_data_input_embeds_list(input_embeds_list);
+        CHECK(input_embeds_list.size(), "Failed to load input embeds list data");
+        inputs["embeds_list"] = input_embeds_list;
+
+        std::vector<std::pair<ov::Tensor, std::optional<int64_t>>> input_position_ids_list;
+        load_test_data_position_ids_list(input_position_ids_list);
+        CHECK(input_position_ids_list.size(), "Failed to load position ids list data");
+
+        std::vector<ov::Tensor> only_position_ids_list;
+        for (auto& pids : input_position_ids_list) {
+            only_position_ids_list.push_back(pids.first);
+        }
+
+        inputs["position_ids_list"] = only_position_ids_list;
+
+        return inputs;
+    }
+
+    void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
+        auto generated_texts = pipe.get_output("generated_texts").as<std::vector<std::string>>();
+
+        bool contains_white_cat = generated_texts[0].find("white cat") != std::string::npos;
+        CHECK(contains_white_cat, "llm inference module does not work as expected");
+    }
+};
+
 REGISTER_MODULE_TEST(LlmInferenceModuleTest);
+REGISTER_MODULE_TEST(LlmInferenceModuleTest_Batch);
