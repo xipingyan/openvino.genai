@@ -7,13 +7,10 @@
 
 #include "module_genai/module.hpp"
 #include "module_genai/module_type.hpp"
-#include "continuous_batching/pipeline_base.hpp"
-#include "openvino/genai/continuous_batching_pipeline.hpp"
 
 #include "openvino/genai/llm_pipeline.hpp"
 #include "openvino/genai/visual_language/pipeline.hpp"
 
-#include "visual_language/pipeline_base.hpp"
 #include "visual_language/continuous_batching_adapter.hpp"
 
 namespace ov {

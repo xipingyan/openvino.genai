@@ -13,14 +13,7 @@ protected:
 global_context:
   model_type: "qwen2_5_vl"
 pipeline_modules:
-  pipeline_params:
-    type: "ParameterModule"
-    outputs:
-      - name: "embeds_list"
-        type: "VecOVTensor"
-    outputs:
-      - name: "position_ids_list"
-        type: "VecOVTensor"
+
   llm_inference:
     type: "LLMInferenceModule"
     description: "LLM module for Continuous Batch pipeline"
@@ -43,13 +36,6 @@ pipeline_modules:
       top_k: "50"
       temperature: "1.0"
       repetition_penalty: "1.0"
-  pipeline_results:
-    type: "ResultModule"
-    device: "CPU"
-    inputs:
-      - name: "generated_text"
-        type: "String"
-        source: "llm_inference.generated_text"
 )";
     }
 
@@ -64,7 +50,13 @@ pipeline_modules:
         std::vector<std::pair<ov::Tensor, std::optional<int64_t>>> input_position_ids_list;
         load_test_data_position_ids_list(input_position_ids_list);
         CHECK(input_position_ids_list.size(), "Failed to load position ids list data");
-        inputs["position_ids_list"] = input_position_ids_list;
+
+        std::vector<ov::Tensor> only_position_ids_list;
+        for (auto& pids : input_position_ids_list) {
+            only_position_ids_list.push_back(pids.first);
+        }
+
+        inputs["position_ids_list"] = only_position_ids_list;
 
         return inputs;
     }
@@ -111,11 +103,6 @@ pipeline_modules:
     bool load_test_data_input_embeds_list(std::vector<ov::Tensor>& input_embeds_list) {
         input_embeds_list.clear();
 
-        // tensor_count: 1
-        // tensor_0_element_type: f32
-        // tensor_0_shape: 1,30,2048
-        // tensor_0_byte_size: 245760
-
         ov::element::Type element_type = ov::element::f32;
         ov::Shape shape = {1, 30, 2048};
         size_t byte_size = 245760;
@@ -133,7 +120,6 @@ pipeline_modules:
 
         return true;
     }
-
 };
 
 REGISTER_MODULE_TEST(LlmInferenceModuleTest);

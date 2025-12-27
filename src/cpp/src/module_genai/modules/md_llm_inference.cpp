@@ -179,9 +179,7 @@ void LLMInferenceModule::run() {
         input_position_ids_list.push_back({pids, std::optional<int64_t>(std::nullopt)});
     }
 
-    std::vector<ov::genai::EncodedGenerationResult> results_vec;
-
-    results_vec = m_cb_pipeline->generate(embeds_list, std::vector<GenerationConfig>{m_generation_config}, std::monostate(), std::nullopt, input_position_ids_list);
+    auto results_vec = m_cb_pipeline->generate(embeds_list, std::vector<GenerationConfig>{m_generation_config}, std::monostate(), std::nullopt, input_position_ids_list);
     std::string generated_text = "";
     if (results_vec.size()) {
         auto& results = results_vec[0];
