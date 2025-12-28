@@ -32,19 +32,26 @@ public:
     virtual ~ModuleTestBase() = default;
 
     void run() {
+#define EANBEL_YAML_CONTEXT 1
+#if EANBEL_YAML_CONTEXT
+        std::string yaml_content = generate_yaml_context();
+        ov::genai::module::ModulePipeline pipe(yaml_content);
+#else
         std::filesystem::path config_path = generate_yaml_path();
-
         ov::genai::module::ModulePipeline pipe(config_path);
+#endif
 
         ov::AnyMap inputs = prepare_inputs();
         pipe.generate(inputs);
 
         verify_outputs(pipe);
 
-        // Cleanup
+// Cleanup
+#ifndef EANBEL_YAML_CONTEXT
         if (std::filesystem::exists(config_path)) {
             std::filesystem::remove(config_path);
         }
+#endif
     }
 
 protected:

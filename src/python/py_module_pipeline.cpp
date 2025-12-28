@@ -118,14 +118,23 @@ void init_module_pipeline(py::module_& m) {
     py::class_<ov::genai::module::ModulePipeline>(m,
                                                   "ModulePipeline",
                                                   "This class is used for generation with ModulePipeline")
-        .def(py::init([](const std::filesystem::path& yaml_cfg, const py::kwargs& kwargs) {
-                 return std::make_unique<ov::genai::module::ModulePipeline>(yaml_cfg);
+        .def(py::init([](const std::filesystem::path& config_yaml_path, const py::kwargs& kwargs) {
+                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_path);
              }),
-             py::arg("yaml_cfg"),
+             py::arg("config_yaml_path"),
              "config file path",
              R"(
             Module Pipeline class constructor.
-            yaml_cfg (os.PathLike): Path to the configuration YAML file.
+            config_yaml_path (os.PathLike): Path to the configuration YAML file.
+        )")
+        .def(py::init([](const std::string& config_yaml_content, const py::kwargs& kwargs) {
+                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_content);
+             }),
+             py::arg("config_yaml_content"),
+             "config content string",
+             R"(
+            Module Pipeline class constructor.
+            config_yaml_content (str): YAML content as a string.
         )")
 
         .def("start_chat", &ov::genai::module::ModulePipeline::start_chat, py::arg("system_message") = "")
