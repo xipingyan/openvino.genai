@@ -3,12 +3,13 @@
 
 #include "ut_modules_base.hpp"
 
-YAML::Node ModuleTestBase::generate_yaml() {
-    std::string cur_module_cfg = get_yaml_content();
-    YAML::Node config = YAML::Load(cur_module_cfg);
+std::string ModuleTestBase::check_yaml(const std::string& yaml_content) {
+    YAML::Node config = YAML::Load(yaml_content);
 
+    OPENVINO_ASSERT(config["global_context"], "Test yaml config miss 'global_context'.");
+    OPENVINO_ASSERT(config["global_context"]["model_type"], "Test yaml config miss 'model_type' in 'global_context'.");
     OPENVINO_ASSERT(config["pipeline_modules"], "Test yaml config miss 'pipeline_modules'.");
-    return config;
+    return yaml_content;
 }
 
 ov::Tensor ModuleTestBase::ut_randn_tensor(const ov::Shape& shape, size_t seed) {

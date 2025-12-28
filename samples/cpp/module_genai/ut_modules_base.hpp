@@ -34,7 +34,7 @@ public:
     void run() {
 #define EANBEL_YAML_CONTEXT 1
 #if EANBEL_YAML_CONTEXT
-        std::string yaml_content = generate_yaml_context();
+        std::string yaml_content = generate_yaml_content();
         ov::genai::module::ModulePipeline pipe(yaml_content);
 #else
         std::filesystem::path config_path = generate_yaml_path();
@@ -59,19 +59,6 @@ protected:
     virtual std::string get_yaml_content() = 0;
     virtual ov::AnyMap prepare_inputs() = 0;
     virtual void verify_outputs(ov::genai::module::ModulePipeline& pipe) = 0;
-
-    virtual std::string generate_yaml_context() {
-        return YAML::Dump(generate_yaml());
-    }
-
-    std::filesystem::path generate_yaml_path() {
-        std::string yaml_content = generate_yaml_context();
-        std::string filename = "temp_" + m_test_name + ".yaml";
-        std::ofstream out(filename);
-        out << yaml_content;
-        out.close();
-        return std::filesystem::path(filename);
-    }
 
     bool compare_tensors(const ov::Tensor& output, const ov::Tensor& expected);
 
@@ -98,7 +85,20 @@ protected:
     ov::Tensor ut_randn_tensor(const ov::Shape& shape, size_t seed);
 
 private:
-    YAML::Node generate_yaml();
+    std::string check_yaml(const std::string& yaml_content);
+
+    std::filesystem::path generate_yaml_path() {
+        std::string yaml_content = check_yaml(get_yaml_content());
+        std::string filename = "temp_" + m_test_name + ".yaml";
+        std::ofstream out(filename);
+        out << yaml_content;
+        out.close();
+        return std::filesystem::path(filename);
+    }
+    std::string generate_yaml_content() {
+        std::string yaml_content = check_yaml(get_yaml_content());
+        return yaml_content;
+    }
 };
 
 #ifndef DEFINE_MODULE_TEST_CONSTRUCTOR
