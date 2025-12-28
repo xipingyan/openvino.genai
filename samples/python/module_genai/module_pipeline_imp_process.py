@@ -52,10 +52,10 @@ def read_images(path: str) -> list[Tensor]:
 
 
 def run_pipeline_test(pipe, **kwargs):
-    print("rgbs[0] shape:", kwargs['img1'].get_shape())
+    print(" rgbs[0] shape:", kwargs['image'].get_shape())
     pipe.generate(**kwargs)
     source_size = pipe.get_output("source_size")
-    print("Output source_size:", source_size)
+    print(" Output source_size:", source_size)
 
 def get_yaml_config(image_model_path: str, device: str) -> str:
     img_preprocess_cfg = {
@@ -107,7 +107,7 @@ def get_yaml_full_config(image_model_path: str, device: str) -> str:
                 'description': 'Pipeline parameters module.',
                 'outputs': [
                     {
-                        'name': 'img1',
+                        'name': 'image',
                         'type': 'OVTensor'
                     }
                 ]
@@ -120,7 +120,7 @@ def get_yaml_full_config(image_model_path: str, device: str) -> str:
                     {
                         'name': 'image',
                         'type': 'OVTensor',
-                        'source': 'pipeline_params.img1'
+                        'source': 'pipeline_params.image'
                     }
                 ],
                 'outputs': [
@@ -159,6 +159,24 @@ def get_yaml_full_config(image_model_path: str, device: str) -> str:
     }
     return yaml.dump(cfg_data)
 
+def run_specific_test(model_dir: str, device: str, rgbs: list[Tensor], is_full_yaml: bool, is_yaml_path: bool):
+    cfg_yaml_content = get_yaml_full_config(model_dir, device) if is_full_yaml else get_yaml_config(model_dir, device)
+
+    # Find inputs in yaml config, and prepare inputs dict.
+    inputs = {'image': rgbs[0]}
+
+    print(f"\n--- Test: is_full_yaml={is_full_yaml}, is_yaml_path={is_yaml_path} ---")
+    if is_yaml_path:
+        fn = "module_pipeline_imp_process.yaml"
+        print(f"    YAML config file path: {fn}")
+        with open(fn, "w") as f:
+            f.write(cfg_yaml_content)
+
+        pipe = openvino_genai.ModulePipeline(config_yaml_path=fn)
+    else:
+        pipe = openvino_genai.ModulePipeline(config_yaml_content=cfg_yaml_content)
+    run_pipeline_test(pipe, **inputs)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('image_dir', default="", help="Image file or dir with images")
@@ -168,30 +186,14 @@ def main():
 
     rgbs = read_images(args.image_dir)
 
-    enable_compile_cache = dict()
-    if args.device == "GPU":
-        enable_compile_cache["CACHE_DIR"] = "vlm_cache"
+    # enable_compile_cache = dict()
+    # if args.device == "GPU":
+    #     enable_compile_cache["CACHE_DIR"] = "vlm_cache"
 
-    # yaml config
-    cfg_yaml_content = get_yaml_config(args.model_dir, args.device)
-
-    inputs = {'img1': rgbs[0]}
-    
-    # Test 1: Config File Path
-    print("\n--- Test 1: Initialize with Config File Path ---")
-    fn = "module_pipeline_imp_process.yaml"
-    with open(fn, "w") as f:
-        f.write(cfg_yaml_content)
-
-    pipe_from_file = openvino_genai.ModulePipeline(config_yaml_path=fn)
-    run_pipeline_test(pipe_from_file, **inputs)
-
-    # Test 2: Config String
-    print("\n--- Test 2: Initialize with Config String ---")
-    # Pass the yaml content string directly
-    pipe_from_string = openvino_genai.ModulePipeline(config_yaml_content=cfg_yaml_content)
-    run_pipeline_test(pipe_from_string, **inputs)
-
+    run_specific_test(args.model_dir, args.device, rgbs, is_full_yaml=False, is_yaml_path=True)
+    run_specific_test(args.model_dir, args.device, rgbs, is_full_yaml=False, is_yaml_path=False)
+    run_specific_test(args.model_dir, args.device, rgbs, is_full_yaml=True, is_yaml_path=True)
+    run_specific_test(args.model_dir, args.device, rgbs, is_full_yaml=True, is_yaml_path=False)
 
 if '__main__' == __name__:
     main()

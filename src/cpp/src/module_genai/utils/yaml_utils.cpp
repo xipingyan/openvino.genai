@@ -132,6 +132,7 @@ PipelineModuleDesc parse_pipeline_config_internal(const YAML::Node& config, cons
 PipelineModuleDesc load_config(const std::string& cfg_path) {
     try {
         YAML::Node config = YAML::LoadFile(cfg_path);
+        yaml_cfg_auto_padding(config);
 
         std::string root_path = std::filesystem::path(cfg_path).has_parent_path()
                                     ? std::filesystem::path(cfg_path).parent_path().string()
@@ -149,6 +150,7 @@ PipelineModuleDesc load_config(const std::string& cfg_path) {
 PipelineModuleDesc load_config_from_string(const std::string& content) {
     try {
         YAML::Node config = YAML::Load(content);
+        yaml_cfg_auto_padding(config);
         return parse_pipeline_config_internal(config);
     } catch (const YAML::Exception& e) {
         GENAI_ERR(std::string("Error parsing YAML: ") + e.what());

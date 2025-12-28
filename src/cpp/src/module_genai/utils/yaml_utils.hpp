@@ -24,6 +24,8 @@ PipelineModuleDesc load_config(const std::string& cfg_path);
 
 PipelineModuleDesc load_config_from_string(const std::string& content);
 
+void yaml_cfg_auto_padding(YAML::Node& config_node);
+
 std::ostream& operator<<(std::ostream& os, const IBaseModuleDesc::PTR& desc);
 
 }  // namespace utils
