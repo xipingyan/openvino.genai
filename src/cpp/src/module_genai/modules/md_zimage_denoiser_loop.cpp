@@ -1,7 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "md_transformer.hpp"
+#include "md_zimage_denoiser_loop.hpp"
 #include "module_genai/transformer_config.hpp"
 #include "utils.hpp"
 #include "image_generation/schedulers/flow_match_euler_discrete.hpp"
@@ -13,7 +13,7 @@ namespace ov {
 namespace genai {
 namespace module {
 
-void TransformerModule::print_static_config() {
+void ZImageDenoiserLoopModule::print_static_config() {
     std::cout << R"(
   transformer:
     type: "TransformerModule"
@@ -25,10 +25,10 @@ void TransformerModule::print_static_config() {
       - name: "prompt_embeds"
         type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "negative_prompt_embed"
+      - name: "prompt_embed_negative"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "negative_prompt_embeds"
+      - name: "prompt_embeds_negative"
         type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "width"                                      # [optional]
@@ -50,16 +50,16 @@ void TransformerModule::print_static_config() {
         type: "Float"                                      # Support DataType: [Int]
         source: "ParentModuleName.OutputPortName"
     outputs:
-      - name: "output"
+      - name: "latent"
         type: "OVTensor"                                   # Support DataType: [VecOVTensor]
-      - name: "outputs"
+      - name: "latents"
         type: "VecOVTensor"                                   # Support DataType: [VecOVTensor]
     params:
       model_path: "model"
     )" << std::endl;
 }
 
-TransformerModule::TransformerModule(const IBaseModuleDesc::PTR &desc) : IBaseModule(desc) {
+ZImageDenoiserLoopModule::ZImageDenoiserLoopModule(const IBaseModuleDesc::PTR &desc) : IBaseModule(desc) {
     m_model_type = to_image_generation_model_type(desc->model_type);
     if (m_model_type != ImageGenerationModelType::ZIMAGE) {
         GENAI_ERR("TransformerModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
@@ -70,11 +70,11 @@ TransformerModule::TransformerModule(const IBaseModuleDesc::PTR &desc) : IBaseMo
     }
 }
 
-TransformerModule::~TransformerModule() {
+ZImageDenoiserLoopModule::~ZImageDenoiserLoopModule() {
 
 }
 
-bool TransformerModule::initialize() {
+bool ZImageDenoiserLoopModule::initialize() {
     const auto &params = module_desc->params;
     auto it_path = params.find("model_path");
     if (it_path == params.end()) {
@@ -108,7 +108,7 @@ bool TransformerModule::initialize() {
     return true;
 }
 
-int TransformerModule::get_vae_scale_factor(const std::filesystem::path &model_path) const {
+int ZImageDenoiserLoopModule::get_vae_scale_factor(const std::filesystem::path &model_path) const {
     std::filesystem::path vae_config_path = model_path / "vae/config.json";
     if (!std::filesystem::exists(vae_config_path)) {
         return 8;
@@ -120,7 +120,7 @@ int TransformerModule::get_vae_scale_factor(const std::filesystem::path &model_p
     return std::pow(2, block_out_channels.size() - 1);
 }
 
-void TransformerModule::run() {
+void ZImageDenoiserLoopModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
     std::vector<ov::Tensor> prompt_embeds;
@@ -135,10 +135,10 @@ void TransformerModule::run() {
         GENAI_ERR("TransformerModule[" + module_desc->name + "]: 'prompt_embed' or 'prompt_embeds' input not found");
         return;
     }
-    if (this->inputs.find("negative_prompt_embed") != this->inputs.end()) {
-        negative_prompt_embeds.push_back(this->inputs["negative_prompt_embed"].data.as<ov::Tensor>());
-    } else if (this->inputs.find("negative_prompt_embeds") != this->inputs.end()) {
-        negative_prompt_embeds = this->inputs["negative_prompt_embeds"].data.as<std::vector<ov::Tensor>>();
+    if (this->inputs.find("prompt_embed_negative") != this->inputs.end()) {
+        negative_prompt_embeds.push_back(this->inputs["prompt_embed_negative"].data.as<ov::Tensor>());
+    } else if (this->inputs.find("prompt_embeds_negative") != this->inputs.end()) {
+        negative_prompt_embeds = this->inputs["prompt_embeds_negative"].data.as<std::vector<ov::Tensor>>();
     } else {
         // empty negative prompt embeds
     }
@@ -177,16 +177,17 @@ void TransformerModule::run() {
     }
     auto outputs = run(prompt_embeds, negative_prompt_embeds, generation_config);
     if (m_is_multi_prompts) {
-        this->outputs["outputs"].data = outputs;
+        this->outputs["latents"].data = outputs;
     } else {
-        this->outputs["output"].data = outputs[0];
+        this->outputs["latent"].data = outputs[0];
     }
 }
 
-std::vector<ov::Tensor> TransformerModule::run(
+std::vector<ov::Tensor> ZImageDenoiserLoopModule::run(
         const std::vector<ov::Tensor>& prompt_embeds,
         const std::vector<ov::Tensor>& negative_prompt_embeds,
         const ImageGenerationConfig &generation_config) {
+    // TODO: Add multi image support and negative prompt support
     int batch_size = prompt_embeds.size();
     int num_channels_latents = m_transformer_config.in_channels;
     ov::Tensor latents = prepare_latents(
@@ -226,7 +227,6 @@ std::vector<ov::Tensor> TransformerModule::run(
         timesteps[i] = (1000.0f - timesteps[i]) / 1000.0f;
     }
     for (size_t inference_step = 0; inference_step < timesteps.size(); inference_step++) {
-        // TODO: Add multi image support
         ov::Tensor unsqueezed_latents = numpy_utils::unsqueeze(latents, 2);
         ov::Tensor timestep(ov::element::f32, {1}, &timesteps[inference_step]);
         m_request.set_tensor("hidden_states", unsqueezed_latents);
@@ -245,7 +245,7 @@ std::vector<ov::Tensor> TransformerModule::run(
     return numpy_utils::split(latents);
 }
 
-ov::Tensor TransformerModule::prepare_latents(
+ov::Tensor ZImageDenoiserLoopModule::prepare_latents(
         int batch_size,
         int num_channels,
         int width,

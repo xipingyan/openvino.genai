@@ -24,14 +24,14 @@ bash run_pipeline_with_torch.sh
 
 Download the model, password: `intel123`
 ```bash
-scp -r ziniu@lic-code-vm13:/home/ziniu/web_files/models/Z-Image-Turbo ../../cpp/module_genai/ut_pipelines/
+scp -r ziniu@lic-code-vm13:/home/ziniu/web_files/models/Z-Image-Turbo-fp16-ov ../../cpp/module_genai/ut_pipelines/
 ```
 
 Run test:
 ```bash
 source ../../../../python-env/bin/activate
 pip install -r requirements.txt
-bash run_transformer.sh
+bash run_z_image_denoiser_loop.sh
 ```
 
-The output image is `zimage_transformer_output.png`
+The output image is `zimage_denoiser_loop_output.png`

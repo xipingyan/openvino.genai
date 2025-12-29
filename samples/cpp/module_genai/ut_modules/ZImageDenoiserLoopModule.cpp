@@ -3,9 +3,9 @@
 
 #include "../ut_modules_base.hpp"
 
-class TransformerModuleTest : public ModuleTestBase {
+class ZImageDenoiserLoopModule : public ModuleTestBase {
 public:
-    DEFINE_MODULE_TEST_CONSTRUCTOR(TransformerModuleTest)
+    DEFINE_MODULE_TEST_CONSTRUCTOR(ZImageDenoiserLoopModule)
 
 protected:
     std::string get_yaml_content() override {
@@ -14,8 +14,8 @@ global_context:
   model_type: "zimage"
 pipeline_modules:
 
-  transformer:
-    type: "TransformerModule"
+  denoiser_loop:
+    type: "ZImageDenoiserLoopModule"
     device: "CPU"
     inputs:
       - name: "prompt_embed"
@@ -31,10 +31,10 @@ pipeline_modules:
         type: "Int"
         source: "pipeline_params.height"
     outputs:
-      - name: "output"
+      - name: "latent"
         type: "OVTensor"
     params:
-      model_path: "./ut_pipelines/Z-Image-Turbo/FP16/"
+      model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
 )";
     }
 
@@ -50,12 +50,12 @@ pipeline_modules:
     }
 
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto output = pipe.get_output("output").as<ov::Tensor>();
+        auto output = pipe.get_output("latent").as<ov::Tensor>();
         std::vector<float> expected_ouput = { 
           0.329547, 0.660284, 0.467982, 0.449864, 0.523435, 1.11912, 0.244269, -0.327588, -0.83454, -1.47006
         };
-        CHECK(compare_big_tensor(output, expected_ouput, 1e-2), "output do not match expected values");
+        CHECK(compare_big_tensor(output, expected_ouput, 1e-2), "latent do not match expected values");
     }
 };
 
-REGISTER_MODULE_TEST(TransformerModuleTest);
+REGISTER_MODULE_TEST(ZImageDenoiserLoopModule);

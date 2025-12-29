@@ -16,7 +16,7 @@ import json
 
 class TransformerPipeline():
     def __init__(self, model_path: str):
-        self.model_path = "../../cpp/module_genai/ut_pipelines/Z-Image-Turbo/FP16/"
+        self.model_path = model_path
         self.device = "CPU"
         core = Core()
         vae_decoder_model = core.read_model(self.model_path + "/vae_decoder/openvino_model.xml")
@@ -42,10 +42,10 @@ class TransformerPipeline():
                 'model_type': 'zimage'
             },
             'pipeline_modules': {
-                'transformer': {
-                    'type': 'TransformerModule',
+                'denoiser_loop': {
+                    'type': 'ZImageDenoiserLoopModule',
                     'device': self.device,
-                    'description': 'Z-Image transformer.',
+                    'description': 'Z-Image denoiser loop.',
                     'inputs': [
                         {
                             'name': 'prompt_embed',
@@ -66,7 +66,7 @@ class TransformerPipeline():
                     ],
                     'outputs': [
                         {
-                            'name': 'output',
+                            'name': 'latent',
                             'type': 'OVTensor'
                         }
                     ],
@@ -77,14 +77,7 @@ class TransformerPipeline():
             }
         }
 
-        # cfg_yaml = yaml.dump(cfg_data)
-        # # convert yaml str to local file
-        # fn = "module_pipeline_transformer.yaml"
-        # with open(fn, "w") as f:
-        #     f.write(cfg_yaml)
-
         self.pipe = openvino_genai.ModulePipeline(config_yaml_content=yaml.dump(cfg_data))
-
 
     def encode_prompt(
         self,
@@ -216,7 +209,7 @@ class TransformerPipeline():
             height=height
         )
 
-        output = self.pipe.get_output("output")
+        output = self.pipe.get_output("latent")
         latents = torch.from_numpy(output.data).unsqueeze(0)
 
         latents = latents.to(torch.float32)
@@ -258,7 +251,7 @@ def main():
         width=512,
         num_inference_steps=9
     )
-    images[0].save("zimage_transformer_output.png")
+    images[0].save("zimage_denoiser_loop_output.png")
 
 if __name__ == "__main__":
     main()

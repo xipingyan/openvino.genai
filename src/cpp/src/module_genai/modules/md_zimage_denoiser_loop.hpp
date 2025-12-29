@@ -15,18 +15,18 @@ class IScheduler;
 
 namespace module {
 
-class TransformerModule : public IBaseModule {
+class ZImageDenoiserLoopModule : public IBaseModule {
 protected:
-    TransformerModule() = delete;
-    TransformerModule(const IBaseModuleDesc::PTR& desc);
+    ZImageDenoiserLoopModule() = delete;
+    ZImageDenoiserLoopModule(const IBaseModuleDesc::PTR& desc);
 public:
-    ~TransformerModule();
+    ~ZImageDenoiserLoopModule();
 
     void run() override;
 
-    using PTR = std::shared_ptr<TransformerModule>;
+    using PTR = std::shared_ptr<ZImageDenoiserLoopModule>;
     static PTR create(const IBaseModuleDesc::PTR& desc) {
-        return PTR(new TransformerModule(desc));
+        return PTR(new ZImageDenoiserLoopModule(desc));
     }
     static void print_static_config();
 
