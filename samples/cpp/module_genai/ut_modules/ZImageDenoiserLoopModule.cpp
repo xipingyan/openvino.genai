@@ -20,16 +20,12 @@ pipeline_modules:
     inputs:
       - name: "prompt_embed"
         type: "OVTensor"
-        source: "pipeline_params.prompt_embed"
-      - name: "num_inference_steps"
+      - name: "num_inference_steps"               # [optional], default 10
         type: "Int"
-        source: "pipeline_params.num_inference_steps"
-      - name: "width"
+      - name: "width"                             # [optional], default 512
         type: "Int"
-        source: "pipeline_params.width"
-      - name: "height"
+      - name: "height"                            # [optional], default 512
         type: "Int"
-        source: "pipeline_params.height"
     outputs:
       - name: "latent"
         type: "OVTensor"
@@ -43,7 +39,7 @@ pipeline_modules:
 
         auto prompt_embed = ut_randn_tensor(ov::Shape{101, 2560}, 42);
         inputs["prompt_embed"] = prompt_embed;
-        inputs["num_inference_steps"] = 5;
+        inputs["num_inference_steps"] = 2;
         inputs["width"] = 128;
         inputs["height"] = 128;
         return inputs;
@@ -52,7 +48,7 @@ pipeline_modules:
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
         auto output = pipe.get_output("latent").as<ov::Tensor>();
         std::vector<float> expected_ouput = { 
-          0.329547, 0.660284, 0.467982, 0.449864, 0.523435, 1.11912, 0.244269, -0.327588, -0.83454, -1.47006
+          0.0279331, -0.0194968, -0.158097, 0.142582, -0.313633, -0.452601, 0.107033, 0.305759, -0.0610831, 0.136313
         };
         CHECK(compare_big_tensor(output, expected_ouput, 1e-2), "latent do not match expected values");
     }

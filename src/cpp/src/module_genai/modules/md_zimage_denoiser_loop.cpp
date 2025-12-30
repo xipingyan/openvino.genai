@@ -6,7 +6,7 @@
 #include "utils.hpp"
 #include "image_generation/schedulers/flow_match_euler_discrete.hpp"
 #include "json_utils.hpp"
-#include "image_generation/numpy_utils.hpp"
+#include "module_genai/utils/tensor_utils.hpp"
 #include <fstream>
 
 namespace ov {
@@ -222,12 +222,12 @@ std::vector<ov::Tensor> ZImageDenoiserLoopModule::run(
         generation_config.num_inference_steps,
          generation_config.strength);
     std::vector<float> timesteps = m_scheduler->get_float_timesteps();
-    ov::Tensor prompt_tensor = numpy_utils::stack(processed_embeds);
+    ov::Tensor prompt_tensor = tensor_utils::stack(processed_embeds);
     for (size_t i = 0; i < timesteps.size(); i++) {
         timesteps[i] = (1000.0f - timesteps[i]) / 1000.0f;
     }
     for (size_t inference_step = 0; inference_step < timesteps.size(); inference_step++) {
-        ov::Tensor unsqueezed_latents = numpy_utils::unsqueeze(latents, 2);
+        ov::Tensor unsqueezed_latents = tensor_utils::unsqueeze(latents, 2);
         ov::Tensor timestep(ov::element::f32, {1}, &timesteps[inference_step]);
         m_request.set_tensor("hidden_states", unsqueezed_latents);
         m_request.set_tensor("timestep", timestep);
@@ -242,7 +242,7 @@ std::vector<ov::Tensor> ZImageDenoiserLoopModule::run(
             noise_pred, latents, inference_step, generation_config.generator);
         latents = scheduler_step_result["latent"];
     }
-    return numpy_utils::split(latents);
+    return tensor_utils::split(latents);
 }
 
 ov::Tensor ZImageDenoiserLoopModule::prepare_latents(
