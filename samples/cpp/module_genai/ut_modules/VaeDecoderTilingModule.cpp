@@ -17,10 +17,10 @@ pipeline_modules:
     type: "VaeDecoderTilingModule"
     device: "CPU"
     inputs:
-        - name: "latent"
+      - name: "latent"
         type: "OVTensor"
     outputs:
-      - name: "latent"
+      - name: "image"
         type: "OVTensor"
     params:
       tile_overlap_factor: "0.25"
@@ -37,7 +37,7 @@ pipeline_modules:
     }
 
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto output = pipe.get_output("latent").as<ov::Tensor>();
+        auto output = pipe.get_output("image").as<ov::Tensor>();
         std::vector<float> expected_ouput = { 
           0.0279331, -0.0194968, -0.158097, 0.142582, -0.313633, -0.452601, 0.107033, 0.305759, -0.0610831, 0.136313
         };

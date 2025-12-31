@@ -62,7 +62,11 @@ ov::Tensor slice_tensor(const ov::Tensor& tensor, ov::Coordinate begin, ov::Coor
     ov::Shape tensor_shape = tensor.get_shape();
     OPENVINO_ASSERT(begin.size() == tensor_shape.size(), "Begin coordinate size must match tensor rank.");
 
-    return ov::Tensor(tensor, begin, end);
+    ov::Tensor sliced_view = ov::Tensor(tensor, begin, end);
+    ov::Tensor deep_copy(sliced_view.get_element_type(), sliced_view.get_shape());
+
+    sliced_view.copy_to(deep_copy);
+    return deep_copy;
 }
 
 ov::Tensor concat_tensors(const std::vector<ov::Tensor>& tensors, size_t axis) {

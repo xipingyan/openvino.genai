@@ -25,12 +25,12 @@ void VaeDecoderTilingModule::print_static_config() {
         type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
     outputs:
-      - name: "latent"
+      - name: "image"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "latents"
+      - name: "images"
         type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
     params:
-      tile_overlap_factor: "0.25"
+      tile_overlap_factor: "0.25"   # [Optional] float, default is 0.25
       model_path: "model"
 
     )" << std::endl;
@@ -105,21 +105,26 @@ void VaeDecoderTilingModule::run() {
     }
 
     // Process batch of latents
+    std::vector<ov::Tensor> output_latents;
     for (const auto& latent : latents) {
         OPENVINO_ASSERT(latent.get_shape().size() == 4,
                         "VaeDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
 
+        ov::Tensor output_latent;
         if (m_enable_tiling && (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
             // Tiling decode
-            ov::Tensor output_latent;
             tile_decode(latent, output_latent);
         } else {
             // Non-tiling decode
         }
+        output_latents.push_back(output_latent);  // Placeholder for output latent
     }
 
-    std::vector<ov::Tensor> output_latents;
-    this->outputs["image"].data = output_latents.size() == 1 ? ov::Any(output_latents[0]) : ov::Any(output_latents);
+    if (output_latents.size() == 1){
+        this->outputs["image"].data = output_latents[0];
+    }else {
+        this->outputs["images"].data = output_latents;
+    }
 }
 
 ov::Tensor VaeDecoderTilingModule::decoder(const ov::Tensor& tile) {
@@ -131,6 +136,10 @@ ov::Tensor VaeDecoderTilingModule::decoder(const ov::Tensor& tile) {
                              3,
                              static_cast<size_t>(coeff * tile.get_shape()[2]),
                              static_cast<size_t>(coeff * tile.get_shape()[3])});  // Placeholder for decoded tile
+
+    for (size_t i = 0; i < decoded_tile.get_size(); ++i) {
+        decoded_tile.data<float>()[i] = 2.0f;  // Fill with zeros as placeholder
+    }
     return decoded_tile;
 }
 
@@ -156,7 +165,7 @@ void VaeDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
             ov::Tensor tile = ov::genai::module::tensor_utils::slice_tensor(
                 latent,
                 {0, 0, h_start, w_start},
-                {latent.get_shape()[0], latent.get_shape()[1], h_end - h_start, w_end - w_start});
+                {latent.get_shape()[0], latent.get_shape()[1], h_end, w_end});
 
             ov::Tensor decoded_tile = decoder(tile);
             row.push_back(decoded_tile);
@@ -179,10 +188,10 @@ void VaeDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
                                                             {0, 0, 0, 0},
                                                             {tile.get_shape()[0],
                                                              tile.get_shape()[1],
-                                                             std::min(tile.get_shape()[2], row_limit),
-                                                             std::min(tile.get_shape()[3], row_limit)}));
+                                                             std::min(tile.get_shape()[2], 0 + row_limit),
+                                                             std::min(tile.get_shape()[3], 0 + row_limit)}));
         }
-        result_rows.push_back(tensor_utils::concat_tensors(result_row));
+        result_rows.push_back(tensor_utils::concat_tensors(result_row, 3));
     }
 
     // Combine result_rows into output_latent (not implemented here)
