@@ -22,6 +22,7 @@ void VAEDecoderModule::print_static_config() {
         type: "OVTensor"
     params:
       model_path: "model"
+      enable_postprocess: "bool value"    # [Optional], default true.
     )" << std::endl;
 }
 
@@ -46,13 +47,24 @@ bool VAEDecoderModule::initialize() {
     std::filesystem::path model_path = module_desc->get_full_path(it_path->second);
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
 
+    bool enable_postprocess = true;
+    if (params.find("enable_postprocess") != params.end()) {
+        std::string val = module_desc->params["enable_postprocess"];
+        if (val == "false" || val == "False" || val == "FALSE" || val == "0") {
+            enable_postprocess = false;
+        }
+    }
+
+    ov::AnyMap properties;
+    properties["enable_postprocess"] = enable_postprocess;
+
     try {
         if (std::filesystem::exists(model_path / "vae_decoder")) {
-             m_vae = std::make_shared<AutoencoderKL>(model_path / "vae_decoder", device);
+             m_vae = std::make_shared<AutoencoderKL>(model_path / "vae_decoder", device, properties);
         } else if (std::filesystem::exists(model_path / "vae")) {
-             m_vae = std::make_shared<AutoencoderKL>(model_path / "vae", device);
+             m_vae = std::make_shared<AutoencoderKL>(model_path / "vae", device, properties);
         } else {
-             m_vae = std::make_shared<AutoencoderKL>(model_path, device);
+             m_vae = std::make_shared<AutoencoderKL>(model_path, device, properties);
         }
     } catch (const std::exception& e) {
         GENAI_ERR("VAEDecoderModule[" + module_desc->name + "]: Failed to load AutoencoderKL: " + e.what());
