@@ -12,9 +12,9 @@ namespace module {
 
 void ImagePreprocesModule::print_static_config() {
     std::cout << R"(
-  image_preprocessor:       # Module Name
+  image_preprocessor:           # Module Name
     type: "ImagePreprocessModule"
-    device: "CPU"
+    device: "CPU"               # Optional, default to CPU
     description: "Image or Video preprocessing."
     inputs:
       - name: "image"           # [optional]

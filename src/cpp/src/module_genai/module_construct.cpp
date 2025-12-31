@@ -43,8 +43,8 @@ void module_connect(PipelineModuleInstance& pipeline_instance) {
     }
 }
 
-void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleInstance& pipeline_instance) {
-    for (auto& module_desc : pipeline_desc) {
+void construct_pipeline(const PipelineDesc& pipeline_desc, PipelineModuleInstance& pipeline_instance) {
+    for (auto& module_desc : pipeline_desc.main_pipeline_desc) {
         IBaseModule::PTR module_ptr = nullptr;
         switch (module_desc.second->type) {
         case ModuleType::ParameterModule:
@@ -74,8 +74,8 @@ void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleI
         case ModuleType::ZImageDenoiserLoopModule:
             module_ptr = ZImageDenoiserLoopModule::create(module_desc.second);
             break;
-        case ModuleType::VaeDecoderTilingModule:
-            module_ptr = VaeDecoderTilingModule::create(module_desc.second);
+        case ModuleType::VAEDecoderTilingModule:
+            module_ptr = VAEDecoderTilingModule::create(module_desc.second);
             break;
         case ModuleType::VAEDecoderModule:
             module_ptr = VAEDecoderModule::create(module_desc.second);

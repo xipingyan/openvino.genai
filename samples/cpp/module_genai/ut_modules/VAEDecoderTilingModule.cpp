@@ -1,0 +1,102 @@
+// Copyright (C) 2024 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "../ut_modules_base.hpp"
+
+class VAEDecoderTilingModuleTest : public ModuleTestBase {
+public:
+    DEFINE_MODULE_TEST_CONSTRUCTOR(VAEDecoderTilingModuleTest)
+
+protected:
+    std::string get_yaml_content() override {
+        return R"(
+global_context:
+  model_type: "zimage"
+pipeline_modules:
+  vae_decoder_tiling:
+    type: "VAEDecoderTilingModule"
+    device: "CPU"
+    inputs:
+      - name: "latent"
+        type: "OVTensor"
+    outputs:
+      - name: "image"
+        type: "OVTensor"
+    params:
+      tile_overlap_factor: "0.25"
+      model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
+      sub_module: "vae_decoder"
+
+sub_modules:
+  - name: "vae_decoder"
+    pipeline_params:
+      type: "ParameterModule"
+      outputs:
+        - name: "latent"
+          type: "OVTensor"
+    vae_decoder:
+      type: "VAEDecoderModule"
+      device: "CPU"
+      inputs:
+        - name: "latent"
+          type: "OVTensor"
+          source: "pipeline_params.latent"
+      outputs:
+        - name: "image"
+          type: "OVTensor"
+      params:
+        model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
+    pipeline_results:
+      type: "ResultModule"
+      device: "CPU"
+      inputs:
+        - name: "image"
+          type: "OVTensor"
+          source: "vae_decoder.image"
+
+  - name: "vae_decoder_2"
+    pipeline_params_2:
+      type: "ParameterModule"
+      outputs:
+        - name: "latent"
+          type: "OVTensor"
+    vae_decoder_2:
+      type: "VAEDecoderModule"
+      device: "CPU"
+      inputs:
+        - name: "latent"
+          type: "OVTensor"
+          source: "pipeline_params_2.latent"
+      outputs:
+        - name: "image"
+          type: "OVTensor"
+      params:
+        model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
+    pipeline_results_2:
+      type: "ResultModule"
+      device: "CPU"
+      inputs:
+        - name: "image"
+          type: "OVTensor"
+          source: "vae_decoder_2.image"
+)";
+    }
+
+    ov::AnyMap prepare_inputs() override {
+        ov::AnyMap inputs;
+
+        auto latent = ut_randn_tensor(ov::Shape{1, 16, 240, 240}, 42);
+        inputs["latent"] = latent;
+        return inputs;
+    }
+
+    void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
+        auto output = pipe.get_output("image").as<ov::Tensor>();
+        std::vector<float> expected_ouput = { 
+          0.0279331, -0.0194968, -0.158097, 0.142582, -0.313633, -0.452601, 0.107033, 0.305759, -0.0610831, 0.136313
+        };
+        CHECK(compare_big_tensor(output, expected_ouput, 1e-2), "latent do not match expected values");
+    }
+};
+
+REGISTER_MODULE_TEST(VAEDecoderTilingModuleTest);

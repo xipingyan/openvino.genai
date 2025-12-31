@@ -12,10 +12,10 @@ namespace ov {
 namespace genai {
 namespace module {
 
-void VaeDecoderTilingModule::print_static_config() {
+void VAEDecoderTilingModule::print_static_config() {
     std::cout << R"(
   vae_decoder_tiling:
-    type: "VaeDecoderTilingModule"
+    type: "VAEDecoderTilingModule"
     device: "CPU"
     inputs:
       - name: "latent"
@@ -36,7 +36,7 @@ void VaeDecoderTilingModule::print_static_config() {
     )" << std::endl;
 }
 
-VaeDecoderTilingModule::VaeDecoderTilingModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
+VAEDecoderTilingModule::VAEDecoderTilingModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
     m_model_type = to_image_generation_model_type(desc->model_type);
     if (m_model_type != ImageGenerationModelType::ZIMAGE) {
         GENAI_ERR("TransformerModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
@@ -47,9 +47,9 @@ VaeDecoderTilingModule::VaeDecoderTilingModule(const IBaseModuleDesc::PTR& desc)
     }
 }
 
-VaeDecoderTilingModule::~VaeDecoderTilingModule() {}
+VAEDecoderTilingModule::~VAEDecoderTilingModule() {}
 
-bool VaeDecoderTilingModule::init_tile_params(const std::filesystem::path& model_path) {
+bool VAEDecoderTilingModule::init_tile_params(const std::filesystem::path& model_path) {
     const auto& params = module_desc->params;
     auto it_tile_overlap = params.find("tile_overlap_factor");
     if (it_tile_overlap != params.end()) {
@@ -71,18 +71,18 @@ bool VaeDecoderTilingModule::init_tile_params(const std::filesystem::path& model
         m_tile_latent_min_size = m_sample_size / std::pow(2, block_out_channels.size() - 1);
     } else {
         OPENVINO_ASSERT(false,
-                        "VaeDecoderTilingModule[" + module_desc->name + "]: vae_decoder config file not found at " +
+                        "VAEDecoderTilingModule[" + module_desc->name + "]: vae_decoder config file not found at " +
                             config_path.string());
     }
 
     return true;
 }
 
-bool VaeDecoderTilingModule::initialize() {
+bool VAEDecoderTilingModule::initialize() {
     const auto& params = module_desc->params;
     auto it_path = params.find("model_path");
     if (it_path == params.end()) {
-        GENAI_ERR("VaeDecoderTilingModule[" + module_desc->name + "]: 'model_path' not found in params");
+        GENAI_ERR("VAEDecoderTilingModule[" + module_desc->name + "]: 'model_path' not found in params");
         return false;
     }
 
@@ -91,7 +91,7 @@ bool VaeDecoderTilingModule::initialize() {
     return true;
 }
 
-void VaeDecoderTilingModule::run() {
+void VAEDecoderTilingModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
     std::vector<ov::Tensor> latents;
@@ -108,7 +108,7 @@ void VaeDecoderTilingModule::run() {
     std::vector<ov::Tensor> output_latents;
     for (const auto& latent : latents) {
         OPENVINO_ASSERT(latent.get_shape().size() == 4,
-                        "VaeDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
+                        "VAEDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
 
         ov::Tensor output_latent;
         if (m_enable_tiling && (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
@@ -127,7 +127,7 @@ void VaeDecoderTilingModule::run() {
     }
 }
 
-ov::Tensor VaeDecoderTilingModule::decoder(const ov::Tensor& tile) {
+ov::Tensor VAEDecoderTilingModule::decoder(const ov::Tensor& tile) {
     // VAE decoder model inference (not implemented here)
     const float coeff = 2.6666666666666665f;
     ov::Tensor decoded_tile =
@@ -143,7 +143,7 @@ ov::Tensor VaeDecoderTilingModule::decoder(const ov::Tensor& tile) {
     return decoded_tile;
 }
 
-void VaeDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& output_latent) {
+void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& output_latent) {
     // Tiling decode implementation
     size_t overlap_size = m_tile_latent_min_size * (1 - m_tile_overlap_factor);
     size_t blend_extent = m_tile_sample_min_size * m_tile_overlap_factor;
@@ -198,7 +198,7 @@ void VaeDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
     output_latent = tensor_utils::concat_tensors(result_rows, 2);
 }
 
-ov::Tensor VaeDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
+ov::Tensor VAEDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
     auto shape1 = tile1.get_shape();
     auto shape2 = tile2.get_shape();
 
@@ -240,7 +240,7 @@ ov::Tensor VaeDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2,
     return tile2;
 }
 
-ov::Tensor VaeDecoderTilingModule::blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
+ov::Tensor VAEDecoderTilingModule::blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
     auto shape1 = tile1.get_shape();
     auto shape2 = tile2.get_shape();
 

@@ -19,7 +19,7 @@ const std::unordered_map<ModuleType, std::string> ModuleTypeConverter::kTypeToSt
     {ModuleType::EmbeddingMergerModule, "EmbeddingMergerModule"},
     {ModuleType::FeaturePrunerModule, "FeaturePrunerModule"},
     {ModuleType::FeatureFusionModule, "FeatureFusionModule"},
-    {ModuleType::VaeDecoderTilingModule, "VaeDecoderTilingModule"},
+    {ModuleType::VAEDecoderTilingModule, "VAEDecoderTilingModule"},
     {ModuleType::LLMInferenceModule, "LLMInferenceModule"},
     {ModuleType::ZImageDenoiserLoopModule, "ZImageDenoiserLoopModule"},
     {ModuleType::VAEDecoderModule, "VAEDecoderModule"},

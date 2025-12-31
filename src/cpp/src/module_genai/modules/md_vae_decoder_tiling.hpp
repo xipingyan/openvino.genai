@@ -15,18 +15,18 @@ class IScheduler;
 
 namespace module {
 
-class VaeDecoderTilingModule : public IBaseModule {
+class VAEDecoderTilingModule : public IBaseModule {
 protected:
-    VaeDecoderTilingModule() = delete;
-    VaeDecoderTilingModule(const IBaseModuleDesc::PTR& desc);
+    VAEDecoderTilingModule() = delete;
+    VAEDecoderTilingModule(const IBaseModuleDesc::PTR& desc);
 public:
-    ~VaeDecoderTilingModule();
+    ~VAEDecoderTilingModule();
 
     void run() override;
 
-    using PTR = std::shared_ptr<VaeDecoderTilingModule>;
+    using PTR = std::shared_ptr<VAEDecoderTilingModule>;
     static PTR create(const IBaseModuleDesc::PTR& desc) {
-        return PTR(new VaeDecoderTilingModule(desc));
+        return PTR(new VAEDecoderTilingModule(desc));
     }
     static void print_static_config();
 
