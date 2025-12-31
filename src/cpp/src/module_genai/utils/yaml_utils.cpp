@@ -193,6 +193,7 @@ PipelineDesc load_config(const std::string& cfg_path) {
         std::string root_path = std::filesystem::path(cfg_path).has_parent_path()
                                     ? std::filesystem::path(cfg_path).parent_path().string()
                                     : std::filesystem::current_path().string();
+
         PipelineDesc pipeline_desc;
         parse_global_context(config["global_context"], pipeline_desc);
         parse_main_pipeline_config_internal(config["pipeline_modules"], pipeline_desc, root_path);
@@ -211,7 +212,9 @@ PipelineDesc load_config_from_string(const std::string& content) {
     try {
         PipelineDesc pipeline_desc;
         YAML::Node config = YAML::Load(content);
+
         yaml_cfg_auto_padding(config);
+
         parse_global_context(config["global_context"], pipeline_desc);
         parse_main_pipeline_config_internal(config["pipeline_modules"], pipeline_desc);
         parse_sub_modules_pipeline_config_internal(config["sub_pipelines"], pipeline_desc);

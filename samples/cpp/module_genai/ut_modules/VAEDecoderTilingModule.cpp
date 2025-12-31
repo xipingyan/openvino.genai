@@ -28,33 +28,20 @@ pipeline_modules:
       sub_module: "vae_decoder"
 
 sub_modules:
-  - name: "vae_decoder"
-    pipeline_params:
-      type: "ParameterModule"
-      outputs:
-        - name: "latent"
-          type: "OVTensor"
+  - name: "vae_decoder_submodule"
     vae_decoder:
       type: "VAEDecoderModule"
       device: "CPU"
       inputs:
         - name: "latent"
           type: "OVTensor"
-          source: "pipeline_params.latent"
       outputs:
         - name: "image"
           type: "OVTensor"
       params:
         model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
-    pipeline_results:
-      type: "ResultModule"
-      device: "CPU"
-      inputs:
-        - name: "image"
-          type: "OVTensor"
-          source: "vae_decoder.image"
 
-  - name: "vae_decoder_2"
+  - name: "vae_decoder_submodule_2"
     pipeline_params_2:
       type: "ParameterModule"
       outputs:
