@@ -4,7 +4,7 @@
 #include <fstream>
 
 #include "json_utils.hpp"
-#include "md_vae_tiling.hpp"
+#include "md_vae_decoder_tiling.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 #include "utils.hpp"
 
@@ -49,7 +49,7 @@ VaeDecoderTilingModule::VaeDecoderTilingModule(const IBaseModuleDesc::PTR& desc)
 
 VaeDecoderTilingModule::~VaeDecoderTilingModule() {}
 
-bool VaeDecoderTilingModule::init_tile_params(conststd::filesystem::path& model_path) {
+bool VaeDecoderTilingModule::init_tile_params(const std::filesystem::path& model_path) {
     const auto& params = module_desc->params;
     auto it_tile_overlap = params.find("tile_overlap_factor");
     if (it_tile_overlap != params.end()) {
@@ -109,7 +109,7 @@ void VaeDecoderTilingModule::run() {
         OPENVINO_ASSERT(latent.get_shape().size() == 4,
                         "VaeDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
 
-        if (m_enable_tiling && (latent[3] > m_tile_latent_min_size || latent[2] > m_tile_latent_min_size)) {
+        if (m_enable_tiling && (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
             // Tiling decode
             ov::Tensor output_latent;
             tile_decode(latent, output_latent);
@@ -186,16 +186,88 @@ void VaeDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
     }
 
     // Combine result_rows into output_latent (not implemented here)
-    auto dec = tensor_utils::concat_tensors(result_rows, 2);
-    return dec;
+    output_latent = tensor_utils::concat_tensors(result_rows, 2);
 }
 
 ov::Tensor VaeDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
+    auto shape1 = tile1.get_shape();
+    auto shape2 = tile2.get_shape();
 
+    blend_extent = std::min({(size_t)shape1[2], (size_t)shape2[2], blend_extent});
+
+    if (blend_extent == 0)
+        return tile2;
+
+    size_t N = shape2[0];
+    size_t C = shape2[1];
+    size_t H = shape2[2];
+    size_t W = shape2[3];
+
+    float* ptr1 = tile1.data<float>();
+    float* ptr2 = tile2.data<float>();
+
+    size_t channel_stride = H * W;
+    size_t batch_stride = C * channel_stride;
+
+    for (size_t n = 0; n < N; ++n) {
+        for (size_t c = 0; c < C; ++c) {
+            for (size_t y = 0; y < blend_extent; ++y) {
+                float weight_b = (float)y / blend_extent;
+                float weight_a = 1.0f - weight_b;
+
+                // Python: a[:, :, -blend_extent + y, :]
+                size_t idx1 = n * batch_stride + c * channel_stride + (shape1[2] - blend_extent + y) * W;
+
+                // Python: b[:, :, y, :]
+                size_t idx2 = n * batch_stride + c * channel_stride + y * W;
+
+                for (size_t x = 0; x < W; ++x) {
+                    ptr2[idx2 + x] = ptr1[idx1 + x] * weight_a + ptr2[idx2 + x] * weight_b;
+                }
+            }
+        }
+    }
+
+    return tile2;
 }
 
 ov::Tensor VaeDecoderTilingModule::blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
+    auto shape1 = tile1.get_shape();
+    auto shape2 = tile2.get_shape();
 
+    blend_extent = std::min({(size_t)shape1[3], (size_t)shape2[3], blend_extent});
+
+    if (blend_extent == 0)
+        return tile2;
+
+    size_t N = shape2[0];
+    size_t C = shape2[1];
+    size_t H = shape2[2];
+    size_t W = shape2[3];
+    size_t W1 = shape1[3];  // tile1 width, calc offset
+
+    float* ptr1 = tile1.data<float>();
+    float* ptr2 = tile2.data<float>();
+
+    for (size_t n = 0; n < N; ++n) {
+        for (size_t c = 0; c < C; ++c) {
+            for (size_t y = 0; y < H; ++y) {
+                // ptr1 take last blend_extent columns, index offset is W1 - blend_extent
+                size_t row_offset1 = n * (C * H * W1) + c * (H * W1) + y * W1 + (W1 - blend_extent);
+                // ptr2 take first blend_extent columns, index offset is 0
+                size_t row_offset2 = n * (C * H * W) + c * (H * W) + y * W;
+
+                for (size_t x = 0; x < blend_extent; ++x) {
+                    float weight_b = (float)x / blend_extent;
+                    float weight_a = 1.0f - weight_b;
+
+                    ptr2[row_offset2 + x] = ptr1[row_offset1 + x] * weight_a + ptr2[row_offset2 + x] * weight_b;
+                }
+            }
+        }
+    }
+
+    return tile2;
 }
 
 }  // namespace module

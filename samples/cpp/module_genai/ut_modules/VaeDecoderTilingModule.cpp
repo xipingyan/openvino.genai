@@ -3,9 +3,9 @@
 
 #include "../ut_modules_base.hpp"
 
-class VaeDecoderTilingModule : public ModuleTestBase {
+class VaeDecoderTilingModuleTest : public ModuleTestBase {
 public:
-    DEFINE_MODULE_TEST_CONSTRUCTOR(VaeDecoderTilingModule)
+    DEFINE_MODULE_TEST_CONSTRUCTOR(VaeDecoderTilingModuleTest)
 
 protected:
     std::string get_yaml_content() override {
@@ -45,4 +45,4 @@ pipeline_modules:
     }
 };
 
-REGISTER_MODULE_TEST(VaeDecoderTilingModule);
+REGISTER_MODULE_TEST(VaeDecoderTilingModuleTest);
