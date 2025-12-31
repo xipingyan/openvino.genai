@@ -76,6 +76,7 @@ void construct_pipeline(const PipelineModuleDesc& pipeline_desc, PipelineModuleI
             break;
         case ModuleType::VaeDecoderTilingModule:
             module_ptr = VaeDecoderTilingModule::create(module_desc.second);
+            break;
         case ModuleType::VAEDecoderModule:
             module_ptr = VAEDecoderModule::create(module_desc.second);
             break;
