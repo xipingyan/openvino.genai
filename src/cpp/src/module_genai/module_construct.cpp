@@ -47,39 +47,24 @@ void construct_pipeline(const PipelineDesc& pipeline_desc, PipelineModuleInstanc
     for (auto& module_desc : pipeline_desc.main_pipeline_desc) {
         IBaseModule::PTR module_ptr = nullptr;
         switch (module_desc.second->type) {
-        case ModuleType::ParameterModule:
-            module_ptr = ParameterModule::create(module_desc.second);
-            break;
-        case ModuleType::ResultModule:
-            module_ptr = ResultModule::create(module_desc.second);
-            break;
-        case ModuleType::ImagePreprocessModule:
-            module_ptr = ImagePreprocesModule::create(module_desc.second);
-            break;
-        case ModuleType::TextEncoderModule:
-            module_ptr = TextEncoderModule::create(module_desc.second);
-            break;
-        case ModuleType::VisionEncoderModule:
-            module_ptr = VisionEncoderModule::create(module_desc.second);
-            break;
-        case ModuleType::TextEmbeddingModule:
-            module_ptr = TextEmbeddingModule::create(module_desc.second);
-            break;
-        case ModuleType::EmbeddingMergerModule:
-            module_ptr = EmbeddingMergerModule::create(module_desc.second);
-            break;
-        case ModuleType::LLMInferenceModule:
-            module_ptr = LLMInferenceModule::create(module_desc.second);
-            break;
-        case ModuleType::ZImageDenoiserLoopModule:
-            module_ptr = ZImageDenoiserLoopModule::create(module_desc.second);
-            break;
-        case ModuleType::VAEDecoderTilingModule:
-            module_ptr = VAEDecoderTilingModule::create(module_desc.second);
-            break;
-        case ModuleType::VAEDecoderModule:
-            module_ptr = VAEDecoderModule::create(module_desc.second);
-            break;
+#define GENAI_MODULE_TYPE_CASE(module_type_enum, module_class) \
+    case ModuleType::module_type_enum:                         \
+        module_ptr = module_class::create(module_desc.second); \
+        break;
+
+        GENAI_MODULE_TYPE_CASE(ParameterModule, ParameterModule);
+        GENAI_MODULE_TYPE_CASE(ResultModule, ResultModule);
+        GENAI_MODULE_TYPE_CASE(ImagePreprocessModule, ImagePreprocessModule);
+        GENAI_MODULE_TYPE_CASE(TextEncoderModule, TextEncoderModule);
+        GENAI_MODULE_TYPE_CASE(VisionEncoderModule, VisionEncoderModule);
+        GENAI_MODULE_TYPE_CASE(TextEmbeddingModule, TextEmbeddingModule);
+        GENAI_MODULE_TYPE_CASE(EmbeddingMergerModule, EmbeddingMergerModule);
+        GENAI_MODULE_TYPE_CASE(LLMInferenceModule, LLMInferenceModule);
+        GENAI_MODULE_TYPE_CASE(ZImageDenoiserLoopModule, ZImageDenoiserLoopModule);
+        GENAI_MODULE_TYPE_CASE(VAEDecoderTilingModule, VAEDecoderTilingModule);
+        GENAI_MODULE_TYPE_CASE(VAEDecoderModule, VAEDecoderModule);
+
+#undef GENAI_MODULE_TYPE_CASES
         default:
             break;
         }

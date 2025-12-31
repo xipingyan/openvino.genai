@@ -100,38 +100,13 @@ void parse_global_context(const YAML::Node& global_context, PipelineDesc& pipeli
 
     OPENVINO_ASSERT(global, "'global_context' key not found.");
 
-    bool shared_mem = global["enable_shared_memory"] ? global["enable_shared_memory"].as<bool>() : false;
-    GENAI_INFO("  enable_shared_memory: " + std::string(shared_mem ? "True" : "False"));
+    // bool shared_mem = global["enable_shared_memory"] ? global["enable_shared_memory"].as<bool>() : false;
+    // GENAI_INFO("  enable_shared_memory: " + std::string(shared_mem ? "True" : "False"));
 
     OPENVINO_ASSERT(global["model_type"], "'model_type' key not found in 'global_context'.");
     pipeline_desc.model_type = global["model_type"].as<std::string>();
     GENAI_INFO("  model_type: " + pipeline_desc.model_type);
 }
-
-// PipelineModuleDesc parse_pipeline_config_internal(const YAML::Node& config, const std::string& root_path = ".") {
-//     PipelineModuleDesc pipeline_desc;
-//     const YAML::Node& global = config["global_context"];
-  
-
-//     const YAML::Node& modules_node = config["pipeline_modules"];
-//     if (modules_node && modules_node.IsMap()) {
-//         for (YAML::const_iterator it = modules_node.begin(); it != modules_node.end(); ++it) {
-//             std::string module_name = it->first.as<std::string>();
-//             const YAML::Node& module_config = it->second;
-
-//             auto module_desc = parse_module(module_config);
-//             module_desc->name = module_name;
-//             module_desc->model_type = model_type;
-//             module_desc->config_root_path = root_path;
-//             pipeline_desc[module_name] = module_desc;
-
-//             GENAI_INFO((std::stringstream() << module_desc).str());
-//         }
-//     } else {
-//         GENAI_ERR("'pipeline_modules' key not found or is not a map.");
-//     }
-//     return pipeline_desc;
-// }
 
 void parse_main_pipeline_config_internal(const YAML::Node& pipeline_modules, PipelineDesc& pipeline_desc, const std::string& root_path = ".") {
     const YAML::Node& modules_node = pipeline_modules;
