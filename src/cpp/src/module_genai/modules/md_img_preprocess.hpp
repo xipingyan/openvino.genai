@@ -14,24 +14,10 @@ namespace ov {
 namespace genai {
 namespace module {
 class ImagePreprocessModule : public IBaseModule {
-protected:
-    ImagePreprocessModule() = delete;
-    ImagePreprocessModule(const IBaseModuleDesc::PTR& desc);
+    DeclareModuleConstructor(ImagePreprocessModule);
 
 private:
     std::shared_ptr<VisionEncoderQwen2VL> encoder_ptr = nullptr;
-
-public:
-    ~ImagePreprocessModule();
-
-    void run() override;
-
-    using PTR = std::shared_ptr<ImagePreprocessModule>;
-    static PTR create(const IBaseModuleDesc::PTR& desc) {
-        return PTR(new ImagePreprocessModule(desc));
-    }
-
-    static void print_static_config();
 };
 
 REGISTER_MODULE_CONFIG(ImagePreprocessModule);

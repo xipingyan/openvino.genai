@@ -43,13 +43,13 @@ void module_connect(PipelineModuleInstance& pipeline_instance) {
     }
 }
 
-void construct_pipeline(const PipelineDesc& pipeline_desc, PipelineModuleInstance& pipeline_instance) {
-    for (auto& module_desc : pipeline_desc.main_pipeline_desc) {
+void construct_pipeline(const PipelineDesc::PTR& pipeline_desc, PipelineModuleInstance& pipeline_instance) {
+    for (auto& module_desc : pipeline_desc->main_pipeline_desc) {
         IBaseModule::PTR module_ptr = nullptr;
         switch (module_desc.second->type) {
 #define GENAI_MODULE_TYPE_CASE(module_type_enum, module_class) \
     case ModuleType::module_type_enum:                         \
-        module_ptr = module_class::create(module_desc.second); \
+        module_ptr = module_class::create(module_desc.second, pipeline_desc); \
         break;
 
         GENAI_MODULE_TYPE_CASE(ParameterModule, ParameterModule);

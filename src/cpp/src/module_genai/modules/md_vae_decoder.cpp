@@ -26,15 +26,14 @@ void VAEDecoderModule::print_static_config() {
     )" << std::endl;
 }
 
-VAEDecoderModule::VAEDecoderModule(const IBaseModuleDesc::PTR &desc) : IBaseModule(desc) {
+VAEDecoderModule::VAEDecoderModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
+    : IBaseModule(desc, pipeline_desc) {
     if (!initialize()) {
     	 GENAI_ERR("Failed to initialize VAEDecoderModule");
     }
 }
 
-VAEDecoderModule::~VAEDecoderModule() {
-
-}
+VAEDecoderModule::~VAEDecoderModule() {}
 
 bool VAEDecoderModule::initialize() {
     const auto &params = module_desc->params;

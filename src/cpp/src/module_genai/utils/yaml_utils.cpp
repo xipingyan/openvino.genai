@@ -95,7 +95,7 @@ IBaseModuleDesc::PTR parse_module(const YAML::Node& node) {
     return desc;
 }
 
-void parse_global_context(const YAML::Node& global_context, PipelineDesc& pipeline_desc) {
+void parse_global_context(const YAML::Node& global_context, PipelineDesc::PTR& pipeline_desc) {
     const YAML::Node& global = global_context;
 
     OPENVINO_ASSERT(global, "'global_context' key not found.");
@@ -104,11 +104,11 @@ void parse_global_context(const YAML::Node& global_context, PipelineDesc& pipeli
     // GENAI_INFO("  enable_shared_memory: " + std::string(shared_mem ? "True" : "False"));
 
     OPENVINO_ASSERT(global["model_type"], "'model_type' key not found in 'global_context'.");
-    pipeline_desc.model_type = global["model_type"].as<std::string>();
-    GENAI_INFO("  model_type: " + pipeline_desc.model_type);
+    pipeline_desc->model_type = global["model_type"].as<std::string>();
+    GENAI_INFO("  model_type: " + pipeline_desc->model_type);
 }
 
-void parse_main_pipeline_config_internal(const YAML::Node& pipeline_modules, PipelineDesc& pipeline_desc, const std::string& root_path = ".") {
+void parse_main_pipeline_config_internal(const YAML::Node& pipeline_modules, PipelineDesc::PTR& pipeline_desc, const std::string& root_path = ".") {
     const YAML::Node& modules_node = pipeline_modules;
     if (modules_node && modules_node.IsMap()) {
         for (YAML::const_iterator it = modules_node.begin(); it != modules_node.end(); ++it) {
@@ -117,9 +117,9 @@ void parse_main_pipeline_config_internal(const YAML::Node& pipeline_modules, Pip
 
             auto module_desc = parse_module(module_config);
             module_desc->name = module_name;
-            module_desc->model_type = pipeline_desc.model_type;
+            module_desc->model_type = pipeline_desc->model_type;
             module_desc->config_root_path = root_path;
-            pipeline_desc.main_pipeline_desc[module_name] = module_desc;
+            pipeline_desc->main_pipeline_desc[module_name] = module_desc;
 
             GENAI_INFO((std::stringstream() << module_desc).str());
         }
@@ -128,39 +128,38 @@ void parse_main_pipeline_config_internal(const YAML::Node& pipeline_modules, Pip
     }
 }
 
-void parse_sub_modules_pipeline_config_internal(const YAML::Node& sub_pipelines, PipelineDesc& pipeline_desc, const std::string& root_path = ".") {
-    if (!sub_pipelines) {
+void parse_sub_modules_pipeline_config_internal(const YAML::Node& sub_modules, PipelineDesc::PTR& pipeline_desc, const std::string& root_path = ".") {
+    if (!sub_modules) {
         return;
     }
 
-    const YAML::Node& sub_pipelines_node = sub_pipelines;
-    if (sub_pipelines_node && sub_pipelines_node.IsMap()) {
-        for (YAML::const_iterator it = sub_pipelines_node.begin(); it != sub_pipelines_node.end(); ++it) {
-            std::string sub_pipeline_name = it->first.as<std::string>();
-            const YAML::Node& sub_pipeline_config = it->second;
+    if (sub_modules && sub_modules.IsSequence()) {
+        for (auto sub_module_entry : sub_modules) {
+            OPENVINO_ASSERT(sub_module_entry["name"], "Each sub_module entry must have a 'name' key.");
+            std::string sub_pipeline_name = sub_module_entry["name"].as<std::string>();
 
-            PipelineModuleDesc sub_pipeline_desc;
-            const YAML::Node& modules_node = sub_pipeline_config;
-            if (modules_node && modules_node.IsMap()) {
-                for (YAML::const_iterator mit = modules_node.begin(); mit != modules_node.end(); ++mit) {
-                    std::string module_name = mit->first.as<std::string>();
-                    const YAML::Node& module_config = mit->second;
-
-                    auto module_desc = parse_module(module_config);
-                    module_desc->name = module_name;
-                    module_desc->model_type = pipeline_desc.model_type;
-                    module_desc->config_root_path = root_path;
-                    sub_pipeline_desc[module_name] = module_desc;
-
-                    GENAI_INFO((std::stringstream() << module_desc).str());
+            PipelineModulesDesc sub_pipeline_desc;
+            for (YAML::const_iterator it = sub_module_entry.begin(); it != sub_module_entry.end(); ++it) {
+                std::string key = it->first.as<std::string>();
+                if (key == "name") {
+                    continue;                    
                 }
+
+                const YAML::Node& module_config = it->second;
+                auto module_desc = parse_module(module_config);
+                module_desc->name = key;
+                module_desc->model_type = pipeline_desc->model_type;
+                module_desc->config_root_path = root_path;
+                sub_pipeline_desc[key] = module_desc;
+
+                GENAI_INFO((std::stringstream() << module_desc).str());
             }
-            pipeline_desc.sub_pipeline_descs.emplace_back(sub_pipeline_name, sub_pipeline_desc);
+            pipeline_desc->sub_pipeline_descs.emplace_back(sub_pipeline_name, sub_pipeline_desc);
         }
     }
 }
 
-PipelineDesc load_config(const std::string& cfg_path) {
+PipelineDesc::PTR load_config(const std::string& cfg_path) {
     try {
         YAML::Node config = YAML::LoadFile(cfg_path);
         yaml_cfg_auto_padding(config);
@@ -169,10 +168,10 @@ PipelineDesc load_config(const std::string& cfg_path) {
                                     ? std::filesystem::path(cfg_path).parent_path().string()
                                     : std::filesystem::current_path().string();
 
-        PipelineDesc pipeline_desc;
+        PipelineDesc::PTR pipeline_desc = PipelineDesc::create();
         parse_global_context(config["global_context"], pipeline_desc);
         parse_main_pipeline_config_internal(config["pipeline_modules"], pipeline_desc, root_path);
-        parse_sub_modules_pipeline_config_internal(config["sub_pipelines"], pipeline_desc, root_path);
+        parse_sub_modules_pipeline_config_internal(config["sub_modules"], pipeline_desc, root_path);
         return pipeline_desc;
 
     } catch (const YAML::BadFile& e) {
@@ -183,16 +182,16 @@ PipelineDesc load_config(const std::string& cfg_path) {
     return {};
 }
 
-PipelineDesc load_config_from_string(const std::string& content) {
+PipelineDesc::PTR load_config_from_string(const std::string& content) {
     try {
-        PipelineDesc pipeline_desc;
+        PipelineDesc::PTR pipeline_desc = PipelineDesc::create();
         YAML::Node config = YAML::Load(content);
 
         yaml_cfg_auto_padding(config);
 
         parse_global_context(config["global_context"], pipeline_desc);
         parse_main_pipeline_config_internal(config["pipeline_modules"], pipeline_desc);
-        parse_sub_modules_pipeline_config_internal(config["sub_pipelines"], pipeline_desc);
+        parse_sub_modules_pipeline_config_internal(config["sub_modules"], pipeline_desc);
         return pipeline_desc;
     } catch (const YAML::Exception& e) {
         GENAI_ERR(std::string("Error parsing YAML: ") + e.what());

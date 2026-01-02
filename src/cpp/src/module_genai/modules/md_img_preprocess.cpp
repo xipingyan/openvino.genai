@@ -46,7 +46,8 @@ void ImagePreprocessModule::print_static_config() {
     )" << std::endl;
 }
 
-ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc) : IBaseModule(desc) {
+ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
+    : IBaseModule(desc, pipeline_desc) {
     std::string model_path = desc->get_full_path(desc->params["model_path"]);
     std::string device = desc->device;
     if (device.empty()) {
@@ -61,7 +62,6 @@ ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc) :
         GENAI_ERR("ImagePreprocessModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
     }
 }
-    
 
 ImagePreprocessModule::~ImagePreprocessModule() {}
 

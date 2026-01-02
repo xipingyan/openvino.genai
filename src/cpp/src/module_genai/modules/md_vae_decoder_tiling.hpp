@@ -16,19 +16,7 @@ class IScheduler;
 namespace module {
 
 class VAEDecoderTilingModule : public IBaseModule {
-protected:
-    VAEDecoderTilingModule() = delete;
-    VAEDecoderTilingModule(const IBaseModuleDesc::PTR& desc);
-public:
-    ~VAEDecoderTilingModule();
-
-    void run() override;
-
-    using PTR = std::shared_ptr<VAEDecoderTilingModule>;
-    static PTR create(const IBaseModuleDesc::PTR& desc) {
-        return PTR(new VAEDecoderTilingModule(desc));
-    }
-    static void print_static_config();
+    DeclareModuleConstructor(VAEDecoderTilingModule);
 
 private:
     bool initialize();

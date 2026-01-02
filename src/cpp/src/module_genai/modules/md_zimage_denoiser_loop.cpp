@@ -59,7 +59,9 @@ void ZImageDenoiserLoopModule::print_static_config() {
     )" << std::endl;
 }
 
-ZImageDenoiserLoopModule::ZImageDenoiserLoopModule(const IBaseModuleDesc::PTR &desc) : IBaseModule(desc) {
+ZImageDenoiserLoopModule::ZImageDenoiserLoopModule(const IBaseModuleDesc::PTR& desc,
+                                                   const PipelineDesc::PTR& pipeline_desc)
+    : IBaseModule(desc, pipeline_desc) {
     m_model_type = to_image_generation_model_type(desc->model_type);
     if (m_model_type != ImageGenerationModelType::ZIMAGE) {
         GENAI_ERR("TransformerModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
@@ -70,9 +72,7 @@ ZImageDenoiserLoopModule::ZImageDenoiserLoopModule(const IBaseModuleDesc::PTR &d
     }
 }
 
-ZImageDenoiserLoopModule::~ZImageDenoiserLoopModule() {
-
-}
+ZImageDenoiserLoopModule::~ZImageDenoiserLoopModule() {}
 
 bool ZImageDenoiserLoopModule::initialize() {
     const auto &params = module_desc->params;
