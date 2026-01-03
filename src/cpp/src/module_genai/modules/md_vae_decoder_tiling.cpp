@@ -32,6 +32,7 @@ void VAEDecoderTilingModule::print_static_config() {
     params:
       tile_overlap_factor: "0.25"   # [Optional] float, default is 0.25
       model_path: "model"
+      sub_module_name: "vae_decoder"
 
     )" << std::endl;
 }
@@ -79,6 +80,27 @@ bool VAEDecoderTilingModule::init_tile_params(const std::filesystem::path& model
     return true;
 }
 
+bool VAEDecoderTilingModule::init_sub_pipeline(const std::string& sub_pipeline_name) {
+    bool found = false;
+    for(auto& sub_module : pipeline_desc->sub_pipeline_descs) {
+        if (sub_module.first == sub_pipeline_name) {
+            construct_pipeline(sub_module.second, m_sub_pipeline_instance, pipeline_desc);
+            OPENVINO_ASSERT(!m_sub_pipeline_instance.empty(),
+                            "VAEDecoderTilingModule[" + module_desc->name + "]: failed to construct sub-pipeline '" +
+                                sub_pipeline_name + "'");
+
+            m_sub_pipeline_instance = sort_pipeline(m_sub_pipeline_instance);
+            found = true;
+            break;
+        }
+    }
+
+    OPENVINO_ASSERT(found,
+                    "VAEDecoderTilingModule[" + module_desc->name + "]: sub_pipeline_name '" + sub_pipeline_name +
+                        "' not found in pipeline_desc");
+    return false;
+}
+
 bool VAEDecoderTilingModule::initialize() {
     const auto& params = module_desc->params;
     auto it_path = params.find("model_path");
@@ -89,6 +111,14 @@ bool VAEDecoderTilingModule::initialize() {
 
     std::filesystem::path model_path = module_desc->get_full_path(it_path->second);
     init_tile_params(model_path);
+
+    auto it_sub_module_name = module_desc->params.find("sub_module_name");
+    if (it_sub_module_name == params.end()) {
+        GENAI_ERR("VAEDecoderTilingModule[" + module_desc->name + "]: 'sub_module_name' not found in params");
+        return false;
+    }
+    init_sub_pipeline(it_sub_module_name->second);
+
     return true;
 }
 

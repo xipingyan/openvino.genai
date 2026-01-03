@@ -21,6 +21,9 @@ class VAEDecoderTilingModule : public IBaseModule {
 private:
     bool initialize();
     bool init_tile_params(const std::filesystem::path& model_path);
+
+    PipelineModuleInstance m_sub_pipeline_instance;
+    bool init_sub_pipeline(const std::string& sub_pipeline_name);
     
     ImageGenerationModelType m_model_type;
     float m_tile_overlap_factor = 0.25f;
