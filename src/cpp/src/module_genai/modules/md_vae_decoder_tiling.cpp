@@ -1,10 +1,11 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "md_vae_decoder_tiling.hpp"
+
 #include <fstream>
 
 #include "json_utils.hpp"
-#include "md_vae_decoder_tiling.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 #include "utils.hpp"
 
@@ -32,7 +33,7 @@ void VAEDecoderTilingModule::print_static_config() {
     params:
       tile_overlap_factor: "0.25"   # [Optional] float, default is 0.25
       model_path: "model"
-      sub_module_name: "vae_decoder"
+      sub_module_name: "sub_modules: name"  # sub-pipeline module name
 
     )" << std::endl;
 }
@@ -62,12 +63,12 @@ bool VAEDecoderTilingModule::init_tile_params(const std::filesystem::path& model
     if (std::filesystem::exists(config_path)) {
         std::ifstream vae_config(config_path);
         nlohmann::json parsed = nlohmann::json::parse(vae_config);
-        utils::read_json_param(parsed, "sample_size", m_sample_size);
+        ov::genai::utils::read_json_param(parsed, "sample_size", m_sample_size);
         m_tile_sample_min_size = m_sample_size;
 
         // get block_out_channels: "block_out_channels": [128,256,512,512]
         std::vector<int> block_out_channels;
-        utils::read_json_param(parsed, "block_out_channels", block_out_channels);
+        ov::genai::utils::read_json_param(parsed, "block_out_channels", block_out_channels);
 
         // m_tile_latent_min_size = int(sample_size / (2 ** (len(self.config.block_out_channels) - 1)))
         m_tile_latent_min_size = m_sample_size / std::pow(2, block_out_channels.size() - 1);
@@ -82,14 +83,12 @@ bool VAEDecoderTilingModule::init_tile_params(const std::filesystem::path& model
 
 bool VAEDecoderTilingModule::init_sub_pipeline(const std::string& sub_pipeline_name) {
     bool found = false;
-    for(auto& sub_module : pipeline_desc->sub_pipeline_descs) {
+    for (auto& sub_module : pipeline_desc->sub_pipeline_descs) {
         if (sub_module.first == sub_pipeline_name) {
-            construct_pipeline(sub_module.second, m_sub_pipeline_instance, pipeline_desc);
-            OPENVINO_ASSERT(!m_sub_pipeline_instance.empty(),
-                            "VAEDecoderTilingModule[" + module_desc->name + "]: failed to construct sub-pipeline '" +
-                                sub_pipeline_name + "'");
-
-            m_sub_pipeline_instance = sort_pipeline(m_sub_pipeline_instance);
+            m_sub_pipeline_impl = std::make_shared<ModulePipelineImpl>(sub_module.second, pipeline_desc);
+            OPENVINO_ASSERT(
+                m_sub_pipeline_impl != nullptr,
+                "VAEDecoderTilingModule[" + module_desc->name + "]: Failed to create sub-pipeline instance");
             found = true;
             break;
         }
@@ -98,7 +97,7 @@ bool VAEDecoderTilingModule::init_sub_pipeline(const std::string& sub_pipeline_n
     OPENVINO_ASSERT(found,
                     "VAEDecoderTilingModule[" + module_desc->name + "]: sub_pipeline_name '" + sub_pipeline_name +
                         "' not found in pipeline_desc");
-    return false;
+    return true;
 }
 
 bool VAEDecoderTilingModule::initialize() {
@@ -142,36 +141,40 @@ void VAEDecoderTilingModule::run() {
                         "VAEDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
 
         ov::Tensor output_latent;
-        if (m_enable_tiling && (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
+        if (m_enable_tiling &&
+            (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
             // Tiling decode
             tile_decode(latent, output_latent);
         } else {
             // Non-tiling decode
+            output_latent = decoder(latent);
         }
         output_latents.push_back(output_latent);  // Placeholder for output latent
     }
 
-    if (output_latents.size() == 1){
+    if (output_latents.size() == 1) {
         this->outputs["image"].data = output_latents[0];
-    }else {
+    } else {
         this->outputs["images"].data = output_latents;
     }
 }
 
 ov::Tensor VAEDecoderTilingModule::decoder(const ov::Tensor& tile) {
-    // VAE decoder model inference (not implemented here)
-    const float coeff = 2.6666666666666665f;
-    ov::Tensor decoded_tile =
-        ov::Tensor(ov::element::f32,
-                   ov::Shape{1,
-                             3,
-                             static_cast<size_t>(coeff * tile.get_shape()[2]),
-                             static_cast<size_t>(coeff * tile.get_shape()[3])});  // Placeholder for decoded tile
+    ov::AnyMap inputs;
+    inputs["latent"] = tile;
 
-    for (size_t i = 0; i < decoded_tile.get_size(); ++i) {
-        decoded_tile.data<float>()[i] = 2.0f;  // Fill with zeros as placeholder
+    m_sub_pipeline_impl->generate(inputs);
+
+    // Retrieve output tensor from sub-pipeline
+    ov::Any output = m_sub_pipeline_impl->get_output("image");
+    if (output.is<ov::Tensor>()) {
+        return output.as<ov::Tensor>();
+        ;
     }
-    return decoded_tile;
+
+    GENAI_ERR("VAEDecoderTilingModule[" + module_desc->name +
+              "]: Sub-pipeline output 'image' is not of type ov::Tensor");
+    return ov::Tensor();
 }
 
 void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& output_latent) {
@@ -185,12 +188,12 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
 
     std::vector<std::vector<ov::Tensor>> rows;
     for (size_t h = 0; h < height; h += overlap_size) {
-        const size_t& h_start = h;
-        const size_t& h_end = std::min(h + m_tile_sample_min_size, height);
+        const size_t h_start = h;
+        const size_t h_end = std::min(h + m_tile_latent_min_size, height);
         std::vector<ov::Tensor> row;
         for (size_t w = 0; w < width; w += overlap_size) {
-            const size_t& w_start = w;
-            const size_t& w_end = std::min(w + m_tile_sample_min_size, width);
+            const size_t w_start = w;
+            const size_t w_end = std::min(w + m_tile_latent_min_size, width);
 
             // Get ROI tile from latent
             ov::Tensor tile = ov::genai::module::tensor_utils::slice_tensor(
@@ -199,6 +202,7 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
                 {latent.get_shape()[0], latent.get_shape()[1], h_end, w_end});
 
             ov::Tensor decoded_tile = decoder(tile);
+
             row.push_back(decoded_tile);
         }
         rows.push_back(row);

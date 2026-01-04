@@ -25,7 +25,7 @@ pipeline_modules:
     params:
       tile_overlap_factor: "0.25"
       model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
-      sub_module: "vae_decoder"
+      sub_module_name: "vae_decoder_submodule"
 
 sub_modules:
   - name: "vae_decoder_submodule"
@@ -40,32 +40,7 @@ sub_modules:
           type: "OVTensor"
       params:
         model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
-
-  - name: "vae_decoder_submodule_2"
-    pipeline_params_2:
-      type: "ParameterModule"
-      outputs:
-        - name: "latent"
-          type: "OVTensor"
-    vae_decoder_2:
-      type: "VAEDecoderModule"
-      device: "CPU"
-      inputs:
-        - name: "latent"
-          type: "OVTensor"
-          source: "pipeline_params_2.latent"
-      outputs:
-        - name: "image"
-          type: "OVTensor"
-      params:
-        model_path: "./ut_pipelines/Z-Image-Turbo-fp16-ov/"
-    pipeline_results_2:
-      type: "ResultModule"
-      device: "CPU"
-      inputs:
-        - name: "image"
-          type: "OVTensor"
-          source: "vae_decoder_2.image"
+        enable_postprocess: "false"   # Tiling decoder, don't need to do post-process
 )";
     }
 

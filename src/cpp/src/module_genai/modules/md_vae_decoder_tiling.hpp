@@ -3,6 +3,7 @@
 
 #pragma once
 #include "module_genai/module.hpp"
+#include "module_genai/pipeline_impl.hpp"
 #include "module_genai/transformer_config.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
 #include "circular_buffer_queue.hpp"
@@ -22,7 +23,7 @@ private:
     bool initialize();
     bool init_tile_params(const std::filesystem::path& model_path);
 
-    PipelineModuleInstance m_sub_pipeline_instance;
+    std::shared_ptr<ModulePipelineImpl> m_sub_pipeline_impl = nullptr;
     bool init_sub_pipeline(const std::string& sub_pipeline_name);
     
     ImageGenerationModelType m_model_type;

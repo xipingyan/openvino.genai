@@ -85,8 +85,14 @@ void VAEDecoderModule::run() {
         return;
     }
 
-    ov::Tensor latent = tensor_utils::unsqueeze(this->inputs["latent"].data.as<ov::Tensor>(), 0);
-    ov::Tensor image = m_vae->decode(latent);
+    ov::Tensor image;
+    auto& latent_data = this->inputs["latent"].data.as<ov::Tensor>();
+    if(latent_data.get_shape().size() == 3){
+        ov::Tensor latent = tensor_utils::unsqueeze(this->inputs["latent"].data.as<ov::Tensor>(), 0);
+        image = m_vae->decode(latent);
+    } else {
+        image = m_vae->decode(this->inputs["latent"].data.as<ov::Tensor>());
+    }
 
     this->outputs["image"].data = image;
 }
