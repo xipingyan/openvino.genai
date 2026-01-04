@@ -110,19 +110,22 @@ bool VAEDecoderTilingModule::init_post_process() {
 
     // Construct post-processing OV model here.
     auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, 3, -1, -1});
-
     auto constant_0_5 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 0.5f);
     auto constant_255 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 255.0f);
     auto scaled_0_5 = std::make_shared<ov::op::v1::Multiply>(input, constant_0_5);
     auto added_0_5 = std::make_shared<ov::op::v1::Add>(scaled_0_5, constant_0_5);
     auto clamped = std::make_shared<ov::op::v0::Clamp>(added_0_5, 0.0f, 1.0f);
     auto multiplied = std::make_shared<ov::op::v1::Multiply>(clamped, constant_255);
-
     auto model = std::make_shared<ov::Model>(ov::NodeVector{multiplied}, ov::ParameterVector{input});
-    auto compiled_model = ov::genai::utils::singleton_core().compile_model(model,
-                                                                device,
-                                                                ov::AnyMap{{"PERFORMANCE_HINT", "THROUGHPUT"}});
-    infer_request = compiled_model.create_infer_request();
+
+    ov::preprocess::PrePostProcessor ppp(model);
+    ppp.output().postprocess().convert_element_type(ov::element::u8);
+    ppp.output().model().set_layout("NCHW");
+    ppp.output().tensor().set_layout("NHWC");
+    ppp.build();
+
+    auto compiled_model = ov::genai::utils::singleton_core().compile_model(model, device);
+    pp_infer_request = compiled_model.create_infer_request();
 
     return true;
 }
@@ -182,7 +185,16 @@ void VAEDecoderTilingModule::run() {
             // Non-tiling decode
             output_latent = decoder(latent);
         }
-        output_latents.push_back(output_latent);  // Placeholder for output latent
+
+        // Post-process
+        pp_infer_request.set_input_tensor(output_latent);
+        pp_infer_request.infer();
+        
+        output_latent = pp_infer_request.get_output_tensor();
+        ov::Tensor pp_out_tensor = ov::Tensor(output_latent.get_element_type(), output_latent.get_shape());
+        output_latent.copy_to(pp_out_tensor);
+
+        output_latents.push_back(pp_out_tensor);
     }
 
     if (output_latents.size() == 1) {
@@ -237,7 +249,6 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
                 {latent.get_shape()[0], latent.get_shape()[1], h_end, w_end});
 
             ov::Tensor decoded_tile = decoder(tile);
-            std::cout << "decoded_tile shape: " << decoded_tile.get_shape() << std::endl;
 
             row.push_back(decoded_tile);
         }

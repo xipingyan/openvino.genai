@@ -54,10 +54,10 @@ sub_modules:
 
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
         auto output = pipe.get_output("image").as<ov::Tensor>();
-        std::vector<float> expected_ouput = { 
-          0.0279331, -0.0194968, -0.158097, 0.142582, -0.313633, -0.452601, 0.107033, 0.305759, -0.0610831, 0.136313
-        };
-        CHECK(compare_big_tensor(output, expected_ouput, 1e-2), "latent do not match expected values");
+        CHECK(output.get_element_type() == ov::element::u8, "Expect output data type is u8");
+
+        std::vector<uint8_t> expected_ouput = {99, 106, 90, 99, 101, 81, 116, 116};
+        CHECK(compare_big_tensor<uint8_t>(output, expected_ouput, 1), "latent do not match expected values");
     }
 };
 
