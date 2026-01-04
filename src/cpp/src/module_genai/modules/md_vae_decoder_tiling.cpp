@@ -9,6 +9,10 @@
 #include "module_genai/utils/tensor_utils.hpp"
 #include "utils.hpp"
 
+#include "openvino/op/matmul.hpp"
+#include "openvino/op/add.hpp"
+#include "openvino/op/clamp.hpp"
+
 namespace ov {
 namespace genai {
 namespace module {

@@ -31,7 +31,7 @@ sub_modules:
   - name: "vae_decoder_submodule"
     vae_decoder:
       type: "VAEDecoderModule"
-      device: "CPU"
+      device: "GPU"
       inputs:
         - name: "latent"
           type: "OVTensor"
