@@ -101,12 +101,24 @@ bool VAEDecoderTilingModule::init_sub_pipeline(const std::string& sub_pipeline_n
 }
 
 bool VAEDecoderTilingModule::init_post_process() {
-    // auto constant_0_5 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 0.5f);
-    // auto constant_255 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 255.0f);
-    // auto scaled_0_5 = std::make_shared<ov::op::v1::Multiply>(port, constant_0_5);
-    // auto added_0_5 = std::make_shared<ov::op::v1::Add>(scaled_0_5, constant_0_5);
-    // auto clamped = std::make_shared<ov::op::v0::Clamp>(added_0_5, 0.0f, 1.0f);
-    // return std::make_shared<ov::op::v1::Multiply>(clamped, constant_255);
+    std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
+
+    // Construct post-processing OV model here.
+    auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape{1, 3, -1, -1});
+
+    auto constant_0_5 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 0.5f);
+    auto constant_255 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 255.0f);
+    auto scaled_0_5 = std::make_shared<ov::op::v1::Multiply>(input, constant_0_5);
+    auto added_0_5 = std::make_shared<ov::op::v1::Add>(scaled_0_5, constant_0_5);
+    auto clamped = std::make_shared<ov::op::v0::Clamp>(added_0_5, 0.0f, 1.0f);
+    auto multiplied = std::make_shared<ov::op::v1::Multiply>(clamped, constant_255);
+
+    auto model = std::make_shared<ov::Model>(ov::NodeVector{multiplied}, ov::ParameterVector{input});
+    auto compiled_model = utils::singleton_core().compile_model(model,
+                                                                device,
+                                                                ov::AnyMap{{"PERFORMANCE_HINT", "THROUGHPUT"}});
+    infer_request = compiled_model.create_infer_request();
+
     return true;
 }
 

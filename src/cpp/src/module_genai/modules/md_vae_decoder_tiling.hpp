@@ -26,6 +26,7 @@ private:
     std::shared_ptr<ModulePipelineImpl> m_sub_pipeline_impl = nullptr;
     bool init_sub_pipeline(const std::string& sub_pipeline_name);
 
+    ov::InferRequest infer_request;
     bool init_post_process();
     
     ImageGenerationModelType m_model_type;
