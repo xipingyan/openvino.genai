@@ -168,8 +168,10 @@ ov::Tensor VAEDecoderTilingModule::decoder(const ov::Tensor& tile) {
     // Retrieve output tensor from sub-pipeline
     ov::Any output = m_sub_pipeline_impl->get_output("image");
     if (output.is<ov::Tensor>()) {
-        return output.as<ov::Tensor>();
-        ;
+        auto output_tensor = output.as<ov::Tensor>();
+        auto clone_tensor = ov::Tensor(output_tensor.get_element_type(), output_tensor.get_shape());
+        output_tensor.copy_to(clone_tensor);
+        return clone_tensor;
     }
 
     GENAI_ERR("VAEDecoderTilingModule[" + module_desc->name +
@@ -217,14 +219,13 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
                 tile = blend_v(rows[i - 1][j], tile, blend_extent);
             }
             if (j > 0) {
-                tile = blend_h(result_row[j - 1], tile, blend_extent);
+                tile = blend_h(rows[i][j - 1], tile, blend_extent);
             }
-            result_row.push_back(tensor_utils::slice_tensor(tile,
-                                                            {0, 0, 0, 0},
-                                                            {tile.get_shape()[0],
-                                                             tile.get_shape()[1],
-                                                             std::min(tile.get_shape()[2], 0 + row_limit),
-                                                             std::min(tile.get_shape()[3], 0 + row_limit)}));
+            const auto dst_shape = tile.get_shape();
+            result_row.push_back(tensor_utils::slice_tensor(
+                tile,
+                {0, 0, 0, 0},
+                {dst_shape[0], dst_shape[1], std::min(dst_shape[2], row_limit), std::min(dst_shape[3], row_limit)}));
         }
         result_rows.push_back(tensor_utils::concat_tensors(result_row, 3));
     }
