@@ -100,6 +100,16 @@ bool VAEDecoderTilingModule::init_sub_pipeline(const std::string& sub_pipeline_n
     return true;
 }
 
+bool VAEDecoderTilingModule::init_post_process() {
+    // auto constant_0_5 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 0.5f);
+    // auto constant_255 = std::make_shared<ov::op::v0::Constant>(ov::element::f32, ov::Shape{1}, 255.0f);
+    // auto scaled_0_5 = std::make_shared<ov::op::v1::Multiply>(port, constant_0_5);
+    // auto added_0_5 = std::make_shared<ov::op::v1::Add>(scaled_0_5, constant_0_5);
+    // auto clamped = std::make_shared<ov::op::v0::Clamp>(added_0_5, 0.0f, 1.0f);
+    // return std::make_shared<ov::op::v1::Multiply>(clamped, constant_255);
+    return true;
+}
+
 bool VAEDecoderTilingModule::initialize() {
     const auto& params = module_desc->params;
     auto it_path = params.find("model_path");
@@ -116,7 +126,13 @@ bool VAEDecoderTilingModule::initialize() {
         GENAI_ERR("VAEDecoderTilingModule[" + module_desc->name + "]: 'sub_module_name' not found in params");
         return false;
     }
-    init_sub_pipeline(it_sub_module_name->second);
+    if (!init_sub_pipeline(it_sub_module_name->second)) {
+        return false;
+    }
+
+    if (!init_post_process()) {
+        return false;
+    }
 
     return true;
 }
@@ -204,6 +220,7 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
                 {latent.get_shape()[0], latent.get_shape()[1], h_end, w_end});
 
             ov::Tensor decoded_tile = decoder(tile);
+            std::cout << "decoded_tile shape: " << decoded_tile.get_shape() << std::endl;
 
             row.push_back(decoded_tile);
         }
