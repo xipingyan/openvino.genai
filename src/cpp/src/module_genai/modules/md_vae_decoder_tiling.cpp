@@ -12,6 +12,7 @@
 #include "openvino/op/matmul.hpp"
 #include "openvino/op/add.hpp"
 #include "openvino/op/clamp.hpp"
+#include "openvino/op/multiply.hpp"
 
 namespace ov {
 namespace genai {
@@ -118,7 +119,7 @@ bool VAEDecoderTilingModule::init_post_process() {
     auto multiplied = std::make_shared<ov::op::v1::Multiply>(clamped, constant_255);
 
     auto model = std::make_shared<ov::Model>(ov::NodeVector{multiplied}, ov::ParameterVector{input});
-    auto compiled_model = utils::singleton_core().compile_model(model,
+    auto compiled_model = ov::genai::utils::singleton_core().compile_model(model,
                                                                 device,
                                                                 ov::AnyMap{{"PERFORMANCE_HINT", "THROUGHPUT"}});
     infer_request = compiled_model.create_infer_request();
