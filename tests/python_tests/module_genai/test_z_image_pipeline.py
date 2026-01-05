@@ -11,7 +11,7 @@ import openvino_genai
 import yaml
 import numpy as np
 
-device = "GPU"
+device = "CPU"
 model_path = "../../../samples/cpp/module_genai/ut_pipelines/Z-Image-Turbo-fp16-ov"
 
 class TestOVZImagePipeline(OVZImagePipeline):
@@ -85,6 +85,7 @@ class TestOVZImagePipeline(OVZImagePipeline):
             torch.float32,
             "cpu",
             torch.Generator(device="cpu").manual_seed(seed))
+        original_latents = Tensor(latents.clone().detach().cpu().contiguous().numpy())
                         
         if num_images_per_prompt > 1:
             prompt_embeds = [pe for pe in prompt_embeds for _ in range(num_images_per_prompt)]
@@ -109,7 +110,6 @@ class TestOVZImagePipeline(OVZImagePipeline):
             sigmas=None,
             **scheduler_kwargs,
         )
-        num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
         self._num_timesteps = len(timesteps)
 
         for i, t in enumerate(timesteps):
@@ -187,6 +187,7 @@ class TestOVZImagePipeline(OVZImagePipeline):
                 prompt_embeds, 
                 negative_prompt_embeds,
                 latents,
+                original_latents,
                 width=width,
                 height=height,
                 num_inference_steps=num_inference_steps,
@@ -218,6 +219,7 @@ def denoiser_loop_callback(
         prompt_embeds: List[torch.FloatTensor],
         negative_prompt_embeds: Optional[List[torch.FloatTensor]],
         latents: torch.FloatTensor,
+        init_latents: torch.FloatTensor,
         width: int,
         height: int,
         num_inference_steps: int,
@@ -270,6 +272,11 @@ def denoiser_loop_callback(
                         'name': 'guidance_scale',
                         'type': 'Float',
                         'source': "pipeline_params.guidance_scale"
+                    },
+                    {
+                        'name': 'init_latents',
+                        'type': 'OVTensor',
+                        'source': "pipeline_params.init_latents"
                     }
                 ],
                 'outputs': [
@@ -292,7 +299,8 @@ def denoiser_loop_callback(
         num_inference_steps=num_inference_steps,
         num_images_per_prompt=num_images_per_prompt,
         seed=seed,
-        guidance_scale=guidance_scale)
+        guidance_scale=guidance_scale,
+        init_latents=init_latents)
     module_output = torch.from_numpy(module_pipeline.get_output("latents").data)
     print("    Result check:", "PASS" if torch.allclose(latents, module_output, atol=1e-5) else "FAIL")
 

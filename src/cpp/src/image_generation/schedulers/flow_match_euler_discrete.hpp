@@ -46,6 +46,8 @@ public:
 
     void set_begin_index(size_t begin_index) override;
 
+    void set_sigma_min(float sigma_min);
+
 private:
     Config m_config;
 
