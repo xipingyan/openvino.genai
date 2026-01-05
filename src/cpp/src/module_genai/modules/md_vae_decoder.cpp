@@ -15,7 +15,7 @@ void VAEDecoderModule::print_static_config() {
   - name: "VAE_decoder"
     type: "VAEDecoderModule"
     inputs:
-      - name: "latent"
+      - name: "latents"
         type: "OVTensor"
     outputs:
       - name: "image"
@@ -80,18 +80,18 @@ void VAEDecoderModule::run() {
 
     prepare_inputs();
     
-    if (this->inputs.find("latent") == this->inputs.end()) {
-        GENAI_ERR("VAEDecoderModule[" + module_desc->name + "]: 'latent' input not found");
+    if (this->inputs.find("latents") == this->inputs.end()) {
+        GENAI_ERR("VAEDecoderModule[" + module_desc->name + "]: 'latents' input not found");
         return;
     }
 
     ov::Tensor image;
-    auto& latent_data = this->inputs["latent"].data.as<ov::Tensor>();
-    if(latent_data.get_shape().size() == 3){
-        ov::Tensor latent = tensor_utils::unsqueeze(this->inputs["latent"].data.as<ov::Tensor>(), 0);
+    auto& latent_data = this->inputs["latents"].data.as<ov::Tensor>();
+    if (latent_data.get_shape().size() == 3u) {
+        ov::Tensor latent = tensor_utils::unsqueeze(this->inputs["latents"].data.as<ov::Tensor>(), 0);
         image = m_vae->decode(latent);
     } else {
-        image = m_vae->decode(this->inputs["latent"].data.as<ov::Tensor>());
+        image = m_vae->decode(this->inputs["latents"].data.as<ov::Tensor>());
     }
 
     this->outputs["image"].data = image;

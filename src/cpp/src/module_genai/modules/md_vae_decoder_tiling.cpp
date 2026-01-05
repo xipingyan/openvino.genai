@@ -191,6 +191,9 @@ void VAEDecoderTilingModule::run() {
             tile_decode(cur_latent, output_latent);
         } else {
             // Non-tiling decode
+            std::cout << "VAEDecoderTilingModule[" + module_desc->name + "]: Non-tiling decode for latent shape: " +
+                             ov::genai::module::tensor_utils::shape_to_string(cur_latent.get_shape())
+                      << std::endl;
             output_latent = decoder(cur_latent);
         }
 
