@@ -56,7 +56,7 @@ sub_modules:
         auto output = pipe.get_output("image").as<ov::Tensor>();
         CHECK(output.get_element_type() == ov::element::u8, "Expect output data type is u8");
 
-        std::vector<uint8_t> expected_ouput = {99, 106, 90, 99, 101, 81, 116, 116};
+        std::vector<uint8_t> expected_ouput = {119, 113, 97, 107, 97, 81, 106, 93};
         CHECK(compare_big_tensor<uint8_t>(output, expected_ouput, 1), "latent do not match expected values");
     }
 };

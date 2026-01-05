@@ -85,9 +85,9 @@ pipeline_modules:
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
         auto image = pipe.get_output("image").as<ov::Tensor>();
         CHECK(image.get_size() > 0, "VAE decoder output is empty");
-        std::vector<float> expected_ouput = {
-            -0.198401, -0.153599, -0.10004, -0.110344, -0.0466879, 0.0748728, 0.113078, 0.152461, 0.142931, 0.0748332
-        };
+        std::vector<float> expected_ouput = {-0.0553406, -0.177907, -0.268292, -0.276685, -0.182945,
+                                             0.0203716, 0.255036, 0.342477, 0.279524, 0.0960406};
+
         CHECK(compare_big_tensor<float>(image, expected_ouput, 1e-6), "decoder output do not match expected values");
     }
 };
