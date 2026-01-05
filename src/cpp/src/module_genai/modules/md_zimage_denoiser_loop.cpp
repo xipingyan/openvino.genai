@@ -51,7 +51,7 @@ void ZImageDenoiserLoopModule::print_static_config() {
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "latents"
-        type: "OVTensor"                                   # Support DataType: [VecOVTensor]
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
     params:
       model_path: "model"
     )" << std::endl;
