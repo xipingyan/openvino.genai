@@ -109,4 +109,10 @@ ov::Tensor concat_tensors(const std::vector<ov::Tensor>& tensors, size_t axis) {
 
     return result_tensor;
 }
+
+const std::string shape_to_string(const ov::Shape& shape) {
+    std::ostringstream oss;
+    oss << shape;
+    return oss.str();
 }
+}  // namespace ov::genai::module::tensor_utils

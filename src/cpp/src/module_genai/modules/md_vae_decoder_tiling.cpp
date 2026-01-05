@@ -173,17 +173,25 @@ void VAEDecoderTilingModule::run() {
     // Process batch of latents
     std::vector<ov::Tensor> output_latents;
     for (const auto& latent : latents) {
-        OPENVINO_ASSERT(latent.get_shape().size() == 4,
-                        "VAEDecoderTilingModule[" + module_desc->name + "]: latent tensor must be 4D.");
+        ov::Tensor cur_latent = latent;
+        if (latent.get_shape().size() == 3u) {
+            // unsqueeze batch dimension
+            cur_latent = ov::Tensor(latent.get_element_type(),
+                                    ov::Shape{1, latent.get_shape()[0], latent.get_shape()[1], latent.get_shape()[2]},
+                                    latent.data());
+        }
+        OPENVINO_ASSERT(cur_latent.get_shape().size() == 4u,
+                        "VAEDecoderTilingModule[" + module_desc->name + "]: cur_latent tensor must be 4D. Got shape: " +
+                            ov::genai::module::tensor_utils::shape_to_string(cur_latent.get_shape()));
 
         ov::Tensor output_latent;
         if (m_enable_tiling &&
-            (latent.get_shape()[3] > m_tile_latent_min_size || latent.get_shape()[2] > m_tile_latent_min_size)) {
+            (cur_latent.get_shape()[3] > m_tile_latent_min_size || cur_latent.get_shape()[2] > m_tile_latent_min_size)) {
             // Tiling decode
-            tile_decode(latent, output_latent);
+            tile_decode(cur_latent, output_latent);
         } else {
             // Non-tiling decode
-            output_latent = decoder(latent);
+            output_latent = decoder(cur_latent);
         }
 
         // Post-process
