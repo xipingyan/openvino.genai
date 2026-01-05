@@ -351,11 +351,13 @@ def main():
     pipeline = TransformerPipeline(args.model_path, args.device, args.enable_tiling)
     images = pipeline(
         prompt=args.prompt,
-        height=512,
-        width=512,
+        height=16*65,
+        width=16*65,
         num_inference_steps=9
     )
-    images[0].save("zimage_denoiser_loop_output-vae.png")
+
+    out_name = "output_zimage_tiling.png" if args.enable_tiling else "output_zimage.png"
+    images[0].save(out_name)
 
 if __name__ == "__main__":
     main()
