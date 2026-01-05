@@ -15,3 +15,4 @@ prompt="Young Chinese woman in red Hanfu, intricate embroidery. Impeccable makeu
 # prompt="A chinese man with white T-shirt and blue jeans, standing in the forest, draw the light and shadow of the scene clearly, photo taken by Nikon D850, high resolution, detailed texture, draw full person"
 
 python module_pipeline_z_image.py ${model_dir} "${prompt}" CPU --enable_tiling
+# python module_pipeline_z_image.py ${model_dir} "${prompt}" CPU
