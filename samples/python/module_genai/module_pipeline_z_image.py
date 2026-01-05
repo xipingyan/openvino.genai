@@ -105,7 +105,7 @@ class TransformerPipeline():
                     'description': 'Z-Image denoiser loop.',
                     'inputs': [
                         {
-                            'name': 'latents',
+                            'name': 'latent' if enable_tiling else 'latents',
                             'type': 'OVTensor',
                             'source': 'denoiser_loop.latents',
                         }
