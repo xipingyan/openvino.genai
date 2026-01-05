@@ -168,7 +168,7 @@ class TransformerPipeline():
                         'device': self.device,
                         'inputs': [
                             {
-                               'name': 'latent',
+                               'name': 'latents',
                                 'type': 'OVTensor',
                             }
                         ],

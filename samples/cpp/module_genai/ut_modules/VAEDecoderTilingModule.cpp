@@ -33,7 +33,7 @@ sub_modules:
       type: "VAEDecoderModule"
       device: "GPU"
       inputs:
-        - name: "latent"
+        - name: "latents"
           type: "OVTensor"
       outputs:
         - name: "image"

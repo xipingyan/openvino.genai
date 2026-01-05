@@ -217,7 +217,7 @@ void VAEDecoderTilingModule::run() {
 
 ov::Tensor VAEDecoderTilingModule::decoder(const ov::Tensor& tile) {
     ov::AnyMap inputs;
-    inputs["latent"] = tile;
+    inputs["latents"] = tile;
 
     m_sub_pipeline_impl->generate(inputs);
 
