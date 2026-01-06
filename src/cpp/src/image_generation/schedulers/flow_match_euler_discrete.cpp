@@ -210,7 +210,8 @@ void FlowMatchEulerDiscreteScheduler::set_timesteps(size_t image_seq_len, size_t
     m_num_inference_steps = num_inference_steps;
     m_strength = strength;
 
-    m_sigmas = numpy_utils::linspace<float>(m_sigma_max, m_sigma_min, m_num_inference_steps, true);
+    float linspace_end = 1.0f / m_num_inference_steps;
+    m_sigmas = numpy_utils::linspace<float>(1.0f, linspace_end, m_num_inference_steps, true);
 
     float shift = m_config.shift;
 
@@ -249,10 +250,6 @@ float FlowMatchEulerDiscreteScheduler::calculate_shift(size_t image_seq_len) {
 
 void FlowMatchEulerDiscreteScheduler::set_begin_index(size_t begin_index) {
     m_begin_index = begin_index;
-}
-
-void FlowMatchEulerDiscreteScheduler::set_sigma_min(float sigma_min) {
-    m_sigma_min = sigma_min;
 }
 
 }  // namespace genai

@@ -4,7 +4,7 @@
 #include "md_zimage_denoiser_loop.hpp"
 #include "module_genai/transformer_config.hpp"
 #include "utils.hpp"
-#include "image_generation/schedulers/flow_match_euler_discrete.hpp"
+#include "image_generation/schedulers/z_image_flow_match_euler_discrete.hpp"
 #include "json_utils.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 #include <fstream>
@@ -86,7 +86,7 @@ bool ZImageDenoiserLoopModule::initialize() {
         model_path, "transformer/config.json");
 
     if (m_model_type == ImageGenerationModelType::ZIMAGE) {
-        m_scheduler = std::make_shared<FlowMatchEulerDiscreteScheduler>(model_path / "scheduler/scheduler_config.json");
+        m_scheduler = std::make_shared<ZImageFlowMatchEulerDiscreteScheduler>(model_path / "scheduler/scheduler_config.json");
     } else {
         OPENVINO_THROW("Unsupported '", module_desc->model_type, "' Transformer model type");
     }
@@ -222,7 +222,7 @@ ov::Tensor ZImageDenoiserLoopModule::run(
     }
 
     auto image_seq_len = (latents.get_shape()[2] / 2) * (latents.get_shape()[3] / 2);
-    std::dynamic_pointer_cast<FlowMatchEulerDiscreteScheduler>(m_scheduler)->set_sigma_min(0.0f);
+    std::dynamic_pointer_cast<ZImageFlowMatchEulerDiscreteScheduler>(m_scheduler)->set_sigma_min(0.0f);
     m_scheduler->set_timesteps(
         image_seq_len,
         generation_config.num_inference_steps,
