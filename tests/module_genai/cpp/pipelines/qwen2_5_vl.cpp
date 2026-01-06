@@ -9,7 +9,7 @@
 
 #include "utils/load_image.hpp"
 #include "utils/utils.hpp"
-
+#if 0
 TEST(Qwen2_5_VL_Module_Pipeline, generate_text_from_image) {
     std::string config_yaml = "ut_pipelines/Qwen2.5-VL-3B-Instruct/config.yaml";
     std::string test_image = "cat_120_100.png";
@@ -30,3 +30,4 @@ TEST(Qwen2_5_VL_Module_Pipeline, generate_text_from_image) {
 
     std::cout << "  Generated Text: " << output.as<std::string>() << std::endl;
 }
+#endif

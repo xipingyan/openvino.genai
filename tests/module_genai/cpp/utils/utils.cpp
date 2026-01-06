@@ -94,8 +94,8 @@ std::string get_model_path() {
 
 bool check_env_variable(const std::string& var_name) {
     const char* env_p = std::getenv(var_name.c_str());
-    if (std::string(env_p) == "true" || std::string(env_p) == "TRUE" || std::string(env_p) == "1" ||
-        std::string(env_p) == "True") {
+    if (env_p != nullptr && (std::string(env_p) == "true" || std::string(env_p) == "TRUE" ||
+                             std::string(env_p) == "1" || std::string(env_p) == "True")) {
         return true;
     }
 
