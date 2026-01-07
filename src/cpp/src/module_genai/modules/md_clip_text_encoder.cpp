@@ -69,6 +69,9 @@ bool ClipTextEncoderModule::initialize() {
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
     ov::AnyMap properties = {};
 
+    m_encoder_config = utils::from_config_json_if_exists<TransformerConfig>(
+        root_dir, "text_encoder/config.json");
+
     try {
         auto tokenizer_path = root_dir / "tokenizer";
         m_tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, properties);
@@ -180,7 +183,8 @@ ov::Tensor ClipTextEncoderModule::encode_prompt(
     m_request.set_tensor("attention_mask", text_inputs.attention_mask);
     m_request.infer();
 
-    ov::Tensor prompt_embed = m_request.get_output_tensor(0);
+    size_t idx = m_encoder_config.num_hidden_layers;
+    ov::Tensor prompt_embed = m_request.get_output_tensor(idx);
     return prompt_embed;
 }
 

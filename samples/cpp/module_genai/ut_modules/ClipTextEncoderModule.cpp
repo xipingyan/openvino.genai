@@ -65,7 +65,10 @@ pipeline_modules:
 
     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
         auto output = pipe.get_output("prompt_embeds").as<std::vector<ov::Tensor>>();
-        std::cout << output[0].get_shape() << std::endl;
+        std::vector<float> expected_embeds = { 
+          -5.8134e+02, 7.6859e-01, -3.0166e+01, 3.7192e+01, 1.3754e+04, -3.9269e+00, -8.7309e+00, 3.2020e+01, 6.0102e-01, 7.2419e+01
+        };
+        CHECK(compare_big_tensor<float>(output[0], expected_embeds, 1e+01), "embedding do not match expected values");
     }
 };
 
