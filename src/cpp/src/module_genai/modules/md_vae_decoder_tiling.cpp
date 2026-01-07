@@ -307,8 +307,10 @@ ov::Tensor VAEDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2,
     float* ptr1 = tile1.data<float>();
     float* ptr2 = tile2.data<float>();
 
-    size_t channel_stride = H * W;
-    size_t batch_stride = C * channel_stride;
+    size_t channel_stride_1 = shape1[2] * shape1[3];
+    size_t channel_stride_2 = H * W;
+    size_t batch_stride_1 = C * channel_stride_1;
+    size_t batch_stride_2 = C * channel_stride_2;
 
     for (size_t n = 0; n < N; ++n) {
         for (size_t c = 0; c < C; ++c) {
@@ -317,10 +319,10 @@ ov::Tensor VAEDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2,
                 float weight_a = 1.0f - weight_b;
 
                 // Python: a[:, :, -blend_extent + y, :]
-                size_t idx1 = n * batch_stride + c * channel_stride + (shape1[2] - blend_extent + y) * W;
+                size_t idx1 = n * batch_stride_1 + c * channel_stride_1 + (shape1[2] - blend_extent + y) * W;
 
                 // Python: b[:, :, y, :]
-                size_t idx2 = n * batch_stride + c * channel_stride + y * W;
+                size_t idx2 = n * batch_stride_2 + c * channel_stride_2 + y * W;
 
                 for (size_t x = 0; x < W; ++x) {
                     ptr2[idx2 + x] = ptr1[idx1 + x] * weight_a + ptr2[idx2 + x] * weight_b;
