@@ -350,13 +350,18 @@ ov::Tensor VAEDecoderTilingModule::blend_h(ov::Tensor& tile1, ov::Tensor& tile2,
     float* ptr1 = tile1.data<float>();
     float* ptr2 = tile2.data<float>();
 
+    size_t channel_stride1 = H * W1;
+    size_t batch_stride1 = C * channel_stride1;
+    size_t channel_stride2 = H * W;
+    size_t batch_stride2 = C * channel_stride2;
+
     for (size_t n = 0; n < N; ++n) {
         for (size_t c = 0; c < C; ++c) {
             for (size_t y = 0; y < H; ++y) {
                 // ptr1 take last blend_extent columns, index offset is W1 - blend_extent
-                size_t row_offset1 = n * (C * H * W1) + c * (H * W1) + y * W1 + (W1 - blend_extent);
+                size_t row_offset1 = n * batch_stride1 + c * channel_stride1 + y * W1 + (W1 - blend_extent);
                 // ptr2 take first blend_extent columns, index offset is 0
-                size_t row_offset2 = n * (C * H * W) + c * (H * W) + y * W;
+                size_t row_offset2 = n * batch_stride2 + c * channel_stride2 + y * W;
 
                 for (size_t x = 0; x < blend_extent; ++x) {
                     float weight_b = (float)x / blend_extent;
