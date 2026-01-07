@@ -175,9 +175,7 @@ ov::Tensor ClipTextEncoderModule::encode_prompt(
         templated_prompts.push_back(templated_s);
     }
 
-    ov::AnyMap tokenization_params = {{"add_special_tokens", true},
-                                      {"max_length", generation_config.max_sequence_length},
-                                      {"pad_to_max_length", true}};
+    ov::AnyMap tokenization_params = {};
     auto text_inputs = m_tokenizer_impl->encode(templated_prompts, tokenization_params);
     m_request.set_tensor("input_ids", text_inputs.input_ids);
     m_request.set_tensor("attention_mask", text_inputs.attention_mask);
