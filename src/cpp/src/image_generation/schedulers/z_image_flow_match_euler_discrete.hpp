@@ -18,15 +18,6 @@ public:
     void set_sigma_min(float sigma_min);
 
 private:
-    // Config m_config;
-
-    // std::vector<float> m_sigmas;
-    // std::vector<float> m_timesteps, m_schedule_timesteps;
-
-    // float m_sigma_min, m_sigma_max;
-    // float m_strength;
-    // size_t m_step_index, m_begin_index;
-    // size_t m_num_inference_steps;
 
 };
 
