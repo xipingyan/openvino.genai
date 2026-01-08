@@ -61,7 +61,7 @@ bool ClipTextEncoderModule::initialize() {
     const auto& params = module_desc->params;
     auto it_path = params.find("model_path");
     if (it_path == params.end()) {
-        std::cerr << "ClipTextEncoderModule[" << module_desc->name << "]: 'model_path' not found in params" << std::endl;
+        GENAI_ERR("ClipTextEncoderModule[" + module_desc->name + "]: 'model_path' not found in params")
         return false;
     }
     
@@ -103,18 +103,18 @@ void ClipTextEncoderModule::run() {
     std::vector<std::string> m_prompts = {};
     std::vector<std::string> m_negative_prompts = {};
     
-    if (this->inputs.find("prompts") != this->inputs.end()) {
+    if (exists_input("prompts")) {
         m_prompts = this->inputs["prompts"].data.as<std::vector<std::string>>();
     }
-    if (this->inputs.find("prompt") != this->inputs.end()) {
+    if (exists_input("prompt")) {
         std::string single_prompt = this->inputs["prompt"].data.as<std::string>();
         m_prompts.insert(m_prompts.begin(), single_prompt);
     }
 
-    if (this->inputs.find("negative_prompts") != this->inputs.end()) {
+    if (exists_input("negative_prompts")) {
         m_negative_prompts = this->inputs["negative_prompts"].data.as<std::vector<std::string>>();
     }
-    if (this->inputs.find("negative_prompt") != this->inputs.end()) {
+    if (exists_input("negative_prompt")) {
         std::string single_negative_prompt = this->inputs["negative_prompt"].data.as<std::string>();
         m_negative_prompts.insert(m_negative_prompts.begin(), single_negative_prompt);
     }
@@ -124,12 +124,12 @@ void ClipTextEncoderModule::run() {
     }
 
     ImageGenerationConfig generation_config {};
-    if (this->inputs.find("guidance_scale") != this->inputs.end()) {
+    if (exists_input("guidance_scale")) {
         generation_config.guidance_scale = this->inputs["guidance_scale"].data.as<float>();
     } else {
         generation_config.guidance_scale = 1.0f;
     }
-    if (this->inputs.find("max_sequence_length") != this->inputs.end()) {
+    if (exists_input("max_sequence_length")) {
         generation_config.max_sequence_length = this->inputs["max_sequence_length"].data.as<int>();
     } else {
         generation_config.max_sequence_length = 512;
