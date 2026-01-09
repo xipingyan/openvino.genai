@@ -14,6 +14,10 @@ export MODEL_DIR=./test_models
 export DUMP_YAML=1  # Dump config yaml to file.
 export DEVICE=GPU   # Default CPU.
 
+<!-- Copy libopenvino_tokenizers -->
+OV_TOKENIZERS_LIB_PATH=../../../build/openvino_genai/libopenvino_tokenizers.so
+cp ${OV_TOKENIZERS_LIB_PATH} ../../../build/tests/module_genai/cpp/
+
 ../../../build/tests/module_genai/cpp/genai_modules_test
 
 <!-- Filter test example -->
