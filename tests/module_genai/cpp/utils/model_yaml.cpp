@@ -3,8 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "model_yaml.hpp"
+#include "utils.hpp"
 
 #include <yaml-cpp/yaml.h>
+
+namespace TEST_MODEL {
+
+std::string get_device() {
+    const char* device_env = std::getenv("DEVICE");
+    if (device_env != nullptr && std::string(device_env) != "") {
+        return std::string(device_env);
+    }
+    return "CPU";
+}
+
+std::string Qwen2_5_VL_3B_Instruct_INT4() {
+    return get_model_path() + "/Qwen2.5-VL-3B-Instruct/INT4/";
+}
 
 static YAML::Node input_node(const std::string& name, const std::string& type, const std::string& source) {
     YAML::Node input_node;
@@ -158,3 +173,4 @@ std::string get_qwen2_5_vl_config_yaml(const std::string& model_path, const std:
 
     return YAML::Dump(config);
 }
+}  // namespace TEST_MODEL

@@ -12,6 +12,7 @@ cd [PATH]/openvino.genai/tests/module_genai/cpp
 export DATA_DIR=./test_data
 export MODEL_DIR=./test_models
 export DUMP_YAML=1  # Dump config yaml to file.
+export DEVICE=GPU   # Default CPU.
 
 ../../../build/tests/module_genai/cpp/genai_modules_test
 

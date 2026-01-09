@@ -12,15 +12,15 @@
 #include "utils/model_yaml.hpp"
 
 TEST(PipelineTest, GenerateAsync) {
-    std::string device = "CPU";
-    std::string model_path = "/Qwen2.5-VL-3B-Instruct/INT4/";
-    std::string test_image = "cat_120_100.png";
+    std::string device = TEST_MODEL::get_device();
+    std::string qwen2_5_vl_model_path = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
+    std::string test_img_cat = TEST_DATA::img_cat_120_100();
 
-    std::string yaml_context = get_qwen2_5_vl_config_yaml(get_model_path() + model_path, device);
+    std::string yaml_context = TEST_MODEL::get_qwen2_5_vl_config_yaml(qwen2_5_vl_model_path, device);
 
     ov::AnyMap inputs;
     inputs["prompts_data"] = std::vector<std::string>{"Please describle this image"};
-    inputs["img1"] = utils::load_image(get_data_path() + "/" + test_image);
+    inputs["img1"] = utils::load_image(test_img_cat);
 
     ov::genai::module::ModulePipeline pipe(yaml_context);
 
