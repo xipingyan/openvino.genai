@@ -124,6 +124,27 @@ void ModulePipelineImpl::init_onetbb_threading() {
             }
         }
     }
+
+    init_fake_edge();
+}
+
+// When async mode: 
+// If node A and B have no data dependency, but still want them to be executed in order,
+// we can add a fake edge between them.
+void ModulePipelineImpl::init_fake_edge() {
+    using namespace oneapi::tbb::flow;
+    FlowNode* last_node = nullptr;
+    for (auto& module : m_modules) {
+        if (module->module_desc->thread_mode == ThreadMode::SYNC) {
+            auto it = _node_flow_map.find(module);
+            if (it != _node_flow_map.end()) {
+                if (last_node != nullptr) {
+                    make_edge(*last_node, *it->second);
+                }
+                last_node = it->second;
+            }
+        }
+    }
 }
 
 ov::Any ModulePipelineImpl::get_output(const std::string& output_name) {

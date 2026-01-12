@@ -43,6 +43,7 @@ private:
 
     // Only initialize oneTBB threading for ansync generate
     void init_onetbb_threading();
+    void init_fake_edge();
     oneapi::tbb::flow::graph _flow_graph;  // internal flow graph for async execution
     using FlowNode = oneapi::tbb::flow::continue_node<oneapi::tbb::flow::continue_msg>;
     std::vector<std::unique_ptr<FlowNode>> _flow_nodes;     // cached flow nodes

@@ -5,6 +5,23 @@
 #pragma once
 
 #include <string>
+#include <yaml-cpp/yaml.h>
+
+// Helper functions to create YAML nodes for inputs and outputs.
+inline YAML::Node input_node(const std::string& name, const std::string& type, const std::string& source) {
+    YAML::Node input_node;
+    input_node["name"] = name;
+    input_node["type"] = type;
+    input_node["source"] = source;
+    return input_node;
+}
+
+inline YAML::Node output_node(const std::string& name, const std::string& type) {
+    YAML::Node output_node;
+    output_node["name"] = name;
+    output_node["type"] = type;
+    return output_node;
+}
 
 namespace TEST_MODEL {
 std::string get_device();

@@ -21,21 +21,6 @@ std::string Qwen2_5_VL_3B_Instruct_INT4() {
     return get_model_path() + "/Qwen2.5-VL-3B-Instruct/INT4/";
 }
 
-static YAML::Node input_node(const std::string& name, const std::string& type, const std::string& source) {
-    YAML::Node input_node;
-    input_node["name"] = name;
-    input_node["type"] = type;
-    input_node["source"] = source;
-    return input_node;
-}
-
-static YAML::Node output_node(const std::string& name, const std::string& type) {
-    YAML::Node output_node;
-    output_node["name"] = name;
-    output_node["type"] = type;
-    return output_node;
-}
-
 std::string get_qwen2_5_vl_config_yaml(const std::string& model_path, const std::string& device) {
     YAML::Node config;
 
