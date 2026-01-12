@@ -10,6 +10,7 @@
 #include "utils/load_image.hpp"
 #include "utils/utils.hpp"
 #include "utils/model_yaml.hpp"
+#include "../utils/ut_modules_base.hpp"
 
 TEST(PipelineTest, GenerateAsync) {
     std::string device = TEST_MODEL::get_device();
@@ -43,3 +44,148 @@ TEST(PipelineTest, GenerateAsync) {
 
     EXPECT_EQ(output_text_sync, output_text_async);
 }
+
+
+// Define test parameters: 
+// vector<bool>: generate_async or generate;
+// vector<int>: module ids of sync execution order when run: generate_async();
+using test_params = std::tuple<std::vector<bool>, std::vector<int>>;
+
+class PipelineGenerateAsyncTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
+private:
+    bool _async;
+    std::vector<std::string> _sync_execution_module_names;
+public:
+    static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
+        // Get image paths and device from parameters
+        const auto& async = std::get<0>(obj.param);
+        const auto& sync_exec_module_names = std::get<1>(obj.param);
+        std::string result;
+        // result += async ? "async_" : "sync_";
+        // if (async) {
+        //     for (size_t i = 0; i < sync_exec_module_names.size(); ++i) {
+        //         result += std::to_string(sync_exec_module_names[i]);
+        //         if (i < sync_exec_module_names.size() - 1)
+        //             result += "_";
+        //     }
+        // }
+        return result;
+    }
+
+    void SetUp() override {
+        REGISTER_TEST_NAME();
+        std::tie(_async, _sync_execution_module_names) = GetParam();
+    }
+
+    void TearDown() override {}
+
+protected:
+    std::string get_yaml_content() override {
+        YAML::Node config;
+        config["global_context"]["model_type"] = "FakeModel";
+
+        YAML::Node pipeline_modules = config["pipeline_modules"];
+        // Modules graph
+        /*          input_module
+         *         /            \
+         *  fake_module_a    fake_module_b
+         *         \            /
+         *          \          /
+         *          output_module
+         */
+
+        YAML::Node input_module;
+        input_module["type"] = "ParameterModule";
+        input_module["description"] = "Input Node."; 
+        YAML::Node outputs;
+        YAML::Node output_input_data_1;
+        output_input_data_1["name"] = "input_data_1";
+        output_input_data_1["type"] = "OVTensor";
+        outputs.push_back(output_input_data_1);
+        YAML::Node output_input_data_2;
+        output_input_data_2["name"] = "input_data_2";
+        output_input_data_2["type"] = "OVTensor";
+        outputs.push_back(output_input_data_2);
+        input_module["outputs"] = outputs;
+        pipeline_modules["input_node"] = input_module;
+
+        YAML::Node fake_module_a;
+        fake_module_a["type"] = "FakeModuleA";
+        fake_module_a["description"] = "Fake Module A."; 
+        YAML::Node inputs_a;
+        YAML::Node input_from_input_node;
+        input_from_input_node["name"] = "input_data";
+        input_from_input_node["type"] = "OVTensor";
+        input_from_input_node["source"] = "input_node.input_data_1";
+        inputs_a.push_back(input_from_input_node);
+        fake_module_a["inputs"] = inputs_a;
+        YAML::Node outputs_a;
+        YAML::Node output_data_a;
+        output_data_a["name"] = "output_data";
+        output_data_a["type"] = "OVTensor";
+        outputs_a.push_back(output_data_a);
+        fake_module_a["outputs"] = outputs_a;
+        pipeline_modules["fake_module_a"] = fake_module_a;
+
+        YAML::Node fake_module_b;
+        fake_module_b["type"] = "FakeModuleB";
+        fake_module_b["description"] = "Fake Module B."; 
+        YAML::Node inputs_b;
+        YAML::Node input_from_a;
+        input_from_a["name"] = "input_data";
+        input_from_a["type"] = "OVTensor";
+        input_from_a["source"] = "input_node.input_data_2";
+        inputs_b.push_back(input_from_a);
+        fake_module_b["inputs"] = inputs_b;
+        YAML::Node outputs_b;
+        YAML::Node output_data_b;
+        output_data_b["name"] = "output_data";
+        output_data_b["type"] = "OVTensor";
+        outputs_b.push_back(output_data_b);
+        fake_module_b["outputs"] = outputs_b;
+        pipeline_modules["fake_module_b"] = fake_module_b;
+
+        YAML::Node output_module;
+        output_module["type"] = "ResultModule";
+        output_module["description"] = "Output Node.";
+        YAML::Node inputs_output;
+        YAML::Node input_from_a;
+        input_from_a["name"] = "output_data";
+        input_from_a["type"] = "OVTensor";
+        input_from_a["source"] = "fake_module_a.output_data";
+
+        YAML::Node input_from_b;
+        input_from_b["name"] = "output_data";
+        input_from_b["type"] = "OVTensor";
+        input_from_b["source"] = "fake_module_b.output_data";
+        inputs_output.push_back(input_from_b);
+        output_module["inputs"] = inputs_output;
+        pipeline_modules["output_node"] = output_module; 
+
+        return YAML::Dump(config);
+    }
+
+    ov::AnyMap prepare_inputs() override {
+        ov::AnyMap inputs;
+        inputs["input_data_1"] = ov::Tensor();
+        inputs["input_data_2"] = ov::Tensor();
+        return inputs;
+    }
+
+    void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
+        
+    }
+};
+
+TEST_P(PipelineGenerateAsyncTest, ModuleTest) {
+    run();
+}
+
+static auto g_thread_async = std::vector<bool>{true, false};
+static auto g_sync_execution_module_name = std::vector<std::string>{"fake_module_a", "fake_module_b"};
+
+INSTANTIATE_TEST_SUITE_P(PipelineTestSuite,
+                         PipelineGenerateAsyncTest,
+                         ::testing::Combine(::testing::ValuesIn(g_thread_async),
+                                            ::testing::Values(g_sync_execution_module_name)),
+                         PipelineGenerateAsyncTest::get_test_case_name);
