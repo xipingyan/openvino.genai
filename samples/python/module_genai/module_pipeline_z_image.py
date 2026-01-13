@@ -107,7 +107,7 @@ class TransformerPipeline():
                     }
                 },
                 'latent_image': {
-                    'type': 'LatentImageModule',
+                    'type': 'RandomLatentImageModule',
                     'device': self.device,
                     'description': 'Generate initial latent image.',
                     'inputs': [

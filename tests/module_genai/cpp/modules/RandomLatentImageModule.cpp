@@ -5,7 +5,7 @@
 #include "../utils/utils.hpp"
 #include "../utils/model_yaml.hpp"
 
-struct LatentImageTestData {
+struct RandomLatentImageTestData {
     int width;
     int height;
     int batch_size;
@@ -15,8 +15,8 @@ struct LatentImageTestData {
 
 namespace TEST_DATA {
 
-LatentImageTestData latent_image_test_data() {
-    LatentImageTestData data {};
+RandomLatentImageTestData latent_image_test_data() {
+    RandomLatentImageTestData data {};
     data.width = 128;
     data.height = 128;
     data.batch_size = 1;
@@ -27,12 +27,12 @@ LatentImageTestData latent_image_test_data() {
 
 }
 
-using test_params = std::tuple<LatentImageTestData, std::string>;
+using test_params = std::tuple<RandomLatentImageTestData, std::string>;
 
-class LatentImageModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
+class RandomLatentImageModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
 private:
     std::string m_device;
-    LatentImageTestData m_test_data;
+    RandomLatentImageTestData m_test_data;
     float m_threshold = 1e-2;
 
 public:
@@ -54,7 +54,7 @@ protected:
         config["global_context"]["model_type"] = "zimage";
         YAML::Node pipeline_modules = config["pipeline_modules"];
         YAML::Node latent_image;
-        latent_image["type"] = "LatentImageModule";
+        latent_image["type"] = "RandomLatentImageModule";
         latent_image["device"] = m_device;
         YAML::Node inputs;
         YAML::Node width;
@@ -113,21 +113,21 @@ protected:
     }
 };
 
-TEST_P(LatentImageModuleTest, ModuleTest) {
+TEST_P(RandomLatentImageModuleTest, ModuleTest) {
     run();
 }
 
 namespace latent_image_test {
 
-auto test_data = std::vector<LatentImageTestData> {TEST_DATA::latent_image_test_data()};
+auto test_data = std::vector<RandomLatentImageTestData> {TEST_DATA::latent_image_test_data()};
 auto test_devices = std::vector<std::string> {TEST_MODEL::get_device()};
 
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
-                         LatentImageModuleTest,
+                         RandomLatentImageModuleTest,
                          ::testing::Combine(::testing::ValuesIn(latent_image_test::test_data),
                                             ::testing::ValuesIn(latent_image_test::test_devices)),
-                         LatentImageModuleTest::get_test_case_name);
+                         RandomLatentImageModuleTest::get_test_case_name);
 
 

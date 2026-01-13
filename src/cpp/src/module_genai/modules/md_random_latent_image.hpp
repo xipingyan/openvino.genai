@@ -12,8 +12,8 @@
 
 namespace ov::genai::module {
 
-class LatentImageModule : public IBaseModule {
-    DeclareModuleConstructor(LatentImageModule);
+class RandomLatentImageModule : public IBaseModule {
+    DeclareModuleConstructor(RandomLatentImageModule);
 
 private:
     ov::Tensor prepare_latents(
@@ -29,6 +29,6 @@ private:
     int m_vae_scale_factor {8};
 };
 
-REGISTER_MODULE_CONFIG(LatentImageModule);
+REGISTER_MODULE_CONFIG(RandomLatentImageModule);
 
 }

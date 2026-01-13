@@ -1,17 +1,17 @@
 // Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "md_latent_image.hpp"
+#include "md_random_latent_image.hpp"
 #include "utils.hpp"
 #include <fstream>
 #include "json_utils.hpp"
 
 namespace ov::genai::module {
 
-void LatentImageModule::print_static_config() {
+void RandomLatentImageModule::print_static_config() {
     std::cout << R"(
   latent_image:                       # Module Name
-    type: "LatentImageModule"
+    type: "RandomLatentImageModule"
     description: "Create initial latent image"
     device: "CPU"
     inputs:
@@ -38,7 +38,7 @@ void LatentImageModule::print_static_config() {
     )" << std::endl;
 }
 
-LatentImageModule::LatentImageModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
+RandomLatentImageModule::RandomLatentImageModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
     const auto &params = module_desc->params;
     auto it_path = params.find("model_path");
@@ -51,9 +51,9 @@ LatentImageModule::LatentImageModule(const IBaseModuleDesc::PTR& desc, const Pip
     m_vae_scale_factor = get_vae_scale_factor(model_path);
 }
 
-LatentImageModule::~LatentImageModule() {}
+RandomLatentImageModule::~RandomLatentImageModule() {}
 
-void LatentImageModule::run() {
+void RandomLatentImageModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
     int width = 0;
@@ -91,7 +91,7 @@ void LatentImageModule::run() {
     outputs["latents"].data = latents;
 }
 
-ov::Tensor LatentImageModule::prepare_latents(
+ov::Tensor RandomLatentImageModule::prepare_latents(
         size_t batch_size,
         int num_channels,
         size_t width,
@@ -109,7 +109,7 @@ ov::Tensor LatentImageModule::prepare_latents(
     return latents;
 }
 
-int LatentImageModule::get_vae_scale_factor(const std::filesystem::path &model_path) {
+int RandomLatentImageModule::get_vae_scale_factor(const std::filesystem::path &model_path) {
     std::filesystem::path vae_config_path = model_path / "vae/config.json";
     if (!std::filesystem::exists(vae_config_path)) {
         return 8;

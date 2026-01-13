@@ -22,7 +22,7 @@ namespace module {
         // 1. Preprocessing Modules
         ImagePreprocessModule = 10,
         TextEncoderModule = 11,
-        LatentImageModule = 12,
+        RandomLatentImageModule = 12,
         
         // 2. Embedding/Encoder Modules
         VisionEncoderModule = 20,
