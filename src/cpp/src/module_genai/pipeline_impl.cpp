@@ -21,9 +21,6 @@ ModulePipelineImpl::ModulePipelineImpl(const PipelineModulesDesc& pipeline_modul
 
     // Sort pipeline
     m_modules = sort_pipeline(m_modules);
-
-    // Note: it should be called at the end of constructor
-    init_onetbb_threading();
 }
 
 ModulePipelineImpl::~ModulePipelineImpl() {}
@@ -154,6 +151,45 @@ ov::Any ModulePipelineImpl::get_output(const std::string& output_name) {
 void ModulePipelineImpl::start_chat(const std::string& system_message) {}
 
 void ModulePipelineImpl::finish_chat() {}
+
+bool ModulePipelineImpl::has_set_sync_mode() {
+    bool is_set = false;
+    for (auto& module : m_modules) {
+        if (module->module_desc->thread_mode == ThreadMode::SYNC) {
+            return true;
+        }
+    }
+    return false;
+}
+
+ModulePipelineImpl::PTR init_sub_pipeline(const std::string& sub_pipeline_name, const PipelineDesc::PTR& pipeline_desc, IBaseModuleDesc::PTR module_desc) {
+    bool found = false;
+    ModulePipelineImpl::PTR sub_pipeline_impl = nullptr;
+
+    for (auto& sub_module : pipeline_desc->sub_pipeline_descs) {
+        if (sub_module.first == sub_pipeline_name) {
+            sub_pipeline_impl = std::make_shared<ModulePipelineImpl>(sub_module.second, pipeline_desc);
+            OPENVINO_ASSERT(
+                sub_pipeline_impl != nullptr,
+                "VAEDecoderTilingModule[" + module_desc->name + "]: Failed to create sub-pipeline instance");
+            found = true;
+
+            // Check if sub-pipeline has set sync mode, if set, change current module thread_mode to SYNC
+            if (sub_pipeline_impl->has_set_sync_mode()) {
+                module_desc->thread_mode = ThreadMode::SYNC;
+                GENAI_INFO("VAEDecoderTilingModule[" + module_desc->name +
+                           "]: Detected SYNC mode in sub-pipeline. This may impact performance.");
+            }
+            break;
+        }
+    }
+
+    OPENVINO_ASSERT(found,
+                    "VAEDecoderTilingModule[" + module_desc->name + "]: sub_pipeline_name '" + sub_pipeline_name +
+                        "' not found in pipeline_desc");
+
+    return sub_pipeline_impl;
+}
 
 }  // namespace module
 }  // namespace genai
