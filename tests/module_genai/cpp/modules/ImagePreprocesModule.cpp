@@ -7,12 +7,17 @@
 #include "../utils/load_image.hpp"
 
 // add device param to test_params
-using test_params = std::tuple<std::vector<std::string>, std::string>;
+// vector<string>: image paths
+// string: device
+// bool: true: model is for param; false: model is for inputs
+using test_params = std::tuple<std::vector<std::string>, std::string, bool>;
 
 class ImagePreprocesModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
 private:
     std::string _device;
     std::vector<std::string> _image_paths;
+    bool _is_model_from_param = true;
+
     bool is_single_image() const {
         return _image_paths.size() == 1u;
     }
@@ -23,6 +28,7 @@ public:
         // Get image paths and device from parameters
         const auto& paths = std::get<0>(obj.param);
         const auto& device = std::get<1>(obj.param);
+        const auto& is_model_from_param = std::get<2>(obj.param);
         std::string result;
         for (size_t i = 0; i < paths.size(); ++i) {
             std::filesystem::path p(paths[i]);
@@ -31,12 +37,13 @@ public:
                 result += "_";
         }
         result += "_" + device;
+        result += is_model_from_param ? "_ModelFromParam" : "_ModelFromInput";
         return result;
     }
 
     void SetUp() override {
         REGISTER_TEST_NAME();
-        std::tie(_image_paths, _device) = GetParam();
+        std::tie(_image_paths, _device, _is_model_from_param) = GetParam();
     }
 
     void TearDown() override {}
@@ -68,9 +75,11 @@ protected:
         output_source_size["type"] = (is_single_image()) ? "VecInt" : "VecVecInt";
         outputs.push_back(output_source_size);
         image_preprocessor["outputs"] = outputs;
-        YAML::Node model_path;
-        model_path["model_path"] = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
-        image_preprocessor["params"] = model_path;
+        if (_is_model_from_param) {
+            YAML::Node model_path;
+            model_path["model_path"] = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
+            image_preprocessor["params"] = model_path;
+        }
         pipeline_modules["image_preprocessor"] = image_preprocessor;
 
         return YAML::Dump(config);
@@ -150,10 +159,13 @@ TEST_P(ImagePreprocesModuleTest, ModuleTest) {
 auto test_image_1 = std::vector<std::string>{TEST_DATA::img_cat_120_100()};
 auto test_image_2 = std::vector<std::string>{TEST_DATA::img_cat_120_100(), TEST_DATA::img_dog_120_120()};
 
-auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
+static std::vector<test_params> g_test_params = {
+    {test_image_2, TEST_MODEL::get_device(), true},
+    {test_image_1, TEST_MODEL::get_device(), true},
+    {test_image_1, TEST_MODEL::get_device(), false},
+};
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          ImagePreprocesModuleTest,
-                         ::testing::Combine(::testing::Values(test_image_1, test_image_2),
-                                            ::testing::ValuesIn(test_devices)),
+                         ::testing::ValuesIn(g_test_params),
                          ImagePreprocesModuleTest::get_test_case_name);
