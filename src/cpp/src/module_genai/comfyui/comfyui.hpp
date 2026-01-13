@@ -1,6 +1,34 @@
 // Copyright (C) 2018-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * @file comfyui.hpp
+ * @brief ComfyUI to OpenVINO GenAI ModulePipeline converter
+ *
+ * This header file contains:
+ * 1. ComfyUIJsonParser - Parse and validate ComfyUI API JSON files
+ * 2. WorkflowToApiConverter - Convert ComfyUI workflow JSON to API JSON format
+ * 3. ComfyUIToGenAIConverter - Convert API JSON to OpenVINO GenAI YAML pipeline
+ *
+ * Usage:
+ * @code
+ *   #include "comfyui.hpp"
+ *
+ *   // Option 1: Direct conversion from JSON file to YAML string
+ *   comfyui::ComfyUIToGenAIConverter converter;
+ *   std::string yaml = converter.get_yaml_for_pipeline("workflow.json", options);
+ *   ov::genai::module::ModulePipeline pipeline(yaml);
+ *
+ *   // Option 2: Step by step with validation
+ *   comfyui::ComfyUIJsonParser parser;
+ *   parser.load_json_file("workflow.json");  // Supports both workflow and API format
+ *   auto result = parser.validate_prompt("my_workflow");
+ *   if (result.success) {
+ *       std::string yaml = converter.convert_to_yaml(parser.get_api_json(), options);
+ *   }
+ * @endcode
+ */
+
 #pragma once
 
 #include <string>
@@ -13,6 +41,7 @@
 #include <unordered_set>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <openvino/runtime/properties.hpp>
 
 namespace ov {
 namespace genai {
@@ -28,6 +57,7 @@ using json = nlohmann::ordered_json;
 
 class ComfyUIJsonParser;
 class WorkflowToApiConverter;
+class ComfyUIToGenAIConverter;
 
 // ============================================================================
 // Common Types
@@ -276,6 +306,226 @@ private:
      */
     static std::vector<std::string> get_widget_input_names(const std::string& node_type, size_t widget_count);
 };
+
+// ============================================================================
+// ComfyUIToGenAIConverter - Convert ComfyUI API JSON to OpenVINO Modular GenAI Pipeline YAML
+// ============================================================================
+
+/**
+ * @brief Conversion options for ComfyUI to GenAI YAML converter
+ */
+struct ConversionOptions {
+    std::string model_path = "./models/";  // Base path for model files
+    std::string device = "CPU"; // default device
+    // Note: use_tiled_vae is now auto-detected from VAEDecodeSwitcher's select_decoder input
+};
+
+/**
+ * @brief ComfyUI API JSON to OpenVINO GenAI YAML converter
+ *
+ * Converts ComfyUI API JSON files to OpenVINO GenAI modular pipeline YAML configuration.
+ *
+ * A Sample ZImage Mapping rules as example:
+ * - KSampler (node 3) -> ZImageDenoiserLoopModule
+ * - CLIPTextEncode (nodes 6, 7) -> ClipTextEncoderModule
+ * - SaveImage (node 9) -> SaveImageModule
+ * - EmptySD3LatentImage (node 13) -> RandomLatentImageModule (width, height)
+ * - UNETLoader (node 16) -> ZImageDenoiserLoopModule params.model_path
+ * - VAELoader (node 17) -> VAEDecoderModule params.model_path
+ * - CLIPLoader (node 18) -> ClipTextEncoderModule params.model_path
+ * - VAEDecodeSwitcher (node 28) -> VAEDecoderTilingModule
+ */
+class ComfyUIToGenAIConverter {
+public:
+    // Alias for backward compatibility
+    using ConversionOptions = comfyui::ConversionOptions;
+
+    ComfyUIToGenAIConverter() = default;
+
+    /**
+     * @brief Convert ComfyUI API JSON file to OpenVINO GenAI YAML
+     * @param api_json_path Path to the ComfyUI API JSON file
+     * @param output_yaml_path Path for the output YAML file
+     * @param options Conversion options
+     * @return true if conversion successful
+     */
+    bool convert_file(const std::string& api_json_path,
+                      const std::string& output_yaml_path,
+                      const ConversionOptions& options = ConversionOptions());
+
+    /**
+     * @brief Convert ComfyUI API JSON to OpenVINO GenAI YAML string
+     * @param api_json The parsed API JSON
+     * @param options Conversion options
+     * @return YAML content as string
+     */
+    std::string convert_to_yaml(const json& api_json,
+                                const ConversionOptions& options = ConversionOptions());
+
+    /**
+     * @brief Convert ComfyUI API JSON to OpenVINO GenAI YAML string and extract pipeline inputs
+     *
+     * This overload extracts default input values from the ComfyUI JSON nodes
+     * that can be used directly with pipeline.generate(inputs).
+     *
+     * Extracted inputs:
+     * - "prompt": from CLIPTextEncode node's text input (std::string)
+     * - "guidance_scale": from KSampler node's cfg input (float)
+     * - "num_inference_steps": from KSampler node's steps input (int)
+     * - "width": from EmptySD3LatentImage node's width input (int)
+     * - "height": from EmptySD3LatentImage node's height input (int)
+     * - "max_sequence_length": default value (int)
+     *
+     * @param api_json The parsed API JSON
+     * @param[out] pipeline_inputs Output map containing extracted input values
+     * @param options Conversion options
+     * @return YAML content as string
+     *
+     * Example usage:
+     * @code
+     *   ComfyUIToGenAIConverter converter;
+     *   std::map<std::string, std::any> extracted;
+     *   std::string yaml = converter.convert_to_yaml(api_json, extracted, options);
+     *
+     *   // Use ov::AnyMap directly for pipeline.generate()
+     *   ov::AnyMap inputs;
+     *   inputs["prompt"] = extracted["prompt"].as<std::string>();
+     *   inputs["width"] = extracted["width"].as<int>();
+     *   // ... or override with custom values
+     *
+     *   ModulePipeline pipeline(yaml);
+     *   pipeline.generate(inputs);
+     * @endcode
+     */
+    std::string convert_to_yaml(const json& api_json,
+                                ov::AnyMap& pipeline_inputs,
+                                const ConversionOptions& options = ConversionOptions());
+
+    /**
+     * @brief Get YAML content for ModulePipeline from ComfyUI JSON file
+     *
+     * This is a convenience method that combines parsing and conversion.
+     * The returned string can be directly used as input to:
+     *   ModulePipeline(const std::string& config_yaml_content)
+     *
+     * @param json_file_path Path to ComfyUI JSON file (API or workflow format)
+     * @param options Conversion options
+     * @return YAML content string, or empty string on error
+     *
+     * Example usage:
+     * @code
+     *   ComfyUIToGenAIConverter converter;
+     *   ComfyUIToGenAIConverter::ConversionOptions opts;
+     *   opts.model_path = "/path/to/model/";
+     *
+     *   std::string yaml_content = converter.get_yaml_for_pipeline("workflow.json", opts);
+     *   if (!yaml_content.empty()) {
+     *       ov::genai::module::ModulePipeline pipeline(yaml_content);
+     *       // ... use pipeline
+     *   }
+     * @endcode
+     */
+    std::string get_yaml_for_pipeline(const std::string& json_file_path,
+                                      const ConversionOptions& options = ConversionOptions());
+
+    // Node data extracted from API JSON (public for node handlers)
+    struct NodeInfo {
+        std::string class_type;
+        json inputs;
+        std::string title;
+        std::string node_id_str;
+    };
+
+    // Pipeline context - stores found nodes and their JSON data for direct YAML generation
+    struct PipelineParams {
+        // Stored node data by class_type (for direct JSON->YAML conversion)
+        std::map<std::string, std::vector<NodeInfo>> nodes_by_type;
+
+        // Found node types - automatically set when nodes are processed
+        std::set<std::string> found_node_types;
+
+        // Helper method to check if a node type was found
+        bool has(const std::string& node_type) const {
+            return found_node_types.count(node_type) > 0;
+        }
+
+        // Helper method to mark a node type as found and store its data
+        void store_node(const std::string& node_type, const NodeInfo& node) {
+            found_node_types.insert(node_type);
+            nodes_by_type[node_type].push_back(node);
+        }
+
+        // Get first node of a type (most common case)
+        const NodeInfo* get_node(const std::string& node_type) const {
+            auto it = nodes_by_type.find(node_type);
+            if (it != nodes_by_type.end() && !it->second.empty()) {
+                return &it->second[0];
+            }
+            return nullptr;
+        }
+
+        // Get all nodes of a type
+        const std::vector<NodeInfo>* get_nodes(const std::string& node_type) const {
+            auto it = nodes_by_type.find(node_type);
+            if (it != nodes_by_type.end()) {
+                return &it->second;
+            }
+            return nullptr;
+        }
+
+        // Helper to get JSON value with default
+        template<typename T>
+        T get_value(const std::string& node_type, const std::string& input_name, T default_val) const {
+            if (auto* node = get_node(node_type)) {
+                if (node->inputs.contains(input_name)) {
+                    return node->inputs[input_name].get<T>();
+                }
+            }
+            return default_val;
+        }
+    };
+
+private:
+    // Generate YAML with extracted params output for pipeline_inputs
+    std::string generate_yaml(const json& api_json,
+                              PipelineParams& out_params,
+                              const ConversionOptions& options);
+};
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * @brief Log validation errors from PromptValidationResult
+ *
+ * This function logs detailed validation error information using GENAI_DEBUG.
+ * It handles main errors, output errors, and node-specific errors.
+ *
+ * @param result The validation result to log
+ */
+void log_validation_errors(const PromptValidationResult& result);
+
+/**
+ * @brief Create ConversionOptions from pipeline_inputs AnyMap
+ *
+ * Extracts "model_path" and "device" from pipeline_inputs with defaults.
+ * Default model_path is "./models/", default device is "CPU".
+ *
+ * @param pipeline_inputs The input map containing optional model_path and device
+ * @return ConversionOptions with extracted or default values
+ */
+ConversionOptions create_conversion_options(const ov::AnyMap& pipeline_inputs);
+
+/**
+ * @brief Log parsed nodes information
+ *
+ * Logs the count and details of parsed nodes using GENAI_INFO and GENAI_DEBUG.
+ *
+ * @param nodes The map of parsed nodes
+ */
+void log_parsed_nodes(const std::map<std::string, Node>& nodes);
+
 }  // namespace comfyui
 }  // namespace module
 }  // namespace genai
