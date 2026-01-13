@@ -38,7 +38,7 @@ private:
 public:
     static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
         const auto& device = std::get<1>(obj.param);
-        return device;
+        return "device_" + device;
     }
 
     void SetUp() override {
