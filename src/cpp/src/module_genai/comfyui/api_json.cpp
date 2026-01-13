@@ -75,6 +75,18 @@ bool ComfyUIJsonParser::parse_json_string(const std::string& json_str) {
 }
 
 bool ComfyUIJsonParser::process_json(const json& source_json) {
+    // Check if it's workflow JSON and convert if needed
+    if (is_workflow_json(source_json)) {
+        GENAI_INFO("Detected workflow JSON format, converting to API format...");
+        json_format_ = JsonFormat::WORKFLOW;
+        prompt_ = WorkflowToApiConverter::convert(source_json);
+        GENAI_INFO("Workflow converted to API format");
+    } else {
+        GENAI_INFO("Detected API JSON format");
+        json_format_ = JsonFormat::API;
+        prompt_ = source_json;
+    }
+
     // Parse nodes from API JSON
     nodes_.clear();
     for (auto& [key, value] : prompt_.items()) {
