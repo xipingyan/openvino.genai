@@ -23,6 +23,7 @@ class LLMInferenceModule : public IBaseModule {
     DeclareModuleConstructor(LLMInferenceModule);
 
 private:
+    std::shared_ptr<ov::Model> m_ov_model_embed = nullptr;
     bool initialize();
     bool load_generation_config(const std::filesystem::path& config_path);
 

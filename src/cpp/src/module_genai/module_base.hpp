@@ -61,6 +61,11 @@ protected:
 
     bool is_input_module = false;
     bool is_output_module = false;
+
+    std::shared_ptr<ov::Model> m_ov_model = nullptr;
+    // Initialize ov::Model from config models_map with param_name: "ov_model"
+    void init_ov_model();
+    std::shared_ptr<ov::Model> get_ov_model_from_cfg_models_map(const std::string& param_name, bool required = false);
 };
 
 #ifndef DeclareModuleConstructor

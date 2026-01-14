@@ -6,6 +6,9 @@
 
 namespace ov {
 namespace genai {
+
+extern std::shared_ptr<ov::Model> g_llm_model;
+extern std::shared_ptr<ov::Model> g_model_vision_embeddings_merger;
 namespace module {
 
 void LLMInferenceModule::print_static_config() {
@@ -42,7 +45,9 @@ pipeline_modules:
       - name: "generated_texts"     # Correspoding input: embeds_list
         type: "VecString"
     params:
-      model_path: "model_path"
+      model_path: "model_path"              # Optional, if 'model_path' is not provided, model will be loaded from 'models_map', refer: ModulePipeline constructor.
+                                            # 'ov_model_embed', 'ov_model' should be provided in models_map in this case.
+      model_cfg_path: "model_config.json"   # Optional, if model_path is not provided, model_cfg_path is required, else it will be ignored.
       max_new_tokens: "256"
       do_sample: "false"
       top_p: "1.0"
@@ -80,13 +85,15 @@ bool LLMInferenceModule::initialize() {
     const auto& params = module_desc->params;
 
     bool has_param_model_path = false;
-    std::filesystem::path models_path = get_param("model_path");
-    if (!models_path.empty()) {
-        has_param_model_path = true;
-    }
+    std::filesystem::path models_path = get_optional_param("model_path");
+    if (models_path.empty()) {
+        m_ov_model_embed = get_ov_model_from_cfg_models_map("ov_model_embed", true);
+        models_path = get_param("model_cfg_path");
 
-    // Get device: Default CPU.
-    std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
+        // Pass model to global variables, tmp solution for vLLM pipeline
+        g_llm_model = m_ov_model;
+        g_model_vision_embeddings_merger = m_ov_model_embed;
+    }
 
     // Force to use PA backend
     ov::AnyMap cfg{};
@@ -123,7 +130,7 @@ bool LLMInferenceModule::initialize() {
     try {
 		auto [properties, attention_backend] = utils::extract_attention_backend(cfg);
 		auto [plugin_properties, scheduler_config] = utils::extract_scheduler_config(properties, utils::get_latency_oriented_scheduler_config());
-		m_cb_pipeline = std::make_unique<ov::genai::VLMPipeline::VLMContinuousBatchingAdapter>(models_path, scheduler_config, device, plugin_properties);
+		m_cb_pipeline = std::make_unique<ov::genai::VLMPipeline::VLMContinuousBatchingAdapter>(models_path, scheduler_config, module_desc->device, plugin_properties);
     	return true;
     } catch (const std::exception& e) {
     	GENAI_ERR("LLMInferenceModule[" + module_desc->name + "]: Failed to create pipeline: " + e.what());
