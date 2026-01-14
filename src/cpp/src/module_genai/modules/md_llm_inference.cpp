@@ -61,17 +61,17 @@ LLMInferenceModule::LLMInferenceModule(const IBaseModuleDesc::PTR& desc, const P
 
 LLMInferenceModule::~LLMInferenceModule() {}
 
-bool LLMInferenceModule::load_generation_config(const std::string& config_path) {
+bool LLMInferenceModule::load_generation_config(const std::filesystem::path& config_path) {
     try {
-        std::ifstream f(config_path);
+        std::ifstream f(config_path.string());
         if (!f.is_open()) {
-        	GENAI_ERR("Failed to open generation config file: " + config_path);
+            GENAI_ERR("Failed to open generation config file: " + config_path.string());
             return false;
         }
-        m_generation_config = ov::genai::GenerationConfig(config_path);
+        m_generation_config = ov::genai::GenerationConfig(config_path.string());
         return true;
     } catch (const std::exception& e) {
-    	GENAI_ERR(std::string("Error loading generation config: ") + e.what());
+        GENAI_ERR(std::string("Error loading generation config: ") + e.what());
         return false;
     }
 }
@@ -79,14 +79,11 @@ bool LLMInferenceModule::load_generation_config(const std::string& config_path) 
 bool LLMInferenceModule::initialize() {
     const auto& params = module_desc->params;
 
-    exist_param("model_path");
-    
-    auto it_models_path = params.find("model_path");
-    if (it_models_path == params.end()) {
-    	GENAI_ERR("LLMInferenceModule[" + module_desc->name + "]: 'models_path' not found in params");
-        return false;
+    bool has_param_model_path = false;
+    std::filesystem::path models_path = get_param("model_path");
+    if (!models_path.empty()) {
+        has_param_model_path = true;
     }
-    std::filesystem::path models_path = it_models_path->second;
 
     // Get device: Default CPU.
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
@@ -95,7 +92,7 @@ bool LLMInferenceModule::initialize() {
     ov::AnyMap cfg{};
     cfg["ATTENTION_BACKEND"] = "PA";
 
-    load_generation_config(it_models_path->second + "generation_config.json");
+    load_generation_config(models_path / "generation_config.json");
     // Override with parameters from module config
     auto apply_param = [&](const std::string& key, auto& target, auto converter) {
         auto it = params.find(key);

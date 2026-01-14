@@ -57,6 +57,7 @@ protected:
     // Get param value from module_desc->params.
     // Return empty string if param not found.
     std::string get_param(const std::string& param_item);
+    std::string get_optional_param(const std::string& param_item);
 
     bool is_input_module = false;
     bool is_output_module = false;

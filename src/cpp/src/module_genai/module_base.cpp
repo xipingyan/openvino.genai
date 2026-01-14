@@ -4,6 +4,7 @@
 #include "module_genai/module_base.hpp"
 
 #include <filesystem>
+#include "logger.hpp"
 
 namespace ov {
 namespace genai {
@@ -36,6 +37,27 @@ const std::string& IBaseModule::get_module_name() const {
     return module_desc->name;
 }
 
+bool IBaseModule::exist_input(const std::string& input_name) {
+    return inputs.find(input_name) != inputs.end();
+}
+
+std::string IBaseModule::get_param(const std::string& param_item) {
+    const auto& params = module_desc->params;
+    auto it_models_path = params.find(param_item);
+    OPENVINO_ASSERT(it_models_path != params.end(),
+                    "Module[" + module_desc->name + "]: '" + param_item + "' not found in params");
+    return it_models_path->second;
+}
+
+std::string IBaseModule::get_optional_param(const std::string& param_item) {
+    const auto& params = module_desc->params;
+    auto it_models_path = params.find(param_item);
+    if (it_models_path == params.end()) {
+        return std::string();
+    }
+    return it_models_path->second;
+}
+
 std::string IBaseModuleDesc::get_full_path(const std::string& fn) {
     // Check if fn is absolute path or file exists
     if (fs::exists(fn) || fs::path(fn).is_absolute()) {
@@ -47,20 +69,6 @@ std::string IBaseModuleDesc::get_full_path(const std::string& fn) {
         return joined_path.string();
     }
     OPENVINO_ASSERT(false, "File path is invalid: " + fn);
-}
-
-bool IBaseModuleDesc::exist_input(const std::string& input_name) {
-    return inputs.find(input_name) != inputs.end();
-}
-
-std::string IBaseModuleDesc::get_param(const std::string& param_item) {
-    const auto& params = module_desc->params;
-    auto it_models_path = params.find(param_item);
-    if (it_models_path == params.end()) {
-        GENAI_ERR("Module[" + module_desc->name + "]: '" + param_item + "' not found in params");
-        return std::string();
-    }
-    return it_models_path->second;
 }
 
 }  // namespace module
