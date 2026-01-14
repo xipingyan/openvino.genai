@@ -145,25 +145,25 @@ void ZImageDenoiserLoopModule::run() {
     }
 
     ImageGenerationConfig generation_config {};
-    if (exists_input("width")) {
+    if (exist_input("width")) {
         generation_config.width = this->inputs["width"].data.as<int>();
     } else {
         generation_config.width = 512;
     }
-    if (exists_input("height")) {
+    if (exist_input("height")) {
         generation_config.height = this->inputs["height"].data.as<int>();
     } else {
         generation_config.height = 512;
     }
-    if (exists_input("num_inference_steps")) {
+    if (exist_input("num_inference_steps")) {
         generation_config.num_inference_steps = this->inputs["num_inference_steps"].data.as<int>();
     } else {
         generation_config.num_inference_steps = 10;
     }
-    if (exists_input("num_images_per_prompt")) {
+    if (exist_input("num_images_per_prompt")) {
         generation_config.num_images_per_prompt = this->inputs["num_images_per_prompt"].data.as<int>();
     }
-    if (exists_input("seed")) {
+    if (exist_input("seed")) {
         int seed = this->inputs["seed"].data.as<int>();
         generation_config.generator = std::make_shared<CppStdGenerator>(seed);
     } else {
@@ -171,12 +171,12 @@ void ZImageDenoiserLoopModule::run() {
     }
     // TODO: temporary guidance_scale is fixed to 0.0
     generation_config.guidance_scale = 0.0f;
-    if (exists_input("cfg_truncation")) {
+    if (exist_input("cfg_truncation")) {
         m_cfg_truncation = this->inputs["cfg_truncation"].data.as<float>();
     } else {
         m_cfg_truncation = 1.0f;
     }
-    if (exists_input("cfg_normalization")) {
+    if (exist_input("cfg_normalization")) {
         std::string cfg_normalization_str = this->inputs["cfg_normalization"].data.as<std::string>();
         std::transform(cfg_normalization_str.begin(), cfg_normalization_str.end(), cfg_normalization_str.begin(),
                    [](unsigned char c) { return (char)std::tolower(c); });

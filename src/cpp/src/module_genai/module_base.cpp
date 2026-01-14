@@ -49,6 +49,20 @@ std::string IBaseModuleDesc::get_full_path(const std::string& fn) {
     OPENVINO_ASSERT(false, "File path is invalid: " + fn);
 }
 
+bool IBaseModuleDesc::exist_input(const std::string& input_name) {
+    return inputs.find(input_name) != inputs.end();
+}
+
+std::string IBaseModuleDesc::get_param(const std::string& param_item) {
+    const auto& params = module_desc->params;
+    auto it_models_path = params.find(param_item);
+    if (it_models_path == params.end()) {
+        GENAI_ERR("Module[" + module_desc->name + "]: '" + param_item + "' not found in params");
+        return std::string();
+    }
+    return it_models_path->second;
+}
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov

@@ -79,6 +79,8 @@ bool LLMInferenceModule::load_generation_config(const std::string& config_path) 
 bool LLMInferenceModule::initialize() {
     const auto& params = module_desc->params;
 
+    exist_param("model_path");
+    
     auto it_models_path = params.find("model_path");
     if (it_models_path == params.end()) {
     	GENAI_ERR("LLMInferenceModule[" + module_desc->name + "]: 'models_path' not found in params");

@@ -51,9 +51,12 @@ public:
     bool is_output() const { return is_output_module; }
 
 protected:
-    bool exists_input(const std::string& input_name) {
-        return inputs.find(input_name) != inputs.end();
-    }
+    // Check if exist input in inputs map.
+    bool exist_input(const std::string& input_name);
+
+    // Get param value from module_desc->params.
+    // Return empty string if param not found.
+    std::string get_param(const std::string& param_item);
 
     bool is_input_module = false;
     bool is_output_module = false;
