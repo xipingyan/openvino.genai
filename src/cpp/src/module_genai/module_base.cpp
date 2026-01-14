@@ -39,7 +39,7 @@ const std::string& IBaseModule::get_module_name() const {
     return module_desc->name;
 }
 
-bool IBaseModule::exist_input(const std::string& input_name) {
+bool IBaseModule::exists_input(const std::string& input_name) {
     return inputs.find(input_name) != inputs.end();
 }
 

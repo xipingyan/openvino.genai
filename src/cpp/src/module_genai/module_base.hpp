@@ -52,7 +52,7 @@ public:
 
 protected:
     // Check if exist input in inputs map.
-    bool exist_input(const std::string& input_name);
+    bool exists_input(const std::string& input_name);
 
     // Get param value from module_desc->params.
     // Return empty string if param not found.

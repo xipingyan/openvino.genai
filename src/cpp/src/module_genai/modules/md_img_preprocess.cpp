@@ -69,7 +69,7 @@ void ImagePreprocessModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
 
-    if (exist_input("images")) {
+    if (exists_input("images")) {
         auto images_data = this->inputs["images"].data.as<std::vector<ov::Tensor>>();
         std::vector<ov::Tensor> output_tensors;
         std::vector<ImageSize> output_sizes;

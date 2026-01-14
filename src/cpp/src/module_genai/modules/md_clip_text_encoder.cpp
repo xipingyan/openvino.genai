@@ -103,18 +103,18 @@ void ClipTextEncoderModule::run() {
     std::vector<std::string> m_prompts = {};
     std::vector<std::string> m_negative_prompts = {};
     
-    if (exist_input("prompts")) {
+    if (exists_input("prompts")) {
         m_prompts = this->inputs["prompts"].data.as<std::vector<std::string>>();
     }
-    if (exist_input("prompt")) {
+    if (exists_input("prompt")) {
         std::string single_prompt = this->inputs["prompt"].data.as<std::string>();
         m_prompts.insert(m_prompts.begin(), single_prompt);
     }
 
-    if (exist_input("negative_prompts")) {
+    if (exists_input("negative_prompts")) {
         m_negative_prompts = this->inputs["negative_prompts"].data.as<std::vector<std::string>>();
     }
-    if (exist_input("negative_prompt")) {
+    if (exists_input("negative_prompt")) {
         std::string single_negative_prompt = this->inputs["negative_prompt"].data.as<std::string>();
         m_negative_prompts.insert(m_negative_prompts.begin(), single_negative_prompt);
     }
@@ -124,12 +124,12 @@ void ClipTextEncoderModule::run() {
     }
 
     ImageGenerationConfig generation_config {};
-    if (exist_input("guidance_scale")) {
+    if (exists_input("guidance_scale")) {
         generation_config.guidance_scale = this->inputs["guidance_scale"].data.as<float>();
     } else {
         generation_config.guidance_scale = 0.0f;
     }
-    if (exist_input("max_sequence_length")) {
+    if (exists_input("max_sequence_length")) {
         generation_config.max_sequence_length = this->inputs["max_sequence_length"].data.as<int>();
     } else {
         generation_config.max_sequence_length = 512;
