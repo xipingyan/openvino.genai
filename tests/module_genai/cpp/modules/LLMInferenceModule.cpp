@@ -9,14 +9,17 @@
 
 // Parameters for test
 // bool: true: model is from param; false: model is from models map
+// bool: true: use batch input; false: use single input
 // string: device
-using test_params = std::tuple<bool, std::string>;
+using test_params = std::tuple<bool, bool, std::string>;
 
 class LLMInferenceModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
 private:
-    std::string _module_name = "cb_llm_infer";
-    std::string _device;
     bool _is_model_from_param = true;
+    bool _use_batch_input = true;
+    std::string _device;
+
+    std::string _module_name = "cb_llm_infer";
     float _threshold = 1e-2;
     std::string _position_ids_path = get_data_path() + "/cb_llm/position_ids_0.bin";
     std::string _embeds_path = get_data_path() + "/cb_llm/embeds_tensor_0.bin";
@@ -27,16 +30,18 @@ private:
 public:
     static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
         const auto& is_model_from_param = std::get<0>(obj.param);
-        const auto& device = std::get<1>(obj.param);
+        const auto& use_batch_input = std::get<1>(obj.param);
+        const auto& device = std::get<2>(obj.param);
         std::string result;
         result += "Device_" + device;
         result += std::string("_ModelFromParam") + (is_model_from_param ? "_True" : "_False");
+        result += use_batch_input ? "_BatchInput" : "_SingleInput";
         return result;
     }
 
     void SetUp() override {
         REGISTER_TEST_NAME();
-        std::tie(_is_model_from_param, _device) = GetParam();
+        std::tie(_is_model_from_param, _use_batch_input, _device) = GetParam();
     }
 
     void TearDown() override {}
@@ -53,13 +58,23 @@ protected:
         llm_inference["device"] = _device;
         llm_inference["description"] = "LLM Inference Module.";
         YAML::Node inputs;
-        inputs.push_back(input_node("embeds", "OVTensor"));
-        inputs.push_back(input_node("position_ids", "VecOVTensor"));
-        inputs.push_back(input_node("rope_delta", "Int"));
+        if (_use_batch_input) {
+            inputs.push_back(input_node("embeds_list", "VecOVTensor"));
+            inputs.push_back(input_node("position_ids_list", "VecOVTensor"));
+            inputs.push_back(input_node("rope_delta_list", "VecInt"));
+        } else {
+            inputs.push_back(input_node("embeds", "OVTensor"));
+            inputs.push_back(input_node("position_ids", "VecOVTensor"));
+            inputs.push_back(input_node("rope_delta", "Int"));
+        }
         llm_inference["inputs"] = inputs;
 
         YAML::Node outputs;
-        outputs.push_back(output_node("generated_text", "String"));
+        if (_use_batch_input) {
+            outputs.push_back(output_node("generated_texts", "VecString"));
+        } else {
+            outputs.push_back(output_node("generated_text", "String"));
+        }
         llm_inference["outputs"] = outputs;
 
         YAML::Node params;
@@ -92,7 +107,7 @@ protected:
         std::vector<ov::Tensor> input_embeds_list;
         load_test_data_input_embeds_list(input_embeds_list);
         EXPECT_GT(input_embeds_list.size(), 0) << "Failed to load input embeds list data";
-        inputs["embeds"] = input_embeds_list[0];
+
 
         std::vector<std::pair<ov::Tensor, std::optional<int64_t>>> input_position_ids_list;
         load_test_data_position_ids_list(input_position_ids_list);
@@ -103,16 +118,32 @@ protected:
             only_position_ids_list.push_back(pids.first);
             rope_delta_list.push_back(pids.second.has_value() ? pids.second.value() : 0);
         }
-        inputs["position_ids"] = only_position_ids_list[0];
-        inputs["rope_delta"] = rope_delta_list[0];
+
+        if (_use_batch_input) {
+            inputs["embeds_list"] = input_embeds_list;
+            inputs["position_ids_list"] = only_position_ids_list;
+            inputs["rope_delta_list"] = rope_delta_list;
+        } else {
+            inputs["embeds"] = input_embeds_list[0];
+            inputs["position_ids"] = only_position_ids_list[0];
+            inputs["rope_delta"] = rope_delta_list[0];
+        }
         return inputs;
     }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto generated_text = pipe.get_output("generated_text").as<std::string>();
+        if (_use_batch_input) {
+            auto generated_texts = pipe.get_output("generated_texts").as<std::vector<std::string>>();
+            for (const auto& text : generated_texts) {
+                bool contains_white_cat = text.find("white cat") != std::string::npos;
+                EXPECT_TRUE(contains_white_cat) << "can't find 'white cat' in generated text: " << text;
+            }
+        } else {
+            auto generated_text = pipe.get_output("generated_text").as<std::string>();
 
-        bool contains_white_cat = generated_text.find("white cat") != std::string::npos;
-        EXPECT_TRUE(contains_white_cat) << "can't find 'white cat' in generated text: " << generated_text;
+            bool contains_white_cat = generated_text.find("white cat") != std::string::npos;
+            EXPECT_TRUE(contains_white_cat) << "can't find 'white cat' in generated text: " << generated_text;
+        }
     }
 
 private:
@@ -160,8 +191,9 @@ TEST_P(LLMInferenceModuleTest, ModuleTest) {
 }
 
 static std::vector<test_params> g_test_params = {
-    {true, TEST_MODEL::get_device()},
-    {false, TEST_MODEL::get_device()},
+    {true, true, TEST_MODEL::get_device()},
+    {true, false, TEST_MODEL::get_device()},
+    {false, false, TEST_MODEL::get_device()},
 };
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
