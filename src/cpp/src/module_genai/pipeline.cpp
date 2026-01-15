@@ -86,6 +86,13 @@ ModulePipeline::ValidationResult ModulePipeline::validate_config_string(const st
     ValidationResult result;
     result.valid = true;
 
+    // Check for empty content
+    if (config_yaml_content.empty()) {
+        result.errors.push_back("Empty YAML content provided");
+        result.valid = false;
+        return result;
+    }
+
     try {
         YAML::Node config = YAML::Load(config_yaml_content);
 
