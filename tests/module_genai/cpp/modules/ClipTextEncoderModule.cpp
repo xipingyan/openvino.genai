@@ -7,13 +7,17 @@
 
 struct ClipTextEncoderPositiveTestData {
     std::string prompt;
-    int max_sequence_length;
     float guidance_scale;
 };
 
 struct ClipTextEncoderNegativeTestData {
     std::string negative_prompt;
-    int max_sequence_length;
+    float guidance_scale;
+};
+
+struct ClipTextEncoderPosNegTestData {
+    std::string prompt;
+    std::string negative_prompt;
     float guidance_scale;
 };
 
@@ -23,7 +27,6 @@ ClipTextEncoderPositiveTestData z_image_clip_text_encoder_1_test_data() {
     ClipTextEncoderPositiveTestData data;
     data.prompt = "Young Chinese woman in red Hanfu, intricate embroidery. Impeccable makeup, red floral forehead pattern. Elaborate high bun, golden phoenix headdress, red flowers, beads. Holds round folding fan with lady, trees, bird. Neon lightning-bolt lamp (⚡️), bright yellow glow, above extended left palm. Soft-lit outdoor night background, silhouetted tiered pagoda (西安大雁塔), blurred colorful distant lights.";
     data.guidance_scale = 0.0f;
-    data.max_sequence_length = 512;
     return data;
 }
 
@@ -31,14 +34,22 @@ ClipTextEncoderNegativeTestData z_image_clip_text_encoder_2_test_data() {
     ClipTextEncoderNegativeTestData data;
     data.negative_prompt = "blurry ugly bad";
     data.guidance_scale = 2.0f;
-    data.max_sequence_length = 512;
+    return data;
+}
+
+ClipTextEncoderPosNegTestData z_image_clip_text_encoder_3_test_data() {
+    ClipTextEncoderPosNegTestData data;
+    data.prompt = "Young Chinese woman in red Hanfu, intricate embroidery. Impeccable makeup, red floral forehead pattern. Elaborate high bun, golden phoenix headdress, red flowers, beads. Holds round folding fan with lady, trees, bird. Neon lightning-bolt lamp (⚡️), bright yellow glow, above extended left palm. Soft-lit outdoor night background, silhouetted tiered pagoda (西安大雁塔), blurred colorful distant lights.";
+    data.negative_prompt = "blurry ugly bad";
+    data.guidance_scale = 2.0f;
     return data;
 }
 
 }
 
 using ClipTextEncoderTestData = std::variant<ClipTextEncoderPositiveTestData,
-                                             ClipTextEncoderNegativeTestData>;
+                                             ClipTextEncoderNegativeTestData,
+                                             ClipTextEncoderPosNegTestData>;
 using test_params = std::tuple<ClipTextEncoderTestData, std::string>;
 
 class ClipTextEncoderModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
@@ -46,13 +57,16 @@ private:
     std::string m_device;
     ClipTextEncoderTestData m_test_data;
     float m_threshold = 1e+1;
+    int max_sequence_length = 512;
 
 public:
     static std::string test_data_name(const ClipTextEncoderTestData& data) {
         if (std::holds_alternative<ClipTextEncoderPositiveTestData>(data)) {
             return "Positive_Prompt";
-        } else {
+        } else if (std::holds_alternative<ClipTextEncoderNegativeTestData>(data)) {
             return "Negative_Prompt";
+        } else if (std::holds_alternative<ClipTextEncoderPosNegTestData>(data)) {
+            return "Positive_Negative_Prompt";
         }
     }
 
@@ -78,32 +92,14 @@ protected:
         clip_text_encoder["type"] = "ClipTextEncoderModule";
         clip_text_encoder["device"] = m_device;
         YAML::Node inputs;
-        YAML::Node prompt;
-        prompt["name"] = "prompt";
-        prompt["type"] = "String";
-        inputs.push_back(prompt);
-        YAML::Node negative_prompt;
-        negative_prompt["name"] = "negative_prompt";
-        negative_prompt["type"] = "String";
-        inputs.push_back(negative_prompt);
-        YAML::Node guidance_scale;
-        guidance_scale["name"] = "guidance_scale";
-        guidance_scale["type"] = "Float";
-        inputs.push_back(guidance_scale);
-        YAML::Node max_sequence_length;
-        max_sequence_length["name"] = "max_sequence_length";
-        max_sequence_length["type"] = "Int";
-        inputs.push_back(max_sequence_length);
+        inputs.push_back(input_node("prompt", "String"));
+        inputs.push_back(input_node("negative_prompt", "String"));
+        inputs.push_back(input_node("guidance_scale", "Float"));
+        inputs.push_back(input_node("max_sequence_length", "Int"));
         clip_text_encoder["inputs"] = inputs;
         YAML::Node outputs;
-        YAML::Node prompt_embeds;
-        prompt_embeds["name"] = "prompt_embeds";
-        prompt_embeds["type"] = "VecOVTensor";
-        outputs.push_back(prompt_embeds);
-        YAML::Node negative_prompt_embeds;
-        negative_prompt_embeds["name"] = "negative_prompt_embeds";
-        negative_prompt_embeds["type"] = "VecOVTensor";
-        outputs.push_back(negative_prompt_embeds);
+        outputs.push_back(output_node("prompt_embeds", "VecOVTensor"));
+        outputs.push_back(output_node("negative_prompt_embeds", "VecOVTensor"));
         clip_text_encoder["outputs"] = outputs;
         YAML::Node params;
         params["model_path"] = TEST_MODEL::ZImage_Turbo_fp16_ov();
@@ -118,13 +114,16 @@ protected:
             inputs["prompt"] = pos->prompt;
             inputs["negative_prompt"] = "";
             inputs["guidance_scale"] = pos->guidance_scale;
-            inputs["max_sequence_length"] = pos->max_sequence_length;
         } else if (auto* neg = std::get_if<ClipTextEncoderNegativeTestData>(&m_test_data)) {
             inputs["prompt"] = "";
             inputs["negative_prompt"] = neg->negative_prompt;
             inputs["guidance_scale"] = neg->guidance_scale;
-            inputs["max_sequence_length"] = neg->max_sequence_length;
+        } else if (auto* pos_neg = std::get_if<ClipTextEncoderPosNegTestData>(&m_test_data)) {
+            inputs["prompt"] = pos_neg->prompt;
+            inputs["negative_prompt"] = pos_neg->negative_prompt;
+            inputs["guidance_scale"] = pos_neg->guidance_scale;
         }
+        inputs["max_sequence_length"] = max_sequence_length;
         return inputs;
     }
 
@@ -152,11 +151,30 @@ protected:
             << "negative_prompt_embeds do not match expected values within threshold " << m_threshold;
     }
 
+    void check_outputs_input_3(ov::genai::module::ModulePipeline& pipe) {
+        auto pos_output = pipe.get_output("prompt_embeds").as<std::vector<ov::Tensor>>();
+        auto neg_output = pipe.get_output("negative_prompt_embeds").as<std::vector<ov::Tensor>>();
+        std::vector<float> expected_embeds = { 
+            -603.058, -6.29294, -24.5433, 33.7109, 13672.3, -8.1542, -6.41789, 25.8192, 6.84497, 67.1992
+        };
+
+        EXPECT_TRUE(compare_shape(pos_output[0].get_shape(), ov::Shape{101, 2560}))
+            << "positive_prompt_embeds shape does not match expected shape";
+        EXPECT_TRUE(compare_big_tensor(pos_output[0], expected_embeds, m_threshold))
+            << "positive_prompt_embeds do not match expected values within threshold " << m_threshold;
+        EXPECT_TRUE(compare_shape(neg_output[0].get_shape(), ov::Shape{12, 2560}))
+            << "negative_prompt_embeds shape does not match expected shape";
+        EXPECT_TRUE(compare_big_tensor(neg_output[0], expected_embeds, m_threshold))
+            << "negative_prompt_embeds do not match expected values within threshold " << m_threshold;
+    }
+
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
         if (auto* pos = std::get_if<ClipTextEncoderPositiveTestData>(&m_test_data)) {
             check_outputs_input_1(pipe);
         } else if (auto* neg = std::get_if<ClipTextEncoderNegativeTestData>(&m_test_data)) {
             check_outputs_input_2(pipe);
+        } else if (auto* pos_neg = std::get_if<ClipTextEncoderPosNegTestData>(&m_test_data)) {
+            check_outputs_input_3(pipe);
         }
     }
 };
@@ -168,10 +186,12 @@ TEST_P(ClipTextEncoderModuleTest, ModuleTest) {
 namespace z_image_clip_text_encoder_test {
     auto test_data_1 = std::vector<ClipTextEncoderTestData>{TEST_DATA::z_image_clip_text_encoder_1_test_data()};
     auto test_data_2 = std::vector<ClipTextEncoderTestData>{TEST_DATA::z_image_clip_text_encoder_2_test_data()};
+    auto test_data_3 = std::vector<ClipTextEncoderTestData>{TEST_DATA::z_image_clip_text_encoder_3_test_data()};
     auto all_test_data = [] {
         std::vector<ClipTextEncoderTestData> v;
         v.insert(v.end(), test_data_1.begin(), test_data_1.end());
         v.insert(v.end(), test_data_2.begin(), test_data_2.end());
+        v.insert(v.end(), test_data_3.begin(), test_data_3.end());
         return v;
     }();
     auto test_devices = std::vector<std::string> {TEST_MODEL::get_device()};
