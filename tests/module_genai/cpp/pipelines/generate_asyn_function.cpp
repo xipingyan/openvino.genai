@@ -3,18 +3,18 @@
 
 #include <gtest/gtest.h>
 
-#include <thread>
 #include <chrono>
 #include <filesystem>
 #include <openvino/genai/module_genai/pipeline.hpp>
+#include <thread>
 
-#include "utils/load_image.hpp"
-#include "utils/utils.hpp"
-#include "utils/model_yaml.hpp"
-#include "../utils/ut_modules_base.hpp"
 #include "../utils/model_yaml.hpp"
+#include "../utils/ut_modules_base.hpp"
 #include "module_genai/module_base.hpp"
 #include "module_genai/module_factory.hpp"
+#include "utils/load_image.hpp"
+#include "utils/model_yaml.hpp"
+#include "utils/utils.hpp"
 
 // Test for ModulePipeline generate_async function with different thread modes.
 // The test verifies that modules configured to run in SYNC mode execute on the same thread,
@@ -28,9 +28,10 @@ static std::thread::id dummy_module_b_thread_id;
 
 class DummyModuleA : public IBaseModule {
     DeclareModuleConstructorDummy(DummyModuleA);
+
 public:
     void run() override {
-        if (get_name() == "fake_module_a") {
+        if (get_name() == "dummy_module_a") {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             dummy_module_a_thread_id = std::this_thread::get_id();
         } else {
@@ -44,7 +45,7 @@ REGISTER_MODULE_CONFIG(DummyModuleA);
 GENAI_REGISTER_MODULE(ov::genai::module::ModuleType::DummyModuleBase, DummyModuleA);
 }  // namespace ov::genai::module
 
-// Define test parameters: 
+// Define test parameters:
 // bool: generate_async or generate;
 // vector<int>: module ids of sync execution order when run: generate_async();
 using test_params = std::tuple<bool, std::vector<std::string>>;
@@ -88,13 +89,13 @@ public:
 protected:
     std::string get_yaml_content() override {
         YAML::Node config;
-        config["global_context"]["model_type"] = "FakeModel";
+        config["global_context"]["model_type"] = "DummyModel";
 
         YAML::Node pipeline_modules = config["pipeline_modules"];
         // Modules graph
         /*          input_module
          *         /            \
-         *  fake_module_a    fake_module_b
+         *  dummy_module_a    dummy_module_b
          *         \            /
          *          \          /
          *          output_module
@@ -111,39 +112,41 @@ protected:
         }
 
         {
-            YAML::Node fake_module_a;
-            fake_module_a["type"] = "DummyModuleBase";
+            YAML::Node dummy_module_a;
+            dummy_module_a["type"] = "DummyModuleBase";
             YAML::Node inputs_a;
             inputs_a.push_back(input_node("input_data", "OVTensor", "input_node.input_data_1"));
-            fake_module_a["inputs"] = inputs_a;
+            dummy_module_a["inputs"] = inputs_a;
             YAML::Node outputs_a;
             outputs_a.push_back(output_node("output_data", "OVTensor"));
-            fake_module_a["outputs"] = outputs_a;
-            pipeline_modules["fake_module_a"] = fake_module_a;
+            dummy_module_a["outputs"] = outputs_a;
+            pipeline_modules["dummy_module_a"] = dummy_module_a;
 
-            fake_module_a["thread_mode"] = (m_async && not_in_sync_execution_modules("fake_module_a")) ? "ASYNC" : "SYNC";
+            dummy_module_a["thread_mode"] =
+                (m_async && not_in_sync_execution_modules("dummy_module_a")) ? "ASYNC" : "SYNC";
         }
 
         {
-            YAML::Node fake_module_b;
-            fake_module_b["type"] = "DummyModuleBase";
+            YAML::Node dummy_module_b;
+            dummy_module_b["type"] = "DummyModuleBase";
             YAML::Node inputs_b;
             inputs_b.push_back(input_node("input_data", "OVTensor", "input_node.input_data_2"));
-            fake_module_b["inputs"] = inputs_b;
+            dummy_module_b["inputs"] = inputs_b;
             YAML::Node outputs_b;
             outputs_b.push_back(output_node("output_data", "OVTensor"));
-            fake_module_b["outputs"] = outputs_b;
-            pipeline_modules["fake_module_b"] = fake_module_b;
+            dummy_module_b["outputs"] = outputs_b;
+            pipeline_modules["dummy_module_b"] = dummy_module_b;
 
-            fake_module_b["thread_mode"] = (m_async && not_in_sync_execution_modules("fake_module_b")) ? "ASYNC" : "SYNC";
+            dummy_module_b["thread_mode"] =
+                (m_async && not_in_sync_execution_modules("dummy_module_b")) ? "ASYNC" : "SYNC";
         }
 
         {
             YAML::Node output_module;
             output_module["type"] = "ResultModule";
             YAML::Node inputs;
-            inputs.push_back(input_node("output_data_1", "OVTensor", "fake_module_a.output_data"));
-            inputs.push_back(input_node("output_data_2", "OVTensor", "fake_module_b.output_data"));
+            inputs.push_back(input_node("output_data_1", "OVTensor", "dummy_module_a.output_data"));
+            inputs.push_back(input_node("output_data_2", "OVTensor", "dummy_module_b.output_data"));
             output_module["inputs"] = inputs;
             pipeline_modules["output_node"] = output_module;
         }
@@ -171,15 +174,9 @@ TEST_P(PipelineGenerateAsyncTest, ModuleTest) {
     run();
 }
 
-static std::vector<test_params> g_test_params = {
-    {true, {"fake_module_a", "fake_module_b"}},
-    {true, {}},
-    {false, {}}
-};
+static std::vector<test_params> g_test_params = {{true, {"dummy_module_a", "dummy_module_b"}}, {true, {}}, {false, {}}};
 
-INSTANTIATE_TEST_SUITE_P(
-    PipelineTestSuite,
-    PipelineGenerateAsyncTest,
-    ::testing::ValuesIn(g_test_params),
-    PipelineGenerateAsyncTest::get_test_case_name
-);
+INSTANTIATE_TEST_SUITE_P(PipelineTestSuite,
+                         PipelineGenerateAsyncTest,
+                         ::testing::ValuesIn(g_test_params),
+                         PipelineGenerateAsyncTest::get_test_case_name);
