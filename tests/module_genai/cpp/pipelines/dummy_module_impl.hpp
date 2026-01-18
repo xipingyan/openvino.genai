@@ -28,6 +28,48 @@ protected:
     IBaseModule* m_base_module = nullptr;
 };
 
+// Guide to register different DummyModule implementations for different test modules.
+/****************************
+    Step 1: Define your own DummyModuleInterface implementation.
+    For example:
+```
+class DummyModuleA : public DummyModuleInterface {
+public:
+    DummyModuleA() = default;
+    static std::string get_name() {
+        return "DummyModuleA";
+    }
+    void init(IBaseModule* p_base_module) override {
+        // Note: we must store the IBaseModule pointer for later use.
+        m_base_module = p_base_module;
+    }
+    void run(std::map<std::string, IBaseModule::InputModule>& inputs,
+             std::map<std::string, IBaseModule::OutputModule>& outputs) override {
+        // Implement module logic here.
+    }
+};
+```
+
+    Step 2: Register your DummyModuleInterface implementation with a unique module name in SetUp().
+    For example:
+```
+void SetUp() override {
+    REGISTER_TEST_NAME();
+
+    // Note: use the same module name as defined in YAML config.
+    auto dummy_module_a_instance = std::make_shared<ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA>();
+    REGISTER_DUMMY_MODULE_IMPL(ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA::get_name(), dummy_module_a_instance);
+}
+```
+    step 3: Clear the registered DummyModuleInterface implementations in TearDown().
+    For example:
+```
+void TearDown() override {
+    CLEAR_DUMMY_MODULE_IMPLS();
+}
+```
+****************************/
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov
