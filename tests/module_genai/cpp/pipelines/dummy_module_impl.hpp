@@ -30,6 +30,7 @@ protected:
 
 // Guide to register different DummyModule implementations for different test modules.
 /****************************
+    Refer: openvino.genai/tests/module_genai/cpp/pipelines/generate_async_function.cpp
     Step 1: Define your own DummyModuleInterface implementation.
     For example:
 ```
