@@ -18,6 +18,11 @@
 
 #include "utils.hpp"
 #include "load_image.hpp"
+#include "pipelines/dummy_module_impl.hpp"
+
+namespace ov {
+namespace genai {
+namespace module {
 
 class ModuleTestBase {
 public:
@@ -119,3 +124,9 @@ protected:
         return yaml_content;
     }
 };
+
+extern std::map<std::string, DummyModuleInterface::PTR> g_dummy_impl_instances_map;
+
+}  // namespace module
+}  // namespace genai
+}  // namespace ov

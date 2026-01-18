@@ -5,16 +5,16 @@
 
 #include <chrono>
 #include <filesystem>
-#include <openvino/openvino.hpp>
 #include <openvino/genai/module_genai/pipeline.hpp>
+#include <openvino/openvino.hpp>
 #include <thread>
 
-#include "../utils/model_yaml.hpp"
-#include "../utils/ut_modules_base.hpp"
 #include "module_genai/module_base.hpp"
 #include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline_impl.hpp"
 #include "utils/load_image.hpp"
 #include "utils/model_yaml.hpp"
+#include "utils/ut_modules_base.hpp"
 #include "utils/utils.hpp"
 
 // Test for ModulePipeline pass ov::Model as parameter.
@@ -35,53 +35,74 @@ using test_params = std::tuple<bool, bool>;
 namespace ov::genai::module {
 
 static bool g_single_ov_model;
-static bool g_main_module_use_model;
+static bool g_dummy_module_a_use_model;
 static int g_dummy_module_a_got_ovmodel_count = 0;
 static int g_dummy_module_b_got_ovmodel_count = 0;
 
-class DummyModuleA : public IBaseModule {
-protected:
-    DummyModuleA() = delete;
-    DummyModuleA(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
-        : IBaseModule(desc, pipeline_desc) {
-        // First ov::Model will be init in IBaseModule constructor.
-        if (!g_single_ov_model) {
-            // Initialize second ov::Model from models_map
-            m_ov_model_2 = get_ov_model_from_cfg_models_map("ov_model_2", true);
-        }
-    }
+class DummyModuleA : public DummyModuleInterface {
 public:
-    ~DummyModuleA() {};
-    using PTR = std::shared_ptr<DummyModuleA>;
-    static PTR create(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc) {
-        // Can't use std::make_shared with protected ctor.
-        return PTR(new DummyModuleA(desc, pipeline_desc));
-    }
-    static void print_static_config() {}
-
-    void run() override {
-        if (is_dummy_module_a()) {
-            g_dummy_module_a_got_ovmodel_count += (m_ov_model == nullptr ? 0 : 1);
-            g_dummy_module_a_got_ovmodel_count += (m_ov_model_2 == nullptr ? 0 : 1);
-        } else {
-            g_dummy_module_b_got_ovmodel_count += (m_ov_model == nullptr ? 0 : 1);
-            g_dummy_module_b_got_ovmodel_count = m_ov_model_2 == nullptr ? 1 : 2;
+    DummyModuleA() = default;
+    void init(IBaseModule* p_base_module) override {
+        m_base_module = p_base_module;
+        if (!g_single_ov_model && g_dummy_module_a_use_model) {
+            // Initialize second ov::Model from models_map
+            m_ov_model_2 = m_base_module->get_ov_model_from_cfg_models_map("ov_model_2", true);
         }
+
+        // Initialize sub-pipeline
+        auto sub_pipeline_name = m_base_module->get_param("sub_module_name");
+        m_sub_pipeline_impl =
+            init_sub_pipeline(sub_pipeline_name, m_base_module->pipeline_desc, m_base_module->module_desc);
+    }
+
+    void run(std::map<std::string, IBaseModule::InputModule>& inputs,
+             std::map<std::string, IBaseModule::OutputModule>& outputs) override {
+        g_dummy_module_a_got_ovmodel_count += (m_base_module->m_ov_model == nullptr ? 0 : 1);
+        g_dummy_module_a_got_ovmodel_count += (m_ov_model_2 == nullptr ? 0 : 1);
+
+        ov::AnyMap sub_inputs;
+        sub_inputs["input_data"] = inputs["input_data"].data;
+        m_sub_pipeline_impl->generate(sub_inputs);
+        outputs["output_data"].data = m_sub_pipeline_impl->get_output("output_data");
     }
 
 private:
     std::shared_ptr<ov::Model> m_ov_model_2 = nullptr;
-    bool is_dummy_module_a() { return (get_name() == "dummy_module_a"); }
+    ModulePipelineImpl::PTR m_sub_pipeline_impl = nullptr;
 };
 
-REGISTER_MODULE_CONFIG(DummyModuleA);
-GENAI_REGISTER_MODULE(ov::genai::module::ModuleType::DummyModuleBase, DummyModuleA);
+class DummyModuleB : public DummyModuleInterface {
+public:
+    DummyModuleB() = default;
+
+    void init(IBaseModule* p_base_module) override {
+        m_base_module = p_base_module;
+        if (!g_single_ov_model && !g_dummy_module_a_use_model) {
+            // Initialize second ov::Model from models_map
+            m_ov_model_2 = m_base_module->get_ov_model_from_cfg_models_map("ov_model_2", true);
+        }
+    }
+
+    void run(std::map<std::string, IBaseModule::InputModule>& inputs,
+             std::map<std::string, IBaseModule::OutputModule>& outputs) override {
+        g_dummy_module_b_got_ovmodel_count += (m_base_module->m_ov_model == nullptr ? 0 : 1);
+        g_dummy_module_b_got_ovmodel_count += (m_ov_model_2 == nullptr ? 0 : 1);
+    }
+
+private:
+    std::shared_ptr<ov::Model> m_ov_model_2 = nullptr;
+};
+
 }  // namespace ov::genai::module
 
+using namespace ov::genai::module;
 class PipelineTestPassOvModel : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
 private:
     bool _single_ov_model = true;
     bool _main_module_use_model = true;
+
+    std::string _dummy_module_a_name;
+    std::string _dummy_module_b_name;
 
 public:
     static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
@@ -89,23 +110,35 @@ public:
         const auto& single_ov_model = std::get<0>(obj.param);
         const auto& main_module_use_model = std::get<1>(obj.param);
         std::string result;
-        result += single_ov_model ? "Pass1OVModel_" : "PassMultipleOVModel_";
+        result += single_ov_model ? "Pass_1_OVModel_" : "Pass_2_OVModel_";
         result += main_module_use_model ? "MainModuleUseOVModel" : "SubModuleUseOVModel";
         return result;
     }
 
     void SetUp() override {
         REGISTER_TEST_NAME();
+        _dummy_module_a_name = m_test_name + "_dummy_module_a";
+        _dummy_module_b_name = m_test_name + "_dummy_module_b";
+
+        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_a_name] =
+            std::make_shared<ov::genai::module::DummyModuleA>();
+        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_b_name] =
+            std::make_shared<ov::genai::module::DummyModuleB>();
+
+        ov::genai::module::g_dummy_module_a_got_ovmodel_count = 0;
+        ov::genai::module::g_dummy_module_b_got_ovmodel_count = 0;
+
         std::tie(_single_ov_model, _main_module_use_model) = GetParam();
         ov::genai::module::g_single_ov_model = _single_ov_model;
-        ov::genai::module::g_main_module_use_model = _main_module_use_model;
+        ov::genai::module::g_dummy_module_a_use_model = _main_module_use_model;
 
         // load ov model.
         ov::Core core;
-        auto model_1 = core.read_model(TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4() + "openvino_text_embeddings_model.xml");
+        auto model_1 =
+            core.read_model(TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4() + "openvino_text_embeddings_model.xml");
 
         m_models_map.clear();
-        std::string module_key = _main_module_use_model ? "dummy_module_a" : "dummy_module_b";
+        std::string module_key = _main_module_use_model ? _dummy_module_a_name : _dummy_module_b_name;
         m_models_map[module_key].clear();
         m_models_map[module_key]["ov_model"] = model_1;
         if (!_single_ov_model) {
@@ -115,7 +148,10 @@ public:
         }
     }
 
-    void TearDown() override {}
+    void TearDown() override {
+        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_a_name] = nullptr;
+        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_b_name] = nullptr;
+    }
 
 protected:
     std::string get_yaml_content() override {
@@ -142,7 +178,7 @@ protected:
 
         {
             YAML::Node dummy_module_a;
-            dummy_module_a["type"] = "DummyModuleBase";
+            dummy_module_a["type"] = "DummyModule";
             YAML::Node inputs_a;
             inputs_a.push_back(input_node("input_data", "OVTensor", "input_node.input_data"));
             dummy_module_a["inputs"] = inputs_a;
@@ -150,34 +186,40 @@ protected:
             outputs_a.push_back(output_node("output_data", "OVTensor"));
             dummy_module_a["outputs"] = outputs_a;
             YAML::Node params;
-            params["submodule"] = "submodule_dummy_module_b";
+            params["sub_module_name"] = "submodule_dummy_module_b";
             dummy_module_a["params"] = params;
-            pipeline_modules["dummy_module_a"] = dummy_module_a;
+            pipeline_modules[_dummy_module_a_name] = dummy_module_a;
         }
 
         {
             YAML::Node output_module;
             output_module["type"] = "ResultModule";
             YAML::Node inputs;
-            inputs.push_back(input_node("output_data", "OVTensor", "dummy_module_a.output_data"));
+            inputs.push_back(input_node("output_data", "OVTensor", _dummy_module_a_name + ".output_data"));
             output_module["inputs"] = inputs;
             pipeline_modules["output_node"] = output_module;
         }
 
-        YAML::Node submodule;
+        // submodules is a list; each entry is a map with a name and a list of modules.
+        YAML::Node submodules(YAML::NodeType::Sequence);
+        YAML::Node submodule(YAML::NodeType::Map);
         submodule["name"] = "submodule_dummy_module_b";
+
         {
             YAML::Node dummy_module_b;
-            dummy_module_b["type"] = "DummyModuleBase";
+            dummy_module_b["type"] = "DummyModule";
             YAML::Node inputs;
             inputs.push_back(input_node("input_data", "OVTensor"));
             dummy_module_b["inputs"] = inputs;
             YAML::Node outputs;
             outputs.push_back(output_node("output_data", "OVTensor"));
             dummy_module_b["outputs"] = outputs;
-            submodule.push_back(dummy_module_b);
+
+            submodule[_dummy_module_b_name] = dummy_module_b;
         }
-        config["submodules"] = submodule;
+
+        submodules.push_back(submodule);
+        config["sub_modules"] = submodules;
         return YAML::Dump(config);
     }
 
