@@ -100,16 +100,14 @@ public:
         REGISTER_TEST_NAME();
         std::tie(m_async, _sync_execution_module_names) = GetParam();
 
-        ov::genai::module::g_dummy_impl_instances_map
-            [ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA::get_name()] =
-                std::make_shared<ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA>();
-        ov::genai::module::g_dummy_impl_instances_map
-            [ov::genai::module::PipelineGenerateAsyncTest::DummyModuleB::get_name()] =
-                std::make_shared<ov::genai::module::PipelineGenerateAsyncTest::DummyModuleB>();
+        auto dummy_module_a_instance = std::make_shared<ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA>();
+        auto dummy_module_b_instance = std::make_shared<ov::genai::module::PipelineGenerateAsyncTest::DummyModuleB>();
+        REGISTER_DUMMY_MODULE_IMPL(ov::genai::module::PipelineGenerateAsyncTest::DummyModuleA::get_name(), dummy_module_a_instance);
+        REGISTER_DUMMY_MODULE_IMPL(ov::genai::module::PipelineGenerateAsyncTest::DummyModuleB::get_name(), dummy_module_b_instance);
     }
 
     void TearDown() override {
-        ov::genai::module::g_dummy_impl_instances_map.clear();
+        CLEAR_DUMMY_MODULE_IMPLS();
     }
 
 protected:

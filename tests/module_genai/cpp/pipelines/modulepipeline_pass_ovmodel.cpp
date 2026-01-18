@@ -42,6 +42,9 @@ static int g_dummy_module_b_got_ovmodel_count = 0;
 class DummyModuleA : public DummyModuleInterface {
 public:
     DummyModuleA() = default;
+    static std::string get_name() {
+        return "DummyModuleA";
+    }
     void init(IBaseModule* p_base_module) override {
         m_base_module = p_base_module;
         if (!g_single_ov_model && g_dummy_module_a_use_model) {
@@ -75,6 +78,10 @@ class DummyModuleB : public DummyModuleInterface {
 public:
     DummyModuleB() = default;
 
+    static std::string get_name() {
+        return "DummyModuleB";
+    }
+
     void init(IBaseModule* p_base_module) override {
         m_base_module = p_base_module;
         if (!g_single_ov_model && !g_dummy_module_a_use_model) {
@@ -100,9 +107,8 @@ class PipelineTestPassOvModel : public ModuleTestBase, public ::testing::TestWit
 private:
     bool _single_ov_model = true;
     bool _main_module_use_model = true;
-
-    std::string _dummy_module_a_name;
-    std::string _dummy_module_b_name;
+    std::string _dummy_module_a_name = ov::genai::module::DummyModuleA::get_name();
+    std::string _dummy_module_b_name = ov::genai::module::DummyModuleB::get_name();
 
 public:
     static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
@@ -117,14 +123,11 @@ public:
 
     void SetUp() override {
         REGISTER_TEST_NAME();
-        _dummy_module_a_name = m_test_name + "_dummy_module_a";
-        _dummy_module_b_name = m_test_name + "_dummy_module_b";
 
-        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_a_name] =
-            std::make_shared<ov::genai::module::DummyModuleA>();
-        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_b_name] =
-            std::make_shared<ov::genai::module::DummyModuleB>();
-
+        auto dmy_module_a_instance = std::make_shared<ov::genai::module::DummyModuleA>();
+        auto dmy_module_b_instance = std::make_shared<ov::genai::module::DummyModuleB>();
+        REGISTER_DUMMY_MODULE_IMPL(_dummy_module_a_name, dmy_module_a_instance);
+        REGISTER_DUMMY_MODULE_IMPL(_dummy_module_b_name, dmy_module_b_instance);
         ov::genai::module::g_dummy_module_a_got_ovmodel_count = 0;
         ov::genai::module::g_dummy_module_b_got_ovmodel_count = 0;
 
@@ -149,8 +152,7 @@ public:
     }
 
     void TearDown() override {
-        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_a_name] = nullptr;
-        ov::genai::module::g_dummy_impl_instances_map[_dummy_module_b_name] = nullptr;
+        CLEAR_DUMMY_MODULE_IMPLS();
     }
 
 protected:

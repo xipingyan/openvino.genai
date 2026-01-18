@@ -127,6 +127,15 @@ protected:
 
 extern std::map<std::string, DummyModuleInterface::PTR> g_dummy_impl_instances_map;
 
+#ifndef REGISTER_DUMMY_MODULE_IMPL
+#    define REGISTER_DUMMY_MODULE_IMPL(module_name, module_instance) \
+        ov::genai::module::g_dummy_impl_instances_map[module_name] = module_instance
+#endif
+
+#ifndef CLEAR_DUMMY_MODULE_IMPLS
+#    define CLEAR_DUMMY_MODULE_IMPLS() ov::genai::module::g_dummy_impl_instances_map.clear()
+#endif
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov
