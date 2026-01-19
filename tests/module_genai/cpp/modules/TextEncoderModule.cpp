@@ -1,107 +1,139 @@
-// // Copyright (C) 2024 Intel Corporation
-// // SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 
-// #include "../ut_modules_base.hpp"
+#include "../utils/load_image.hpp"
+#include "../utils/model_yaml.hpp"
+#include "../utils/ut_modules_base.hpp"
+#include "../utils/utils.hpp"
 
-// class TextEncoderModuleTest : public ModuleTestBase {
-// public:
-//     DEFINE_MODULE_TEST_CONSTRUCTOR(TextEncoderModuleTest)
+// Define test parameters:
+// std::string: device;
+using test_params = std::tuple<std::string>;
+using namespace ov::genai::module;
 
-// protected:
-//     std::string get_yaml_content() override {
-//         return R"(
-// global_context:
-//   model_type: "qwen2_5_vl"
-// pipeline_modules:
+class TextEncoderModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
+private:
+    std::string _device;
 
-//   pipeline_params:
-//     type: "ParameterModule"
-//     outputs:
-//       - name: "img1"
-//         type: "OVTensor"
-//       - name: "prompts_data"
-//         type: "String"
-//   image_preprocessor:       # Module Name
-//     type: "ImagePreprocessModule"
-//     device: "CPU"
-//     description: "Image or Video preprocessing."
-//     inputs:
-//       - name: "image"     # single image
-//         type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
-//         source: "pipeline_params.img1"
-//     outputs:
-//       - name: "raw_data"        # Output port name
-//         type: "OVTensor"        # Support DataType: [OVTensor, OVRemoteTensor]
-//       - name: "source_size"     # Output port name
-//         type: "VecInt"          # Support DataType: [VecInt]
-//     params:
-//       target_resolution: [224, 224]   # optional
-//       mean: [0.485, 0.456, 0.406]     # optional
-//       std: [0.229, 0.224, 0.225]      # optional
-//       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
-//   prompt_encoder:
-//     type: "TextEncoderModule"
-//     device: "GPU"
-//     inputs:
-//       - name: "prompts"
-//         type: "String"
-//         source: "pipeline_params.prompts_data"
-//       - name: "encoded_image"
-//         type: "OVTensor"
-//         source: "image_preprocessor.raw_data"
-//       - name: "source_size"
-//         type: "VecInt"
-//         source: "image_preprocessor.source_size"
-//     outputs:
-//       - name: "input_ids"
-//         type: "OVTensor"
-//       - name: "mask"
-//         type: "OVTensor"
-//       - name: "images_sequence"
-//         type: "VecInt"
-//     params:
-//       model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+public:
+    static std::string get_test_case_name(const testing::TestParamInfo<test_params>& obj) {
+        const auto& device = std::get<0>(obj.param);
+        std::string result;
+        result += device;
+        return result;
+    }
 
-//   pipeline_results:
-//     type: "ResultModule"
-//     device: "CPU"
-//     inputs:
-//       - name: "input_ids"
-//         type: "OVTensor"
-//         source: "prompt_encoder.input_ids"
-//       - name: "mask"
-//         type: "OVTensor"
-//         source: "prompt_encoder.mask"
-//       - name: "images_sequence"
-//         type: "VecInt"
-//         source: "prompt_encoder.images_sequence"
-// )";
-//     }
+    void SetUp() override {
+        REGISTER_TEST_NAME();
+        std::tie(_device) = GetParam();
+    }
 
-//     ov::AnyMap prepare_inputs() override {
-//         ov::AnyMap inputs;
-//         inputs["prompts_data"] = std::vector<std::string>{"This is a sample prompt."};
-//         auto img1 = image_utils::load_image("ut_test_data/cat_120_100.png");
-//         CHECK(img1, "Failed to load test image: ut_test_data/cat_120_100.png");
-//         inputs["img1"] = img1;
-//         return inputs;
-//     }
+    void TearDown() override {}
 
-//     void verify_outputs(ov::genai::module::ModulePipeline& pipe) override {
-//         auto output = pipe.get_output("input_ids").as<ov::Tensor>();
-//         std::vector<int64_t> expected_input_ids = {151644, 8948, 198, 2610, 525, 264, 10950, 17847, 13, 151645};
+protected:
+    std::string get_yaml_content() override {
+        YAML::Node config;
+        config["global_context"]["model_type"] = "qwen2_5_vl";
+        YAML::Node pipeline_modules = config["pipeline_modules"];
 
-//         CHECK(compare_big_tensor<int64_t>(output, expected_input_ids), "input_ids do not match expected values");
+        std::string pipeline_params_name = "pipeline_params";
+        {
+            YAML::Node cur_node;
+            cur_node["type"] = "ParameterModule";
+            cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["outputs"].push_back(output_node("img1", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("prompts_data", to_string(DataType::String)));
+            pipeline_modules[pipeline_params_name] = cur_node;
+        }
 
-//         auto mask = pipe.get_output("mask").as<ov::Tensor>();
-//         std::vector<int64_t> expected_mask = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        std::string image_preprocessor_name = "image_preprocessor";
+        {
+            YAML::Node cur_node;
+            cur_node["type"] = "ImagePreprocessModule";
+            cur_node["device"] = _device;
+            cur_node["inputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["inputs"].push_back(
+                input_node("image", to_string(DataType::OVTensor), pipeline_params_name + ".img1"));
+            cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["outputs"].push_back(output_node("raw_data", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("source_size", to_string(DataType::VecInt)));
+            cur_node["params"] = YAML::Node();
+            cur_node["params"]["model_path"] = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
+            pipeline_modules[image_preprocessor_name] = cur_node;
+        }
 
-//         CHECK(compare_big_tensor<int64_t>(mask, expected_mask), "mask not match expected values");
-        
-//         auto images_sequence = pipe.get_output("images_sequence").as<std::vector<int>>();
-//         std::vector<int> expected_images_sequence = {0};
-//         CHECK(images_sequence == expected_images_sequence, "images_sequence do not match expected values");
-//     }
-// };
+        std::string prompt_encoder_name = "prompt_encoder";
+        {
+            YAML::Node cur_node;
+            cur_node["type"] = "TextEncoderModule";
+            cur_node["device"] = _device;
+            cur_node["inputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["inputs"].push_back(
+                input_node("prompts", to_string(DataType::String), pipeline_params_name + ".prompts_data"));
+            cur_node["inputs"].push_back(
+                input_node("encoded_image", to_string(DataType::OVTensor), image_preprocessor_name + ".raw_data"));
+            cur_node["inputs"].push_back(
+                input_node("source_size", to_string(DataType::VecInt), image_preprocessor_name + ".source_size"));
+            cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["outputs"].push_back(output_node("input_ids", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("mask", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("images_sequence", to_string(DataType::VecInt)));
+            cur_node["params"] = YAML::Node();
+            cur_node["params"]["model_path"] = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
+            pipeline_modules[prompt_encoder_name] = cur_node;
+        }
 
-// REGISTER_MODULE_TEST(TextEncoderModuleTest);
+        std::string pipeline_results_name = "pipeline_results";
+        {
+            YAML::Node cur_node;
+            cur_node["type"] = "ResultModule";
+            cur_node["device"] = "CPU";
+            cur_node["inputs"] = YAML::Node(YAML::NodeType::Sequence);
+            cur_node["inputs"].push_back(
+                input_node("input_ids", to_string(DataType::OVTensor), prompt_encoder_name + ".input_ids"));
+            cur_node["inputs"].push_back(
+                input_node("mask", to_string(DataType::OVTensor), prompt_encoder_name + ".mask"));
+            cur_node["inputs"].push_back(
+                input_node("images_sequence", to_string(DataType::VecInt), prompt_encoder_name + ".images_sequence"));
+            pipeline_modules[pipeline_results_name] = cur_node;
+        }
+
+        return YAML::Dump(config);
+    }
+
+    ov::AnyMap prepare_inputs() override {
+        ov::AnyMap inputs;
+        inputs["prompts_data"] = std::vector<std::string>{"This is a sample prompt."};
+        auto img1 = utils::load_image(TEST_DATA::img_cat_120_100());
+        EXPECT_TRUE(img1) << "Failed to load test image: " + TEST_DATA::img_cat_120_100();
+        inputs["img1"] = img1;
+        return inputs;
+    }
+
+    void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
+        auto output = pipe.get_output("input_ids").as<ov::Tensor>();
+        const std::vector<int64_t> expected_input_ids = {151644, 8948, 198, 2610, 525, 264, 10950, 17847, 13, 151645};
+
+        EXPECT_TRUE(compare_big_tensor<int64_t>(output, expected_input_ids)) << "input_ids do not match expected values";
+
+        auto mask = pipe.get_output("mask").as<ov::Tensor>();
+        std::vector<int64_t> expected_mask = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+        EXPECT_TRUE(compare_big_tensor<int64_t>(mask, expected_mask)) << "mask not match expected values";
+
+        auto images_sequence = pipe.get_output("images_sequence").as<std::vector<int>>();
+        std::vector<int> expected_images_sequence = {0};
+        EXPECT_TRUE(images_sequence == expected_images_sequence) << "images_sequence do not match expected values";
+    }
+};
+
+TEST_P(TextEncoderModuleTest, ModuleTest) {
+    run();
+}
+
+static auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
+
+INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
+                         TextEncoderModuleTest,
+                         ::testing::Combine(::testing::ValuesIn(test_devices)),
+                         TextEncoderModuleTest::get_test_case_name);
