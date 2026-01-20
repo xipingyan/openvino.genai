@@ -1,15 +1,12 @@
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#include <map>
 #include <memory>
 
-#include "circular_buffer_queue.hpp"
 #include "module_genai/module.hpp"
 #include "module_genai/pipeline_impl.hpp"
 #include "module_genai/transformer_config.hpp"
-#include "openvino/genai/image_generation/generation_config.hpp"
 
 namespace ov {
 namespace genai {
