@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+#include <map>
+#include <memory>
+
+#include "circular_buffer_queue.hpp"
 #include "module_genai/module.hpp"
 #include "module_genai/pipeline_impl.hpp"
 #include "module_genai/transformer_config.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
-#include "circular_buffer_queue.hpp"
-#include <memory>
-#include <map>
 
 namespace ov {
 namespace genai {
@@ -28,7 +29,7 @@ private:
 
     ov::InferRequest pp_infer_request;
     bool init_post_process();
-    
+
     ImageGenerationModelType m_model_type;
     float m_tile_overlap_factor = 0.25f;
     int m_sample_size;
@@ -43,6 +44,6 @@ private:
     ov::Tensor blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent);
 };
 
-}
-}
-}
+}  // namespace module
+}  // namespace genai
+}  // namespace ov
