@@ -182,31 +182,28 @@ std::string ModulePipeline::comfyui_json_string_to_yaml(
         const auto& nodes = parser.get_nodes();
         comfyui::log_parsed_nodes(nodes);
 
-        GENAI_INFO("Validating prompt...");
-
-        auto result = parser.validate_prompt("validation");
-
-        if (!result.success) {
-            comfyui::log_validation_errors(result);
-            return "";
-        }
-
-        GENAI_INFO("Validation passed");
-
         // Get the API JSON (parser handles workflow->API conversion internally)
         const auto& api_json = parser.get_api_json();
 
-        // Convert to YAML using ComfyUIToGenAIConverter with pipeline_inputs extraction
-        auto options = comfyui::create_conversion_options(pipeline_inputs);
+        // Validate the prompt before conversion
+        auto validation_result = parser.validate_prompt();
+        if (!validation_result.success) {
+            parser.get_validation_errors_string(validation_result);
+            return "";
+        }
+        GENAI_INFO("Prompt validation passed");
 
+        // Convert to YAML using ComfyUIToGenAIConverter with pipeline_inputs extraction
+        // This will also extract pipeline parameters from the JSON
+        auto options = comfyui::create_conversion_options(pipeline_inputs);
         comfyui::ComfyUIToGenAIConverter converter;
         std::string yaml_content = converter.convert_to_yaml(api_json, pipeline_inputs, options);
 
         // Validate the generated YAML before returning
-        auto validation_result = validate_config_string(yaml_content);
-        if (!validation_result.valid) {
+        auto yaml_validation_result = validate_config_string(yaml_content);
+        if (!yaml_validation_result.valid) {
             GENAI_ERR("Generated YAML validation failed:");
-            for (const auto& err : validation_result.errors) {
+            for (const auto& err : yaml_validation_result.errors) {
                 GENAI_ERR("  - %s", err.c_str());
             }
             return "";
