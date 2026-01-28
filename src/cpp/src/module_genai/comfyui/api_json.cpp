@@ -52,7 +52,21 @@ bool ComfyUIJsonParser::load_json_file(const std::filesystem::path& file_path) {
         }
 
         json source_json = json::parse(file);
-        return process_json(source_json);
+        bool result = process_json(source_json);
+
+        // Debug: Save converted API JSON to file if it was workflow format
+        if (result && json_format_ == JsonFormat::WORKFLOW) {
+            std::filesystem::path debug_filepath = file_path.parent_path() / (file_path.stem().string() + "_converted_api.json");
+            std::ofstream debug_file(debug_filepath);
+            if (debug_file.is_open()) {
+                debug_file << prompt_.dump(2);
+                debug_file.close();
+                std::cout << "Saved converted API JSON to " << debug_filepath.string() << std::endl;
+                GENAI_DEBUG("Saved converted API JSON to %s", debug_filepath.string().c_str());
+            }
+        }
+
+        return result;
     } catch (const json::exception& e) {
         GENAI_DEBUG("JSON parsing error: %s", e.what());
         return false;

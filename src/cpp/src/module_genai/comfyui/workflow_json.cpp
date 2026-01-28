@@ -278,7 +278,6 @@ void WorkflowToApiConverter::expand_subgraph(
         api_node["class_type"] = sub_node_type;
         api_node["_meta"] = json::object();
         api_node["_meta"]["title"] = title;
-        api_node["node_id"] = composite_id;
 
         GENAI_DEBUG("[WORKFLOW] Subgraph node: node_id=%s, class_type=%s, title=%s",
                     composite_id.c_str(), sub_node_type.c_str(), title.c_str());
@@ -569,7 +568,6 @@ std::vector<std::pair<std::string, json>> WorkflowToApiConverter::convert_to_nod
             api_node["class_type"] = node_type;
             api_node["_meta"] = json::object();
             api_node["_meta"]["title"] = title;
-            api_node["node_id"] = node_id_str;
 
             GENAI_DEBUG("[WORKFLOW] Regular node: node_id=%s, class_type=%s, title=%s",
                         node_id_str.c_str(), node_type.c_str(), title.c_str());
