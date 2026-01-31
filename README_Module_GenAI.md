@@ -61,6 +61,9 @@ cmake --install ./build/ --config Release --prefix ./install
 
 ## Samples
 
+``CPP Samples``, refer: openvino.genai/samples/cpp/module_genai/README.md   <br>
+``Python Sample``, refer: openvino.genai/samples/python/module_genai/README.md <br>
+
 <details>
 <summary>Qwen2.5-VL</summary>
 
