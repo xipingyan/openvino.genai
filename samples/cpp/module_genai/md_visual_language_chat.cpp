@@ -15,26 +15,36 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path
     YAML::Node input_params = utils::find_param_module_in_yaml(cfg_yaml_path);
 
     // Loop input_params to find "prompt", "image", "video"
-    for (const auto& param : input_params) {
-        std::string param_name = param.first.as<std::string>();
+    for (const auto& entry : input_params) {
+        if (!entry["name"] || !entry["type"]) {
+            continue;
+        }
 
-        if (utils::contain_key(param_name, {"prompt"})) {
-            inputs[param_name] = prompt;
+        const std::string param_name = entry["name"].as<std::string>();
+        const std::string param_type = entry["type"].as<std::string>();
+
+        if (param_type == "String" && utils::contain_key(param_name, {"prompt"})) {
             if (prompt.empty()) {
                 throw std::runtime_error("Prompt string is empty.");
             }
-        } else if (utils::contain_key(param_name, {"image", "img"})) {
+            inputs[param_name] = prompt;
+            continue;
+        }
+
+        if (param_type == "OVTensor" && utils::contain_key(param_name, {"img", "image"})) {
             if (image_path.empty()) {
                 throw std::runtime_error("Image path is empty.");
             }
-            ov::Tensor image_tensor = image_utils::load_image(image_path);
-            inputs[param_name] = image_tensor;
-        } else if (utils::contain_key(param_name, {"video"})) {
+            inputs[param_name] = image_utils::load_image(image_path);
+            continue;
+        }
+
+        if (param_type == "OVTensor" && utils::contain_key(param_name, {"video"})) {
             if (video_path.empty()) {
                 throw std::runtime_error("Video path is empty.");
             }
-            ov::Tensor video_tensor = image_utils::load_video(video_path);
-            inputs[param_name] = video_tensor;
+            inputs[param_name] = image_utils::load_video(video_path);
+            continue;
         }
     }
     return inputs;
@@ -53,6 +63,10 @@ int main(int argc, char* argv[]) {
         std::string video_path = argc > 4 ? argv[4] : std::string{};
 
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path);
+
+        for (const auto& [key, value] : inputs) {
+            std::cout << "Input Key: " << key << std::endl;
+        }
 
         ov::genai::module::ModulePipeline pipe(config_path);
 

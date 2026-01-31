@@ -34,7 +34,7 @@ YAML::Node find_param_module_in_yaml(const std::filesystem::path& cfg_yaml_path)
     // loop pipeline_modules to find a node with type "ParameterModule"
     for (const auto& module : pipeline_modules) {
         if (module.second["type"] && module.second["type"].as<std::string>() == "ParameterModule") {
-            return module["outputs"];
+            return module.second["outputs"];
         }
     }
     throw std::runtime_error("Could not find ParameterModule in config YAML.");

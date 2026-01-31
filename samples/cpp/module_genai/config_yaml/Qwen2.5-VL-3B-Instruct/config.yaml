@@ -15,13 +15,13 @@ pipeline_modules:
     outputs:
       - name: "img1"
         type: "OVTensor"
-      - name: "prompts_data"
+      - name: "prompt_data"
         type: "String"
 
   # --- 1. Image Preprocessing Module ---
   image_preprocessor:           # Module Name
     type: "ImagePreprocessModule"
-    device: "CPU"
+    device: "GPU"
     description: "Image or Video preprocessing."
     inputs:
       - name: "image"           # single image
@@ -33,16 +33,16 @@ pipeline_modules:
       - name: "source_size"     # Output port name
         type: "VecInt"          # Support DataType: [VecInt]
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
 
   # --- 2. Prompt Encode Module ---
   prompt_encoder:
     type: "TextEncoderModule"
-    device: "CPU"
+    device: "GPU"
     inputs:
-      - name: "prompts"
+      - name: "prompt"
         type: "String"
-        source: "pipeline_params.prompts_data"
+        source: "pipeline_params.prompt_data"
       - name: "encoded_image"
         type: "OVTensor"
         source: "image_preprocessor.raw_data"
@@ -57,12 +57,12 @@ pipeline_modules:
       - name: "images_sequence"
         type: "VecInt"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
 
   # --- 3. Prompt Embedding Module ---
   text_embedding:
     type: "TextEmbeddingModule"
-    device: "CPU"
+    device: "GPU"
     inputs:
       - name: "input_ids"
         type: "OVTensor"
@@ -71,13 +71,13 @@ pipeline_modules:
       - name: "input_embedding"
         type: "OVTensor"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
       scale_emb: "1.0"
   
   # --- 4. Vision Encoder Module ---
   vision_encoder:
     type: "VisionEncoderModule"
-    device: "CPU"
+    device: "GPU"
     inputs:
       - name: "preprocessed_image"
         type: "OVTensor"
@@ -101,13 +101,13 @@ pipeline_modules:
       - name: "rope_delta"
         type: "Int"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
       vision_start_token_id: 151652
 
   # --- 5. Embedding Merger Module ---
   embedding_merger:
     type: "EmbeddingMergerModule"
-    device: "CPU"
+    device: "GPU"
     inputs:
       - name: "input_ids"
         type: "OVTensor"
@@ -125,13 +125,13 @@ pipeline_modules:
       - name: "merged_embedding"
         type: "OVTensor"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
 
   # --- 6. LLM Inference Module ---
   llm_inference:
     type: "LLMInferenceModule"
     description: "LLM module for Continuous Batch pipeline"
-    device: "CPU"
+    device: "GPU"
     inputs:
       - name: "embeds"
         type: "OVTensor"
@@ -146,7 +146,7 @@ pipeline_modules:
       - name: "generated_text"
         type: "String"
     params:
-      model_path: "./ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/"
+      model_path: "./tests/module_genai/cpp/test_models/Qwen2.5-VL-3B-Instruct/INT4/"
       max_new_tokens: "16"
       do_sample: "false"
       top_p: "1.0"
