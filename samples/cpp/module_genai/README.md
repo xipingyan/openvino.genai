@@ -1,25 +1,19 @@
-# UT For module_genai pipeline
+# Module GenAI Samples
 
-This is UT for modular GenAI. Please verify the correctness of [pipeline](./ut_pipelines/config.yaml) before merging code.
+Build samples, refer: openvino.genai/README_Module_GenAI.md
 
-#### Build GenAI
+<details>
+<summary>visual_language_chat</summary>
 
-Refer [Guide](https://github.com/openvinotoolkit/openvino.genai/blob/master/src/docs/BUILD.md)
 
+#### Test model: Qwen2.5-VL-3B-Instruct
 ```
-ut_build.sh
-```
-
-#### Module Unit Test
-
-Preprare your model, take qwen2.5-vl as example: `openvino.genai/samples/cpp/module_genai/ut_pipelines/Qwen2.5-VL-3B-Instruct/INT4/`
-
-```
-./ut_modules.sh
+cd openvino.genai
+app=./build/samples/cpp/module_genai/md_visual_language_chat
+cfg=./samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml
+prompt="Please describe the image"
+img=./tests/module_genai/cpp/test_data/cat_120_100.png
+$app $cfg '$prompt' $img
 ```
 
-#### Pipeline Unit test
-
-```bash
-./ut_pipelines.sh
-```
+</details>
