@@ -49,4 +49,14 @@ bool contain_key(const std::string& name, const std::vector<std::string>& keys) 
     return false;
 }
 
+std::string get_input_arg(int argc, char* argv[], const std::string& key, const std::string& default_value) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == key && i + 1 < argc) {
+            return argv[i + 1];
+        }
+    }
+    return default_value;
+}
+
 }  // namespace utils

@@ -11,6 +11,9 @@
 #include <yaml-cpp/yaml.h>
 
 namespace utils {
+
+std::string get_input_arg(int argc, char* argv[], const std::string& key, const std::string& default_value = std::string());
+
 bool readFileToString(const std::string& filename, std::string& content);
 
 // Check if name contains any of the keys in the keys vector

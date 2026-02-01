@@ -52,20 +52,24 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc <= 2 || argc >= 6) {
+        if (argc <= 1) {
             throw std::runtime_error(std::string{"Usage: "} + argv[0] +
-                                     " <Config_Yaml> <Prompt> <Image_Path:Optional> <Video_Path:Optional>");
+                                     "\n"
+                                     "  -cfg config.yaml \n"
+                                     "  -prompt: input prompt\n"
+                                     "  -img: [Optional] image path\n"
+                                     "  -video: [Optional] video path\n");
         }
 
-        std::filesystem::path config_path = argv[1];
-        std::string prompt = argv[2];
-        std::string img_path = argc > 3 ? argv[3] : std::string{};
-        std::string video_path = argc > 4 ? argv[4] : std::string{};
+        std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
+        std::string prompt = utils::get_input_arg(argc, argv, "-prompt", std::string{});
+        std::string img_path = utils::get_input_arg(argc, argv, "-img", std::string{});
+        std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
 
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path);
 
         for (const auto& [key, value] : inputs) {
-            std::cout << "Input Key: " << key << std::endl;
+            std::cout << "[Input] " << key << ": " << value.as<std::string>() << std::endl;
         }
 
         ov::genai::module::ModulePipeline pipe(config_path);

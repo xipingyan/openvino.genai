@@ -61,8 +61,9 @@ cmake --install ./build/ --config Release --prefix ./install
 
 ## Samples
 
-``CPP Samples``, refer: openvino.genai/samples/cpp/module_genai/README.md   <br>
-``Python Sample``, refer: openvino.genai/samples/python/module_genai/README.md <br>
+[CPP Samples](samples/cpp/module_genai/README.md)   <br>
+[CPP ComfyUI Sample](samples/cpp/module_genai/comfyui/README.md) <br>
+[Python Sample](samples/python/module_genai/README.md) <br>
 
 <details>
 <summary>Qwen2.5-VL</summary>
@@ -88,7 +89,9 @@ pipe = openvino_genai.ModulePipeline(config_file)
 
 pipe.generate(img1=ov::Tensor, prompt_data="Describle the image")
 output = pipe.get_output("generated_text")
+
+print("output = ", output)
 ```
-Note: config_file [refer](https://github.com/xipingyan/openvino.genai/blob/6e8c8b92443932d7a418ce02a67219ce603fcf20/samples/cpp/module_genai/ut_pipelines/Qwen2.5-VL-3B-Instruct/config.yaml)
+``Note:`` Reference [config.yaml](samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml). Please update the `model_path` of config.yaml with your local path.
 
 </details>
