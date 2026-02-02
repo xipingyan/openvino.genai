@@ -42,7 +42,7 @@ def load_video(video_path: str) -> Tensor:
     # [N, H, W, 3]
     return Tensor(np.stack(frames, axis=0))
 
-def find_param_module_in_yaml(cfg_yaml_path: Path) -> list[dict[str, Any]]:
+def get_parameter_module_outputs(cfg_yaml_path: Path) -> list[dict[str, Any]]:
 
     cfg = yaml.safe_load(cfg_yaml_path.read_text(encoding="utf-8"))
     pipeline_modules = cfg.get("pipeline_modules")
