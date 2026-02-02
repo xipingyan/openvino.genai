@@ -42,10 +42,10 @@ def load_video(video_path: str) -> Tensor:
     # [N, H, W, 3]
     return Tensor(np.stack(frames, axis=0))
 
-def get_parameter_module_outputs(cfg_yaml_path: Path) -> list[dict[str, Any]]:
+def get_parameter_module_outputs(config_yaml_path: Path) -> list[dict[str, Any]]:
 
-    cfg = yaml.safe_load(cfg_yaml_path.read_text(encoding="utf-8"))
-    pipeline_modules = cfg.get("pipeline_modules")
+    config = yaml.safe_load(config_yaml_path.read_text(encoding="utf-8"))
+    pipeline_modules = config.get("pipeline_modules")
     if not isinstance(pipeline_modules, dict):
         raise RuntimeError("Invalid config: missing 'pipeline_modules'")
 
