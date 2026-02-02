@@ -5,10 +5,8 @@
 
 #include <string>
 
-namespace ov::genai::module {
-namespace utils {
+namespace ov::genai::module::utils {
 
 bool check_env_variable(const std::string& var_name);
 
-}  // namespace utils
-}  // namespace ov::genai::module
+}  // namespace ov::genai::module::utils
