@@ -96,7 +96,7 @@ python -m pip wheel . -w dist/ --extra-index-url https://storage.openvinotoolkit
 pip install (Get-ChildItem dist\openvino_genai-*.whl).FullName
 ```
 
-> **NOTE**: You'd need to build ABI compatible OpenVINO and OpenVINO Tokenizers for Ubuntu instead of downloading them from PyPI. See [BUILD.md](src/docs/BUILD.md) for more details.
+> **NOTE**: You would need to build ABI compatible OpenVINO and OpenVINO Tokenizers for Ubuntu instead of downloading them from PyPI. See [BUILD.md](src/docs/BUILD.md) for more details.
 
 </details>
 
