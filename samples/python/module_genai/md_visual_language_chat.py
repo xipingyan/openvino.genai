@@ -7,11 +7,11 @@ from typing import Any
 from openvino import Tensor
 import openvino_genai
 
-from utils.utils import load_image, load_video, find_param_module_in_yaml
+from utils.utils import load_image, load_video, get_parameter_module_outputs
 
 
 def _parse_inputs_from_yaml_cfg_for_vlm(cfg_yaml_path: Path, prompt: str, image_path: str, video_path: str) -> dict[str, Any]:
-    outputs = find_param_module_in_yaml(cfg_yaml_path)
+    outputs = get_parameter_module_outputs(cfg_yaml_path)
     inputs: dict[str, Any] = {}
 
     for out in outputs:
