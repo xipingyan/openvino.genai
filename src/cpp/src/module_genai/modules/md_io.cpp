@@ -71,7 +71,7 @@ void ResultModule::run(ov::AnyMap& outputs) {
     prepare_inputs();
     
     for (auto& port_name : module_desc->inputs) {
-        auto raw_data = this->inputs[port_name.source_module_out_name].data;
+        auto raw_data = this->inputs[port_name.name].data;
         GENAI_INFO("    pass '" + port_name.source_module_out_name + "' to pipeline outputs as '" + port_name.name + "'");
         outputs[port_name.name] = raw_data;
     }
