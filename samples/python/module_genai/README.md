@@ -1,37 +1,71 @@
-# PYTHON API SAMEPLE
 
-#### How to run
+# Module GenAI Python samples
 
-```
-./run.sh
-```
+This folder contains Python samples for **Module GenAI** based pipelines.
 
-#### How to run module pipeline with torch:
+The Python bindings are provided by `openvino_genai` which is installed under `openvino.genai/install/python` after building.
 
-Download model, password: `intel123`
-```bash
-scp -r ziniu@lic-code-vm13:/home/ziniu/web_files/models/Qwen2.5-VL-3B-Instruct/torch ../../cpp/module_genai/ut_pipelines/Qwen2.5-VL-3B-Instruct/
-```
-Run test:
+## Setup
+
+From the repo root:
 
 ```bash
-source ../../../../python-env/bin/activate
-pip install -r requirements.txt
-bash run_pipeline_with_torch.sh
+cd openvino.genai
+
+# Activate the repo venv (created in the repo root)
+source ../python-env/bin/activate
+
+# Set OpenVINO runtime environment (repo helper script)
+source ../source_ov.sh
+
+# Make openvino_genai importable
+export PYTHONPATH="$PWD/install/python:${PYTHONPATH}"
+
+# Ensure runtime libraries are found
+export LD_LIBRARY_PATH="$PWD/install/runtime/lib/intel64:${LD_LIBRARY_PATH}"
 ```
 
-#### How to run zimage transfomer test
+## Visual language chat
 
-Download the model, password: `intel123`
+This sample runs a VLM pipeline (e.g. Qwen2.5-VL-3B-Instruct) using a ModulePipeline config YAML.
+
+<details>
+	<summary>Command</summary>
+
 ```bash
-scp -r ziniu@lic-code-vm13:/home/ziniu/web_files/models/Z-Image-Turbo-fp16-ov ../../cpp/module_genai/ut_pipelines/
+python3 ./samples/python/module_genai/md_visual_language_chat.py \
+	./samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml \
+	"Describe this image" \
+	./samples/cpp/module_genai/test_data/demo.png
 ```
 
-Run test:
+</details>
+
+Notes:
+
+- Update model paths inside the config YAML if you keep models in a different location.
+- `image_path` / `video_path` are optional; the sample maps inputs based on `ParameterModule.outputs`.
+
+## Image generation
+
+Use the Z-Image pipeline Python sample.
+
+<details>
+	<summary>Command</summary>
+
 ```bash
-source ../../../../python-env/bin/activate
-pip install -r requirements.txt
-bash run_module_pipeline_z_image.sh
+python3 ./samples/python/module_genai/md_image_generation.py \
+	--model_path ./samples/cpp/module_genai/ut_pipelines/Z-Image-Turbo-fp16-ov \
+	--device GPU \
+	--prompt "A cozy cabin in a snowy forest" \
+	--height 1040 \
+	--width 1040
 ```
 
-The output image is `zimage_denoiser_loop_output.png`
+</details>
+
+## More samples
+
+- `md_video_generation.py` (video generation)
+- `md_cowork_with_torch.py` (mix ModulePipeline with Torch steps)
+
