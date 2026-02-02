@@ -21,7 +21,7 @@ def _parse_inputs_from_yaml_cfg_for_vlm(cfg_yaml_path: Path, prompt: str, image_
             inputs[name] = prompt
             continue
 
-        if "image" in name.lower() or "img" in name.lower() and typ == "OVTensor":
+        if ("image" in name.lower() or "img" in name.lower()) and typ == "OVTensor":
             if image_path:
                 inputs[name] = load_image(image_path)
             else:
