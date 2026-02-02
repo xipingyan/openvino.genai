@@ -51,10 +51,10 @@ Use the Z-Image pipeline Python sample.
 	<summary>Command</summary>
 
 ```bash
+prompt="Young Chinese woman in red Hanfu, intricate embroidery. Impeccable makeup, red floral forehead pattern. Elaborate high bun, golden phoenix headdress, red flowers, beads. Holds round folding fan with lady, trees, bird. Neon lightning-bolt lamp (⚡️), bright yellow glow, above extended left palm. Soft-lit outdoor night background, silhouetted tiered pagoda (西安大雁塔), blurred colorful distant lights."
 python3 ./samples/python/module_genai/md_image_generation.py \
 	--model_path ./samples/cpp/module_genai/ut_pipelines/Z-Image-Turbo-fp16-ov \
-	--device GPU \
-	--prompt "A cozy cabin in a snowy forest" \
+	--prompt "${prompt}" \
 	--height 1040 \
 	--width 1040
 ```
