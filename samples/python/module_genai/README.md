@@ -3,7 +3,7 @@
 
 This folder contains Python samples for **Module GenAI** based pipelines.
 
-The Python bindings are provided by `openvino_genai` which is installed under `openvino.genai/install/python` after building.
+Build **Module GenAI** [Refer](../../../README_Module_GenAI.md)
 
 ## Setup
 
@@ -11,18 +11,15 @@ From the repo root:
 
 ```bash
 cd openvino.genai
-
-# Activate the repo venv (created in the repo root)
-source ../python-env/bin/activate
-
 # Set OpenVINO runtime environment (repo helper script)
-source ../source_ov.sh
+source [PATH]/openvino/setupvars.sh
 
-# Make openvino_genai importable
-export PYTHONPATH="$PWD/install/python:${PYTHONPATH}"
+export GENAI_ROOT_DIR=[PATH]/openvino.genai/install/python/
+export OV_PYTHON_DIR=${INTEL_OPENVINO_DIR}/python
 
-# Ensure runtime libraries are found
-export LD_LIBRARY_PATH="$PWD/install/runtime/lib/intel64:${LD_LIBRARY_PATH}"
+export PYTHONPATH=${OV_PYTHON_DIR}:${GENAI_ROOT_DIR}:$PYTHONPATH
+export LD_LIBRARY_PATH=${GENAI_ROOT_DIR}/../runtime/lib/intel64/:$LD_LIBRARY_PATH
+export OV_TOKENIZER_PREBUILD_EXTENSION_PATH=${GENAI_ROOT_DIR}/../runtime/lib/intel64/libopenvino_tokenizers.so
 ```
 
 ## Visual language chat
@@ -33,18 +30,18 @@ This sample runs a VLM pipeline (e.g. Qwen2.5-VL-3B-Instruct) using a ModulePipe
 	<summary>Command</summary>
 
 ```bash
-python3 ./samples/python/module_genai/md_visual_language_chat.py \
-	./samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml \
-	"Describe this image" \
-	./samples/cpp/module_genai/test_data/demo.png
+python3 ./samples/python/module_genai/md_visual_language_chat.py	\
+	--cfg ./samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml \
+	--prompt "Please describe the image" 	\
+	--img ./tests/module_genai/cpp/test_data/cat_120_100.png
 ```
+Notes:
+
+- Update **model_path** inside the config YAML if you keep models in a different location.
+- `image_path` / `video_path` are optional; the sample maps inputs based on `ParameterModule.outputs`.
 
 </details>
 
-Notes:
-
-- Update model paths inside the config YAML if you keep models in a different location.
-- `image_path` / `video_path` are optional; the sample maps inputs based on `ParameterModule.outputs`.
 
 ## Image generation
 
