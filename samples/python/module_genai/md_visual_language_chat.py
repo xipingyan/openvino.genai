@@ -10,7 +10,7 @@ import openvino_genai
 from utils.utils import load_image, load_video, get_parameter_module_outputs
 
 
-def _parse_inputs_from_yaml_cfg_for_vlm(cfg_yaml_path: Path, prompt: str, image_path: str, video_path: str) -> dict[str, Any]:
+def parse_vlm_inputs_from_yaml(cfg_yaml_path: Path, prompt: str, image_path: str, video_path: str) -> dict[str, Any]:
     outputs = get_parameter_module_outputs(cfg_yaml_path)
     inputs: dict[str, Any] = {}
 
@@ -58,7 +58,7 @@ def main() -> int:
     if not cfg_yaml_path.exists():
         raise FileNotFoundError(str(cfg_yaml_path))
 
-    inputs = _parse_inputs_from_yaml_cfg_for_vlm(cfg_yaml_path, args.prompt, args.img, args.video)
+    inputs = parse_vlm_inputs_from_yaml(cfg_yaml_path, args.prompt, args.img, args.video)
     for key, value in inputs.items():
         print(f"[Input] {key}: {str(value)}")
 
