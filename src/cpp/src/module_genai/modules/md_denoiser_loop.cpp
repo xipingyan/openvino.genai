@@ -12,6 +12,10 @@
 #include "image_generation/numpy_utils.hpp"
 #include <fstream>
 #include "module_genai/utils/profiler.hpp"
+#include "openvino/op/parameter.hpp"
+#include "openvino/op/unsqueeze.hpp"
+#include "openvino/op/constant.hpp"
+#include "openvino/op/result.hpp"
 
 namespace ov {
 namespace genai {
@@ -80,8 +84,7 @@ bool DenoiserLoopModule::initialize() {
     std::filesystem::path model_path = module_desc->get_full_path(it_path->second);
     auto transformer_model_path = model_path / "transformer/openvino_model.xml";
     if (m_model_type == DiffusionModelType::ZIMAGE) {
-        std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
-        m_scheduler = std::make_shared<ZImageFlowMatchEulerDiscreteScheduler>(model_path / "scheduler/scheduler_config.json", device);
+        m_scheduler = std::make_shared<ZImageFlowMatchEulerDiscreteScheduler>(model_path / "scheduler/scheduler_config.json", module_desc->device);
     } else if (m_model_type == DiffusionModelType::WAN_2_1) {
         // Force to use CPU for scheduler, since the Inverse(opset14) is not supported on GPU
         m_scheduler = std::make_shared<UniPCMultistepScheduler>(model_path / "scheduler/scheduler_config.json", "CPU");
@@ -93,13 +96,13 @@ bool DenoiserLoopModule::initialize() {
         GENAI_ERR("TransformerModule[" + module_desc->name + "]: model file not found at " + transformer_model_path.string());
         return false;
     }
-    auto model = utils::singleton_core().read_model(
-        transformer_model_path);
-    auto compiled_model = utils::singleton_core().compile_model(
-        model,
-        module_desc->device.empty() ? "CPU" : module_desc->device,
-        ov::AnyMap{});
-    m_request = compiled_model.create_infer_request();
+    auto model = utils::singleton_core().read_model(transformer_model_path);
+    m_compiled_model = utils::singleton_core().compile_model(model, module_desc->device, ov::AnyMap{});
+
+    m_ov_unsqueeze = OV_Unsqueeze::create(m_compiled_model.get_context(), 2);
+    OPENVINO_ASSERT(m_ov_unsqueeze != nullptr, "Failed to create OV_Unsqueeze instance");
+
+    m_request = m_compiled_model.create_infer_request();
     return true;
 }
 
@@ -132,6 +135,14 @@ void DenoiserLoopModule::run() {
         // empty negative prompt embeds
     }
 
+    if (module_desc->device == "GPU") {
+        PROFILE(p, "DenoiserLoopModule::run - Copy latents to RemoteTensor");
+        auto context = m_compiled_model.get_context();
+        auto latents_remote_tensor = context.create_tensor(latents.get_element_type(), latents.get_shape());
+        latents_remote_tensor.copy_from(latents);
+        latents = latents_remote_tensor;
+    }
+
     ImageGenerationConfig generation_config{};
     if (exists_input("num_inference_steps")) {
         generation_config.num_inference_steps = this->inputs["num_inference_steps"].data.as<int>();
@@ -161,8 +172,10 @@ void DenoiserLoopModule::run() {
     } else {
         m_cfg_normalization = false;
     }
+    ov::Tensor output_latents;
     if (m_model_type == DiffusionModelType::ZIMAGE) {
-        this->outputs["latents"].data = run(latents, prompt_embeds, negative_prompt_embeds, generation_config);
+        output_latents = run(latents, prompt_embeds, negative_prompt_embeds, generation_config);
+        
     } else {
         int num_inference_steps = 10;
         if (exists_input("num_inference_steps")) {
@@ -172,8 +185,17 @@ void DenoiserLoopModule::run() {
         if (exists_input("guidance_scale")) {
             guidance_scale = this->inputs["guidance_scale"].data.as<float>();
         }
-        this->outputs["latents"].data = run(latents, prompt_embeds, negative_prompt_embeds, num_inference_steps, guidance_scale);
+        output_latents = run(latents, prompt_embeds, negative_prompt_embeds, num_inference_steps, guidance_scale);
     }
+
+    if (output_latents.is<ov::RemoteTensor>()) {
+        PROFILE(p, "DenoiserLoopModule::run - Copy output_latents to HostTensor");
+        ov::Tensor host_tensor(output_latents.get_element_type(), output_latents.get_shape());
+        output_latents.copy_to(host_tensor);
+        output_latents = host_tensor;
+    }
+
+    this->outputs["latents"].data = output_latents;
 }
 
 // Image generation
@@ -246,11 +268,21 @@ ov::Tensor DenoiserLoopModule::run(
             m_request.set_tensor("timestep", timestep);
             m_request.set_tensor("encoder_hidden_states", all_prompt_tensor);
         } else {
-            ov::Tensor unsqueezed_latents = tensor_utils::unsqueeze(latents, 2);
+            // ov::Tensor unsqueezed_latents = tensor_utils::unsqueeze(latents, 2);
+            ov::Tensor unsqueezed_latents = m_ov_unsqueeze->infer(latents);
+
             ov::Tensor timestep(ov::element::f32, {1}, &timesteps[inference_step]);
             m_request.set_tensor("hidden_states", unsqueezed_latents);
             m_request.set_tensor("timestep", timestep);
             m_request.set_tensor("encoder_hidden_states", prompt_tensor);
+        }
+
+        // Set output to remote tensor to avoid unnecessary data copy
+        if (module_desc->device == "GPU") {
+            auto context = m_compiled_model.get_context();
+            ov::Tensor remote_output_tensor = context.create_tensor(m_request.get_output_tensor().get_element_type(),
+                                                                    m_request.get_output_tensor().get_shape());
+            m_request.set_output_tensor(0, remote_output_tensor);
         }
 
         {
@@ -347,6 +379,84 @@ ov::Tensor DenoiserLoopModule::run(
     return latents;
 }
 
+OV_Unsqueeze::OV_Unsqueeze(const std::string& device, const int32_t& axes) {
+    m_device = device;
+    m_axes = axes;
+    // Initialize OpenVINO model for Unsqueeze operation
+    auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape::dynamic(4));
+    input->set_friendly_name("input");
+    // auto axis = std::make_shared<ov::op::v0::Parameter>(ov::element::i32, ov::Shape{1});
+    auto axis_const = ov::op::v0::Constant::create(ov::element::i32, ov::Shape{1}, {axes});
+    axis_const->set_friendly_name("axes");
+
+    auto unsqueezed = std::make_shared<ov::op::v0::Unsqueeze>(input, axis_const);
+    unsqueezed->set_friendly_name("unsqueeze");
+    auto result = std::make_shared<ov::op::v0::Result>(unsqueezed);
+    result->set_friendly_name("output");
+
+    auto model = std::make_shared<ov::Model>(ov::ResultVector{result}, ov::ParameterVector{input});
+
+    auto compiled_model = ov::genai::utils::singleton_core().compile_model(model, device);
+    m_context = compiled_model.get_context();
+    m_request = compiled_model.create_infer_request();
 }
+
+OV_Unsqueeze::OV_Unsqueeze(const ov::RemoteContext& context, const int32_t& axes) {
+    m_axes = axes;
+    m_context = context;
+
+    auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, ov::PartialShape::dynamic(4));
+    input->set_friendly_name("input");
+    auto axis_const = ov::op::v0::Constant::create(ov::element::i32, ov::Shape{1}, {axes});
+    axis_const->set_friendly_name("axes");
+
+    auto unsqueezed = std::make_shared<ov::op::v0::Unsqueeze>(input, axis_const);
+    unsqueezed->set_friendly_name("unsqueeze");
+    auto result = std::make_shared<ov::op::v0::Result>(unsqueezed);
+    result->set_friendly_name("output");
+
+    auto model = std::make_shared<ov::Model>(ov::ResultVector{result}, ov::ParameterVector{input});
+
+    // Compile the helper model on the SAME remote context as the main pipeline.
+    // This ensures remote input stays on-device and allows remote output allocation.
+    auto compiled_model = ov::genai::utils::singleton_core().compile_model(model, context);
+    m_request = compiled_model.create_infer_request();
 }
+
+bool OV_Unsqueeze::shape_changed(const ov::Shape& in_shape) {
+    if (m_last_shape != in_shape) {
+        m_last_shape = in_shape;
+        return true;
+    }
+    return false;
 }
+
+ov::Tensor OV_Unsqueeze::infer(const ov::Tensor& input_tensor) {
+    std::cout << "OV_Unsqueeze::infer input_tensor is remotetensor: " << input_tensor.is<ov::RemoteTensor>() << std::endl;
+    m_request.set_input_tensor(0, input_tensor);
+
+    if (input_tensor.is<ov::RemoteTensor>() && shape_changed(input_tensor.get_shape())) {
+        ov::Shape out_shape = input_tensor.get_shape();
+        const int64_t out_rank = static_cast<int64_t>(out_shape.size()) + 1;
+        int64_t axis = static_cast<int64_t>(m_axes);
+        if (axis < 0) {
+            axis += out_rank;
+        }
+        OPENVINO_ASSERT(axis >= 0 && axis <= static_cast<int64_t>(out_shape.size()),
+                        "OV_Unsqueeze: invalid axis=", m_axes, " for input rank=", out_shape.size());
+        out_shape.insert(out_shape.begin() + static_cast<size_t>(axis), 1);
+
+        // Allocate output on the same remote context so output remains a RemoteTensor.
+        ov::Tensor remote_out = m_context.create_tensor(input_tensor.get_element_type(), out_shape);
+        m_request.set_output_tensor(0, remote_out);
+    }
+
+    m_request.infer();
+    auto output = m_request.get_output_tensor();
+    std::cout << "OV_Unsqueeze::infer output is remotetensor: " << output.is<ov::RemoteTensor>() << std::endl;
+    return output;
+}
+
+}  // namespace module
+}  // namespace genai
+}  // namespace ov
