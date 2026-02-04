@@ -40,6 +40,9 @@ private:
     bool m_is_multi_prompts {false};
     float m_cfg_truncation;
     bool m_cfg_normalization;
+
+    // Release weights need m_compiled_model
+    ov::CompiledModel m_compiled_model;
 };
 
 }

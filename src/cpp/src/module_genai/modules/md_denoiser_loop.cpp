@@ -12,6 +12,7 @@
 #include "image_generation/numpy_utils.hpp"
 #include <fstream>
 #include "module_genai/utils/profiler.hpp"
+#include "module_genai/utils/thread_helper.hpp"
 
 namespace ov {
 namespace genai {
@@ -95,17 +96,24 @@ bool DenoiserLoopModule::initialize() {
     }
     auto model = utils::singleton_core().read_model(
         transformer_model_path);
-    auto compiled_model = utils::singleton_core().compile_model(
+    m_compiled_model = utils::singleton_core().compile_model(
         model,
         module_desc->device.empty() ? "CPU" : module_desc->device,
         ov::AnyMap{});
-    m_request = compiled_model.create_infer_request();
+    m_request = m_compiled_model.create_infer_request();
     return true;
 }
 
 void DenoiserLoopModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
+
+    std::future<bool> future;
+    {
+        PROFILE(pm, "load_model_weights_async");
+        future = thread_utils::load_model_weights_async(m_compiled_model);
+    }
+
     std::vector<ov::Tensor> prompt_embeds;
     std::vector<ov::Tensor> negative_prompt_embeds;
     ov::Tensor latents;
@@ -173,6 +181,11 @@ void DenoiserLoopModule::run() {
             guidance_scale = this->inputs["guidance_scale"].data.as<float>();
         }
         this->outputs["latents"].data = run(latents, prompt_embeds, negative_prompt_embeds, num_inference_steps, guidance_scale);
+    }
+
+    {
+        PROFILE(pm, "load_model_weights_finish");
+        thread_utils::load_model_weights_finish(future);
     }
 }
 
