@@ -10,7 +10,7 @@
 namespace ov::genai::module {
 
 #ifndef USE_FULL_MODEL
-#    define USE_FULL_MODEL 1
+#    define USE_FULL_MODEL 0
 #endif
 
 class CSplittedModelInfer {
