@@ -53,6 +53,8 @@ void ClipTextEncoderModule::print_static_config() {
         type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
     params:
       model_path: "model_dir/"  # model directory
+      dynamic_load_weights: "bool value"    # [Optional], default false.
+      cache_dir: "./cache_dir_text_encoder/"  # [Optional], default is empty string.
     )" << std::endl;
 }
 
@@ -73,6 +75,8 @@ bool ClipTextEncoderModule::initialize() {
         return false;
     }
 
+    check_dynamic_load_weights();
+    
     std::filesystem::path root_dir = module_desc->get_full_path(it_path->second);
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
 

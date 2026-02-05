@@ -133,6 +133,7 @@ class OVWanPipeline:
                     ],
                     'params': {
                         'model_path': str(model_dir),
+                        'cache_dir': "./cache_dir_text_encoder/"  # [Optional], default is empty string.
                     }
                 },
                 'latent_image': {
