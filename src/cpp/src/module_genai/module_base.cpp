@@ -134,6 +134,18 @@ void IBaseModule::check_cache_dir() {
     }
 }
 
+void IBaseModule::check_splitted_model() {
+    auto splitted_model = get_optional_param("splitted_model");
+    if (splitted_model.empty()) {
+        return;
+    }
+
+    if (splitted_model == "true" || splitted_model == "True" || splitted_model == "TRUE" || splitted_model == "1") {
+        m_splitted_model = true;
+        GENAI_INFO("Module[" + module_desc->name + "]: m_splitted_model = true");
+    }
+}
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov

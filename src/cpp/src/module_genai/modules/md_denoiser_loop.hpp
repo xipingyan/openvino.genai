@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+#include <memory>
+#include <numeric>
+
+#include "circular_buffer_queue.hpp"
 #include "module_genai/module.hpp"
 #include "module_genai/transformer_config.hpp"
+#include "module_genai/utils/splitted_model_infer.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
 #include "unipc_multistep_scheduler.hpp"
-#include "circular_buffer_queue.hpp"
-#include <memory>
 
 namespace ov {
 namespace genai {
@@ -43,6 +46,7 @@ private:
 
     // Release weights need m_compiled_model
     ov::CompiledModel m_compiled_model;
+    CSplittedModelInfer::PTR m_splitted_model_infer = nullptr;
 };
 
 }
