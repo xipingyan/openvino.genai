@@ -369,32 +369,39 @@ ov::Tensor DenoiserLoopModule::run(
             timestep_data[j] = static_cast<float>(t);
         }
 
-        ov::Tensor input_encoder_hidden_states;
-        ov::Tensor output_0;
-        if (guidance_scale > 1.0f && negative_prompt_tensor.has_value()) {
-            input_encoder_hidden_states = negative_prompt_tensor.value();
-            output_0 = noise_uncond;
-        } else {
-            input_encoder_hidden_states = prompt_tensor;
-            output_0 = noise_pred;
-        }
-
         if (m_splitted_model) {
             PROFILE(pm, "splitted_model_infer");
             ov::AnyMap splitted_model_inputs = {{"hidden_states", latents},
                                                 {"timestep", timestep},
-                                                {"encoder_hidden_states", input_encoder_hidden_states}};
+                                                {"encoder_hidden_states", prompt_tensor}};
             m_splitted_model_infer->infer(splitted_model_inputs);
-        } else {
-            PROFILE(pm, "infer");
+            noise_pred = m_splitted_model_infer->get_output_tensor();
+        }
+        else {
             m_request.set_tensor("hidden_states", latents);
             m_request.set_tensor("timestep", timestep);
-            m_request.set_tensor("encoder_hidden_states", input_encoder_hidden_states);
-            m_request.set_output_tensor(0, output_0);
+            m_request.set_tensor("encoder_hidden_states", prompt_tensor);
+            m_request.set_output_tensor(0, noise_pred);
             m_request.infer();
         }
 
         if (guidance_scale > 1.0f && negative_prompt_tensor.has_value()) {
+            if (m_splitted_model) {
+                PROFILE(pm, "splitted_model_infer_uncond");
+                ov::AnyMap splitted_model_inputs = {{"hidden_states", latents},
+                                                    {"timestep", timestep},
+                                                    {"encoder_hidden_states", negative_prompt_tensor.value()}};
+                m_splitted_model_infer->infer(splitted_model_inputs);
+                noise_uncond = m_splitted_model_infer->get_output_tensor();
+            }
+            else {
+                m_request.set_tensor("hidden_states", latents);
+                m_request.set_tensor("timestep", timestep);
+                m_request.set_tensor("encoder_hidden_states", negative_prompt_tensor.value());
+                m_request.set_output_tensor(0, noise_uncond);
+                m_request.infer();
+            }
+
             for (size_t j = 0; j < noise_pred.get_size(); j++) {
                 noise_pred_data[j] =
                     noise_uncond_data[j] + guidance_scale * (noise_pred_data[j] - noise_uncond_data[j]);
