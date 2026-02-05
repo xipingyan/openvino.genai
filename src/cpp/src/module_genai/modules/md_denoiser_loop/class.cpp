@@ -1,7 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "md_denoiser_loop.hpp"
+#include "class.hpp"
 
 #include "module_genai/module_factory.hpp"
 #include "module_genai/transformer_config.hpp"

@@ -8,9 +8,9 @@
 #include "circular_buffer_queue.hpp"
 #include "module_genai/module.hpp"
 #include "module_genai/transformer_config.hpp"
-#include "module_genai/utils/splitted_model_infer.hpp"
+#include "splitted_model_infer.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
-#include "unipc_multistep_scheduler.hpp"
+#include "../unipc_multistep_scheduler.hpp"
 
 namespace ov {
 namespace genai {
