@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument('--num_frames', type=int, default=None, help="Number of frames")
     parser.add_argument('--fps', type=int, default=None, help="Frames per second")
     parser.add_argument('--debug', action='store_true', help="Enable debug output")
+    parser.add_argument('--splitted_model', action='store_true', help="Enable splitted model inference")
     return parser.parse_args()
 
 # Parse args early - will exit on error before heavy imports
@@ -32,7 +33,7 @@ import yaml
 
 core = ov.Core()
 class OVWanPipeline:
-    def __init__(self, model_dir, device_map="CPU", fps: int = 10):
+    def __init__(self, model_dir, device_map="CPU", fps: int = 10, splitted_model: bool = False):
         model_dir = Path(model_dir)
         if isinstance(device_map, str):
             device_map = {"transformer": device_map, "text_encoder": device_map, "vae": device_map}
@@ -220,7 +221,7 @@ class OVWanPipeline:
                     'params': {
                         'model_path': str(model_dir),
                         'cache_dir': "./cache_dir_denoiser_loop/",  # [Optional], default is empty string.
-                        # 'splitted_model': False
+                        'splitted_model': splitted_model
                     }
                 },
                 'vae_decoder': {
@@ -365,8 +366,9 @@ num_inference_steps = args.steps if args.steps is not None else DEFAULT_NUM_INFE
 guidance_scale = args.guidance_scale if args.guidance_scale is not None else DEFAULT_GUIDANCE_SCALE
 num_frames = args.num_frames if args.num_frames is not None else DEFAULT_NUM_FRAMES
 fps = args.fps if args.fps is not None else DEFAULT_FPS
+splitted_model = args.splitted_model if args.splitted_model is not None else False
 
-ov_pipe = OVWanPipeline(args.model_path, device_map=device_map, fps=fps)
+ov_pipe = OVWanPipeline(args.model_path, device_map=device_map, fps=fps, splitted_model=splitted_model)
 
 output = ov_pipe(
     prompt=prompt,
