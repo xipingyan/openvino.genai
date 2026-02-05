@@ -9,6 +9,10 @@
 
 namespace ov::genai::module {
 
+#ifndef USE_FULL_MODEL
+#    define USE_FULL_MODEL 1
+#endif
+
 class CSplittedModelInfer {
 private:
     CSplittedModelInfer() = delete;
@@ -19,13 +23,27 @@ private:
 
     bool m_dynamic_load_model_weights;
     std::string m_device;
+    ov::AnyMap m_properties;
 
     void get_splitted_model_paths(const std::string& model_path);
-    void load_model(const std::string& model_path);
+    void load_model(const std::string& model_path, const ov::AnyMap& properties);
 
     std::vector<std::string> m_splitted_model_paths;
+    std::string m_preprocess_model_path;
+    std::string m_postprocess_model_path;
+
+#if USE_FULL_MODEL
+    ov::CompiledModel m_full_compiled_model;
+    ov::InferRequest m_full_infer_request;
+#else
     std::vector<ov::CompiledModel> m_compiled_models;
     std::vector<ov::InferRequest> m_infer_requests;
+    ov::CompiledModel m_preprocess_compiled_model;
+    ov::InferRequest m_preprocess_infer_request;
+    ov::CompiledModel m_postprocess_compiled_model;
+    ov::InferRequest m_postprocess_infer_request;
+#endif
+
 public:
     ~CSplittedModelInfer();
     using PTR = std::shared_ptr<CSplittedModelInfer>;
