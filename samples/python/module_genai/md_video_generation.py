@@ -221,7 +221,7 @@ class OVWanPipeline:
                     'params': {
                         'model_path': str(model_dir),
                         'cache_dir': "./cache_dir_denoiser_loop/",  # [Optional], default is empty string.
-                        'splitted_model': splitted_model
+                        'splitted_model': 'true' if splitted_model else 'false'
                     }
                 },
                 'vae_decoder': {
