@@ -93,8 +93,8 @@ bool VAEDecoderTilingModule::init_tile_params_from_config() {
     }
 
     auto tile_w = get_optional_param("tile_sample_min_width");
-    if (!tile_w.empty()) {
-        // Use height for both if width not specified separately
+    if (!tile_w.empty() && tile_h.empty()) {
+        // Use height for both if width not specified separately; fall back to width when height is not set
         m_tile_sample_min_size = std::stoi(tile_w);
     }
 
