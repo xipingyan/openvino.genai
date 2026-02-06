@@ -68,7 +68,7 @@ void CSplittedModelInfer::get_splitted_model_paths(const std::string& model_path
     OPENVINO_ASSERT(
         m_splitted_model_paths.size() >= 2,
         "At least two splitted models are required. Found only " + std::to_string(m_splitted_model_paths.size()));
-    OPENVINO_ASSERT(!m_preprocess_model_path.empty() || !m_postprocess_model_path.empty(),
+    OPENVINO_ASSERT(!m_preprocess_model_path.empty() && !m_postprocess_model_path.empty(),
                     "Preprocess and postprocess models are required.");
 }
 
