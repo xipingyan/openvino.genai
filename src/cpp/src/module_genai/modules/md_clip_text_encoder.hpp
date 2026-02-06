@@ -106,7 +106,7 @@ private:
         const ImageGenerationConfig &generation_config);
     ov::Tensor encode_prompt(const std::vector<std::string>& prompts, const ImageGenerationConfig &generation_config);
 
-    std::string model_xml_path;
+    std::string m_model_xml_path;
     ov::AnyMap m_compile_properties;
 };
 
