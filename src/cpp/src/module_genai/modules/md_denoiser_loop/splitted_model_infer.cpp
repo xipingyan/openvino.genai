@@ -1,6 +1,7 @@
 #include "splitted_model_infer.hpp"
 
 #include <regex>
+#include "logger.hpp"
 
 namespace ov::genai::module {
 
@@ -111,6 +112,16 @@ void CSplittedModelInfer::load_model(const std::string& model_path, const ov::An
 
 CSplittedModelInfer::~CSplittedModelInfer() {}
 
+ov::Tensor CSplittedModelInfer::convert_to_remote_tensor(const ov::Tensor& tensor) {
+    if (tensor.is<ov::RemoteTensor>()) {
+        return tensor;
+    } else {
+        ov::Tensor remote_tensor = m_context.create_tensor(tensor.get_element_type(), tensor.get_shape());
+        tensor.copy_to(remote_tensor);
+        return remote_tensor;
+    }
+}
+
 void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 #if USE_FULL_MODEL
     for (const auto& input : inputs) {
@@ -132,6 +143,14 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     ov::Tensor rotary_cos_tensor = m_preprocess_infer_request.get_tensor("rotary_cos");        // [-1,-1,64]
     ov::Tensor rotary_sin_tensor = m_preprocess_infer_request.get_tensor("rotary_sin");        // [-1,-1,64]
 
+    if (m_is_gpu && !hidden_states_tensor.is<ov::RemoteTensor>()) {
+        hidden_states_tensor = convert_to_remote_tensor(hidden_states_tensor);
+        text_embeds_tensor = convert_to_remote_tensor(text_embeds_tensor);
+        timestep_proj_tensor = convert_to_remote_tensor(timestep_proj_tensor);
+        rotary_cos_tensor = convert_to_remote_tensor(rotary_cos_tensor);
+        rotary_sin_tensor = convert_to_remote_tensor(rotary_sin_tensor);
+    }
+
     ov::Tensor temb_tensor = m_preprocess_infer_request.get_tensor("temb");
     ov::Tensor ppf_tensor = m_preprocess_infer_request.get_tensor("ppf");
     ov::Tensor pph_tensor = m_preprocess_infer_request.get_tensor("pph");
@@ -139,15 +158,16 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 
     // Splitted models
     for (size_t i = 0; i < m_infer_requests.size(); ++i) {
-
+        m_infer_requests[i].set_output_tensor(0, hidden_states_tensor);
         m_infer_requests[i].set_tensor("hidden_states", hidden_states_tensor);
         m_infer_requests[i].set_tensor("text_embeds", text_embeds_tensor);
         m_infer_requests[i].set_tensor("timestep_proj", timestep_proj_tensor);
         m_infer_requests[i].set_tensor("rotary_cos", rotary_cos_tensor);
         m_infer_requests[i].set_tensor("rotary_sin", rotary_sin_tensor);
         m_infer_requests[i].infer();
-        hidden_states_tensor = m_infer_requests[i].get_output_tensor();
     }
+
+    GENAI_INFO(" - CSplittedModelInfer: hidden_states_tensor is remote tensor: " + std::to_string(hidden_states_tensor.is<ov::RemoteTensor>()));
 
     // Postprocess
     m_postprocess_infer_request.set_tensor("hidden_states", hidden_states_tensor);

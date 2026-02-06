@@ -46,6 +46,7 @@ private:
     ov::RemoteContext m_context;
 #endif
 
+    ov::Tensor convert_to_remote_tensor(const ov::Tensor& tensor);
 public:
     ~CSplittedModelInfer();
     using PTR = std::shared_ptr<CSplittedModelInfer>;
