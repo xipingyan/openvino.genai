@@ -12,10 +12,15 @@
 
 namespace ov::genai::module::thread_utils {
 
-#ifndef DISABLE_THREAD
-#define DISABLE_THREAD 1
+#ifndef ENABLE_DYNAMIC_MODEL_WEIGHTS
+#    define ENABLE_DYNAMIC_MODEL_WEIGHTS 1
 #endif
 
+#ifndef DISABLE_THREAD
+#    define DISABLE_THREAD 1  // Current mulitple threads may cause GPU crash.
+#endif
+
+#if ENABLE_DYNAMIC_MODEL_WEIGHTS
 inline std::future<bool> load_model_weights_async(ov::CompiledModel& compiled_model, ov::InferRequest& infer_request) {
 #if DISABLE_THREAD
     PROFILE(pm, "load_model_weights sync");
@@ -50,5 +55,18 @@ inline std::future<bool> release_model_weights_async(ov::CompiledModel& compiled
     return std::async(std::launch::async, load_fun);
 #endif
 }
+#else
+inline std::future<bool> load_model_weights_async(ov::CompiledModel& compiled_model, ov::InferRequest& infer_request) {
+    return std::async(std::launch::deferred, []() -> bool {
+        return true;
+    });
+}
+inline std::future<bool> release_model_weights_async(ov::CompiledModel& compiled_model,
+                                                     ov::InferRequest& infer_request) {
+    return std::async(std::launch::deferred, []() -> bool {
+        return true;
+    });
+}
+#endif
 
 }  // namespace ov::genai::module::thread_utils
