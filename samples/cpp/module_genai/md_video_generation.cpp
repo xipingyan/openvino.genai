@@ -33,7 +33,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
         const std::string param_name = entry["name"].as<std::string>();
         const std::string param_type = entry["type"].as<std::string>();
 
-        if (param_type == "String" && utils::contains_key (param_name, {"prompt"})) {
+        if (param_type == "String" && utils::contains_key(param_name, {"prompt"})) {
             if (prompt.empty()) {
                 throw std::runtime_error("Prompt string is empty.");
             }
@@ -41,13 +41,13 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "String" && utils::contains_key (param_name, {"negative_prompt"})) {
+        if (param_type == "String" && utils::contains_key(param_name, {"negative_prompt"})) {
             // negative_prompt is optional
             inputs[param_name] = negative_prompt;
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"width"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"width"})) {
             if (width.empty()) {
                 throw std::runtime_error("Width is empty.");
             }
@@ -55,7 +55,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"height"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"height"})) {
             if (height.empty()) {
                 throw std::runtime_error("Height is empty.");
             }
@@ -63,7 +63,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"num_frames"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"num_frames"})) {
             if (num_frames.empty()) {
                 throw std::runtime_error("Number of frames is empty.");
             }
@@ -71,7 +71,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"num_inference_steps"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"num_inference_steps"})) {
             if (num_inference_steps.empty()) {
                 throw std::runtime_error("Number of inference steps is empty.");
             }
@@ -79,7 +79,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Float" && utils::contains_key (param_name, {"guidance_scale", "guidance"})) {
+        if (param_type == "Float" && utils::contains_key(param_name, {"guidance_scale", "guidance"})) {
             if (guidance_scale.empty()) {
                 throw std::runtime_error("Guidance scale is empty.");
             }
@@ -87,7 +87,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"max_sequence_length", "max_seq_len"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"max_sequence_length", "max_seq_len"})) {
             if (max_sequence_length.empty()) {
                 throw std::runtime_error("Max sequence length is empty.");
             }
@@ -95,7 +95,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"batch_size"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"batch_size"})) {
             if (batch_size.empty()) {
                 throw std::runtime_error("Batch size is empty.");
             }
@@ -104,7 +104,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
         }
 
         // In Python sample, it's called num_videos_per_prompt but ParameterModule uses num_images_per_prompt
-        if (param_type == "Int" && utils::contains_key (param_name, {"num_images_per_prompt", "num_videos_per_prompt"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"num_images_per_prompt", "num_videos_per_prompt"})) {
             if (num_videos_per_prompt.empty()) {
                 throw std::runtime_error("num_videos_per_prompt is empty.");
             }
@@ -112,7 +112,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contains_key (param_name, {"seed"})) {
+        if (param_type == "Int" && utils::contains_key(param_name, {"seed"})) {
             if (seed.empty()) {
                 throw std::runtime_error("Seed is empty.");
             }

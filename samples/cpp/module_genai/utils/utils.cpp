@@ -65,7 +65,7 @@ YAML::Node find_param_module_in_yaml(const std::filesystem::path& cfg_yaml_path)
     throw std::runtime_error("Could not find ParameterModule in config YAML.");
 }
 
-bool contains_key (const std::string& name, const std::vector<std::string>& keys) {
+bool contains_key(const std::string& name, const std::vector<std::string>& keys) {
     for (const auto& key : keys) {
         if (name.find(key) != std::string::npos) {
             return true;
