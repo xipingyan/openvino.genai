@@ -127,12 +127,6 @@ void DenoiserLoopModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
 
-    // std::future<bool> future;
-    // {
-    //     PROFILE(pm, "load_model_weights_async");
-    //     future = thread_utils::load_model_weights_async(m_compiled_model);
-    // }
-
     std::vector<ov::Tensor> prompt_embeds;
     std::vector<ov::Tensor> negative_prompt_embeds;
     ov::Tensor latents;
