@@ -3,17 +3,20 @@
 
 #pragma once
 
-#include <future>
 #include <chrono>
+#include <future>
 #include <thread>
+
 #include "openvino/runtime/compiled_model.hpp"
+#include "profiler.hpp"
 
 namespace ov::genai::module::thread_utils {
 
-inline std::future<bool> load_model_weights_async(ov::CompiledModel& compiled_model) {
+inline std::future<bool> load_model_weights_async(ov::CompiledModel& compiled_model, ov::InferRequest& infer_request) {
     auto load_fun = [&]() -> bool {
-        // compiled_model.load_model_weights();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        PROFILE(pm, "load_model_weights");
+        compiled_model.load_model_weights();
+        infer_request = compiled_model.create_infer_request();
         return true;
     };
     return std::async(std::launch::async, load_fun);
@@ -23,10 +26,11 @@ inline void load_model_weights_finish(std::future<bool>& result_future) {
     result_future.get();
 }
 
-inline std::future<bool> release_model_weights_async(ov::CompiledModel& compiled_model) {
+inline std::future<bool> release_model_weights_async(ov::CompiledModel& compiled_model, ov::InferRequest& infer_request) {
     auto load_fun = [&]() -> bool {
-        // compiled_model.release_model_weights();
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        PROFILE(pm, "release_model_weights");
+        compiled_model.release_model_weights();
+        infer_request = ov::InferRequest();  // reset infer request to release the reference to the model weights
         return true;
     };
     return std::async(std::launch::async, load_fun);

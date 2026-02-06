@@ -2,6 +2,7 @@
 
 #include <regex>
 #include "logger.hpp"
+#include "module_genai/utils/thread_helper.hpp"
 
 namespace ov::genai::module {
 
@@ -12,9 +13,14 @@ CSplittedModelInfer::CSplittedModelInfer(const std::string& model_path,
     : m_dynamic_load_model_weights(dynamic_load_model_weights),
       m_is_gpu(device.find("GPU") != std::string::npos || device.find("gpu") != std::string::npos),
       m_properties(properties) {
+    if (m_dynamic_load_model_weights) {
+        OPENVINO_ASSERT(m_is_gpu, "Dynamic loading of model weights is currently only supported for GPU device.");
+        m_properties[ov::weights_path.name()] = std::filesystem::path(model_path).replace_extension(".bin").string();
+    }
+
     // parse all splitted model paths, model_path is the directory that contains all splitted models
     get_splitted_model_paths(model_path, device);
-    load_model(model_path, properties, device);
+    load_model(model_path, m_properties, device);
 }
 
 void CSplittedModelInfer::get_splitted_model_paths(const std::string& model_path, const std::string& device) {
@@ -99,7 +105,12 @@ void CSplittedModelInfer::load_model(const std::string& model_path, const ov::An
     for (const auto& path : m_splitted_model_paths) {
         auto model = utils::singleton_core().read_model(path);
         if (m_is_gpu) {
-            m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_context, properties));
+            auto cm = utils::singleton_core().compile_model(model, m_context, properties);
+            if (m_dynamic_load_model_weights) {
+                // Release model weights after compilation to save GPU memory. Load weights again in infer() when weights are needed.
+                cm.release_model_weights();
+            }
+            m_compiled_models.push_back(cm);
         } else {
             m_compiled_models.push_back(utils::singleton_core().compile_model(model, device, properties));
         }
@@ -128,6 +139,15 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 
     m_full_infer_request.infer();
 #else
+    int num_splitted_models = static_cast<int>(m_compiled_models.size());
+    OPENVINO_ASSERT(num_splitted_models > 1,
+                    "Splitted models should be at least 2, but got " + std::to_string(num_splitted_models));
+
+    std::future<bool> future_flag;
+    if (m_dynamic_load_model_weights) {
+        future_flag = std::move(thread_utils::load_model_weights_async(m_compiled_models[0], m_infer_requests[0]));
+    }
+
     // Preprocess
     for (const auto& input : inputs) {
         m_preprocess_infer_request.set_tensor(input.first, input.second.as<ov::Tensor>());
@@ -155,14 +175,33 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     ov::Tensor ppw_tensor = m_preprocess_infer_request.get_tensor("ppw");
 
     // Splitted models
-    for (size_t i = 0; i < m_infer_requests.size(); ++i) {
+    std::future<bool> next_future_flag;
+    for (int i = 0; i < num_splitted_models; ++i) {
+        PROFILE(pm, "splitted_model_infer_" + std::to_string(i));
+        if (m_dynamic_load_model_weights) {
+            if (i + 1 < num_splitted_models) {
+                next_future_flag =
+                    thread_utils::load_model_weights_async(m_compiled_models[i + 1], m_infer_requests[i + 1]);
+            }
+            if (future_flag.valid())
+                future_flag.wait();
+            m_infer_requests[i] = m_compiled_models[i].create_infer_request();
+        }
+
         m_infer_requests[i].set_output_tensor(0, hidden_states_tensor);
         m_infer_requests[i].set_tensor("hidden_states", hidden_states_tensor);
         m_infer_requests[i].set_tensor("text_embeds", text_embeds_tensor);
         m_infer_requests[i].set_tensor("timestep_proj", timestep_proj_tensor);
         m_infer_requests[i].set_tensor("rotary_cos", rotary_cos_tensor);
         m_infer_requests[i].set_tensor("rotary_sin", rotary_sin_tensor);
-        m_infer_requests[i].infer();
+        {
+            PROFILE(pmi, "infer");
+            m_infer_requests[i].infer();
+        }
+        if (m_dynamic_load_model_weights) {
+            thread_utils::release_model_weights_async(m_compiled_models[i], m_infer_requests[i]);
+        }
+        future_flag = std::move(next_future_flag);
     }
 
     GENAI_DEBUG("hidden_states_tensor is remote tensor: " + std::to_string(hidden_states_tensor.is<ov::RemoteTensor>()));

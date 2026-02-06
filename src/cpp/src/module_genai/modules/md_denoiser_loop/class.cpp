@@ -52,8 +52,9 @@ void DenoiserLoopModule::print_static_config() {
         type: "OVTensor"                                   # Support DataType: [OVTensor]
     params:
       model_path: "model"
-      splitted_model: "bool value"    # [Optional], default false.
-      cache_dir: "./cache_dir_transformer/"  # [Optional], default is empty string.
+      splitted_model: "bool value"          # [Optional], default false.
+      cache_dir: "./cache_dir_transformer/" # [Optional], default is empty string. But `splitted_model` and `dynamic_load_weights` depend on it.
+      dynamic_load_weights: "bool value"    # [Optional], default true. Whether to dynamically load/release model weights during inference to save GPU memory.
     )" << std::endl;
 }
 
@@ -81,6 +82,8 @@ bool DenoiserLoopModule::initialize() {
     }
 
     check_splitted_model();
+
+    m_dynamic_load_weights = check_bool_param("dynamic_load_weights", false);
 
     std::filesystem::path model_path = module_desc->get_full_path(it_path->second);
     auto transformer_model_path = model_path / "transformer/openvino_model.xml";
