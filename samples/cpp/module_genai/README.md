@@ -63,7 +63,7 @@ cd openvino.genai
 
 ## Video generation
 
-This sample runs a Video Generation pipeline (e.g. Z-Image) using a ModulePipeline config YAML.
+This sample runs a Video Generation pipeline (e.g. Wan2.1-T2V-1.3B) using a ModulePipeline config YAML.
 
 <details>
 	<summary>Command</summary>
