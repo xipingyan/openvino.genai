@@ -74,6 +74,7 @@ bool ClipTextEncoderModule::initialize() {
         GENAI_ERR("ClipTextEncoderModule[" + module_desc->name + "]: 'model_path' not found in params")
         return false;
     }
+    std::filesystem::path root_dir = module_desc->get_full_path(it_path->second);
 
     check_dynamic_load_weights();
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
