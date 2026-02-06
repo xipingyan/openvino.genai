@@ -22,12 +22,11 @@ private:
                         const ov::AnyMap& properties = {});
 
     bool m_dynamic_load_model_weights;
-    std::string m_device;
     bool m_is_gpu = false;
     ov::AnyMap m_properties;
 
-    void get_splitted_model_paths(const std::string& model_path);
-    void load_model(const std::string& model_path, const ov::AnyMap& properties);
+    void get_splitted_model_paths(const std::string& model_path, const std::string& device);
+    void load_model(const std::string& model_path, const ov::AnyMap& properties, const std::string& device);
 
     std::vector<std::string> m_splitted_model_paths;
     std::string m_preprocess_model_path;
