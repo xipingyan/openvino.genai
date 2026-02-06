@@ -15,9 +15,7 @@ CSplittedModelInfer::CSplittedModelInfer(const std::string& model_path,
       m_properties(properties) {
     if (m_dynamic_load_model_weights) {
         OPENVINO_ASSERT(m_is_gpu, "Dynamic loading of model weights is currently only supported for GPU device.");
-        m_properties[ov::weights_path.name()] = std::filesystem::path(model_path).replace_extension(".bin").string();
     }
-
     // parse all splitted model paths, model_path is the directory that contains all splitted models
     get_splitted_model_paths(model_path, device);
     load_model(model_path, m_properties, device);
@@ -102,17 +100,22 @@ void CSplittedModelInfer::load_model(const std::string& model_path, const ov::An
         m_postprocess_infer_request = m_postprocess_compiled_model.create_infer_request();
     }
 
+    auto properties_splitted_model = properties;
     for (const auto& path : m_splitted_model_paths) {
         auto model = utils::singleton_core().read_model(path);
         if (m_is_gpu) {
-            auto cm = utils::singleton_core().compile_model(model, m_context, properties);
             if (m_dynamic_load_model_weights) {
-                // Release model weights after compilation to save GPU memory. Load weights again in infer() when weights are needed.
+                properties_splitted_model[ov::weights_path.name()] = std::filesystem::path(path).replace_extension(".bin").string();
+                auto cm = utils::singleton_core().compile_model(model, m_context, properties_splitted_model);
+                // Release model weights after compilation to save GPU memory. Load weights again in infer() when
+                // weights are needed.
                 cm.release_model_weights();
+                m_compiled_models.push_back(std::move(cm));
+            } else {
+                m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_context, properties_splitted_model));
             }
-            m_compiled_models.push_back(cm);
         } else {
-            m_compiled_models.push_back(utils::singleton_core().compile_model(model, device, properties));
+            m_compiled_models.push_back(utils::singleton_core().compile_model(model, device, properties_splitted_model));
         }
         m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
     }
@@ -185,7 +188,6 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
             }
             if (future_flag.valid())
                 future_flag.wait();
-            m_infer_requests[i] = m_compiled_models[i].create_infer_request();
         }
 
         m_infer_requests[i].set_output_tensor(0, hidden_states_tensor);
