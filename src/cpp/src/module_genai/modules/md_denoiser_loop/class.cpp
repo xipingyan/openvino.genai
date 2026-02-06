@@ -94,7 +94,7 @@ bool DenoiserLoopModule::initialize() {
         if (m_splitted_model) {
             transformer_model_path = model_path / "transformer_splitted/";
         }
-        GENAI_INFO("Module: " + module_desc->name + ", transformer_model_path: " + transformer_model_path.string());
+        GENAI_INFO("Module[" + module_desc->name + "]: transformer_model_path: " + transformer_model_path.string());
     } else {
         OPENVINO_THROW("Unsupported '", module_desc->model_type, "' Transformer model type");
     }

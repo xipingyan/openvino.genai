@@ -10,28 +10,6 @@
 
 namespace {
 
-std::string any_to_string(const ov::Any& value) {
-    if (value.is<std::string>()) {
-        return value.as<std::string>();
-    }
-    if (value.is<int>()) {
-        return std::to_string(value.as<int>());
-    }
-    if (value.is<int64_t>()) {
-        return std::to_string(value.as<int64_t>());
-    }
-    if (value.is<float>()) {
-        return std::to_string(value.as<float>());
-    }
-    if (value.is<double>()) {
-        return std::to_string(value.as<double>());
-    }
-    if (value.is<bool>()) {
-        return value.as<bool>() ? "true" : "false";
-    }
-    return "<unsupported>";
-}
-
 inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::filesystem::path& cfg_yaml_path,
                                                                   const std::string& prompt,
                                                                   const std::string& negative_prompt,
@@ -203,7 +181,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "Final pipeline inputs:" << std::endl;
         for (const auto& [key, value] : inputs) {
-            std::cout << "  - " << key << ": " << any_to_string(value) << std::endl;
+            std::cout << "  - " << key << ": " << utils::any_to_string(value) << std::endl;
         }
 
         ov::genai::module::ModulePipeline pipe(config_path);

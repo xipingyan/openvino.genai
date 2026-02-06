@@ -1,6 +1,31 @@
 global_context:
   model_type: wan2.1
 pipeline_modules:
+  pipeline_params:
+    outputs:
+      - name: prompt
+        type: String
+      - name: negative_prompt
+        type: String
+      - name: width
+        type: Int
+      - name: height
+        type: Int
+      - name: batch_size
+        type: Int
+      - name: num_images_per_prompt
+        type: Int
+      - name: seed
+        type: Int
+      - name: num_frames
+        type: Int
+      - name: guidance_scale
+        type: Float
+      - name: num_inference_steps
+        type: Int
+      - name: max_sequence_length
+        type: Int
+    type: ParameterModule
   clip_text_encoder:
     device: CPU
     inputs:
@@ -81,37 +106,6 @@ pipeline_modules:
     params:
       model_path: tests/module_genai/cpp/test_models/Wan2.1-T2V-1.3B-Diffusers
     type: RandomLatentImageModule
-  pipeline_params:
-    outputs:
-      - name: prompt
-        type: String
-      - name: negative_prompt
-        type: String
-      - name: width
-        type: Int
-      - name: height
-        type: Int
-      - name: batch_size
-        type: Int
-      - name: num_images_per_prompt
-        type: Int
-      - name: seed
-        type: Int
-      - name: num_frames
-        type: Int
-      - name: guidance_scale
-        type: Float
-      - name: num_inference_steps
-        type: Int
-      - name: max_sequence_length
-        type: Int
-    type: ParameterModule
-  pipeline_result:
-    inputs:
-      - name: saved_video
-        source: video_saver.saved_video
-        type: String
-    type: ResultModule
   vae_decoder:
     device: GPU
     inputs:
@@ -138,3 +132,9 @@ pipeline_modules:
     params:
       fps: 10
     type: SaveVideoModule
+  pipeline_result:
+    inputs:
+      - name: saved_video
+        source: video_saver.saved_video
+        type: String
+    type: ResultModule

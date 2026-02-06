@@ -1,18 +1,24 @@
 
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
+#include <yaml-cpp/yaml.h>
+
 #include <filesystem>
+#include <openvino/openvino.hpp>
 #include <string>
 #include <vector>
 
-#include <yaml-cpp/yaml.h>
-
 namespace utils {
 
-std::string get_input_arg(int argc, char* argv[], const std::string& key, const std::string& default_value = std::string());
+std::string get_input_arg(int argc,
+                          char* argv[],
+                          const std::string& key,
+                          const std::string& default_value = std::string());
+
+std::string any_to_string(const ov::Any& value);
 
 bool readFileToString(const std::string& filename, std::string& content);
 
