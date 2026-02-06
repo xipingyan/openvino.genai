@@ -23,6 +23,7 @@ private:
 
     bool m_dynamic_load_model_weights;
     std::string m_device;
+    bool m_is_gpu = false;
     ov::AnyMap m_properties;
 
     void get_splitted_model_paths(const std::string& model_path);
@@ -42,6 +43,7 @@ private:
     ov::InferRequest m_preprocess_infer_request;
     ov::CompiledModel m_postprocess_compiled_model;
     ov::InferRequest m_postprocess_infer_request;
+    ov::RemoteContext m_context;
 #endif
 
 public:

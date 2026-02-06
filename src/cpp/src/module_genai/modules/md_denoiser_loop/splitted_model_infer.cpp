@@ -11,6 +11,7 @@ CSplittedModelInfer::CSplittedModelInfer(const std::string& model_path,
     : m_dynamic_load_model_weights(dynamic_load_model_weights),
       m_device(device),
       m_properties(properties) {
+    m_is_gpu = device.find("GPU") != std::string::npos || device.find("gpu") != std::string::npos;
     // parse all splitted model paths, model_path is the directory that contains all splitted models
     get_splitted_model_paths(model_path);
 
@@ -76,21 +77,34 @@ void CSplittedModelInfer::get_splitted_model_paths(const std::string& model_path
 void CSplittedModelInfer::load_model(const std::string& model_path, const ov::AnyMap& properties) {
 #if USE_FULL_MODEL
 #else
-    for (const auto& path : m_splitted_model_paths) {
-        auto model = utils::singleton_core().read_model(path);
-        m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_device, properties));
-        m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
-    }
-
     {
         auto model = utils::singleton_core().read_model(m_preprocess_model_path);
         m_preprocess_compiled_model = utils::singleton_core().compile_model(model, m_device, properties);
+        if (m_is_gpu) {
+            // For GPU, all infer requests must share the same context to share weights.
+            m_context = m_preprocess_compiled_model.get_context();
+        }
         m_preprocess_infer_request = m_preprocess_compiled_model.create_infer_request();
     }
     {
         auto model = utils::singleton_core().read_model(m_postprocess_model_path);
-        m_postprocess_compiled_model = utils::singleton_core().compile_model(model, m_device, properties);
+        if (m_is_gpu) {
+            // For GPU, all infer requests must share the same context to share weights.
+            m_postprocess_compiled_model = utils::singleton_core().compile_model(model, m_context, properties);
+        } else {
+            m_postprocess_compiled_model = utils::singleton_core().compile_model(model, m_device, properties);
+        }
         m_postprocess_infer_request = m_postprocess_compiled_model.create_infer_request();
+    }
+
+    for (const auto& path : m_splitted_model_paths) {
+        auto model = utils::singleton_core().read_model(path);
+        if (m_is_gpu) {
+            m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_context, properties));
+        } else {
+            m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_device, properties));
+        }
+        m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
     }
 #endif
 }
@@ -125,6 +139,7 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 
     // Splitted models
     for (size_t i = 0; i < m_infer_requests.size(); ++i) {
+
         m_infer_requests[i].set_tensor("hidden_states", hidden_states_tensor);
         m_infer_requests[i].set_tensor("text_embeds", text_embeds_tensor);
         m_infer_requests[i].set_tensor("timestep_proj", timestep_proj_tensor);
