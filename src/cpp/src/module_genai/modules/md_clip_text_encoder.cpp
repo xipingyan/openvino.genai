@@ -76,7 +76,6 @@ bool ClipTextEncoderModule::initialize() {
     }
 
     check_dynamic_load_weights();
-    std::filesystem::path root_dir = module_desc->get_full_path(it_path->second);
     std::string device = module_desc->device.empty() ? "CPU" : module_desc->device;
 
     // Determine text encoder XML path
