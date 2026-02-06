@@ -9,6 +9,7 @@
 
 #include "json_utils.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
+#include "module_genai/utils/blend_utils.hpp"
 #include "utils.hpp"
 
 #include "openvino/op/matmul.hpp"
@@ -194,7 +195,7 @@ void VAEDecoderTilingModule::run() {
         if (m_enable_tiling &&
             (cur_latent.get_shape()[3] > m_tile_latent_min_size || cur_latent.get_shape()[2] > m_tile_latent_min_size)) {
             // Tiling decode
-            tile_decode(cur_latent, output_latent);
+            tile_decode_4d(cur_latent, output_latent);
         } else {
             // Non-tiling decode
             GENAI_WARN("VAEDecoderTilingModule[" + module_desc->name + "]: Latent size w,h [" +
@@ -246,7 +247,7 @@ ov::Tensor VAEDecoderTilingModule::decoder(const ov::Tensor& tile) {
     return ov::Tensor();
 }
 
-void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& output_latent) {
+void VAEDecoderTilingModule::tile_decode_4d(const ov::Tensor& latent, ov::Tensor& output_latent) {
     // Tiling decode implementation
     size_t overlap_size = m_tile_latent_min_size * (1 - m_tile_overlap_factor);
     size_t blend_extent = m_tile_sample_min_size * m_tile_overlap_factor;
@@ -283,10 +284,10 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
         for (size_t j = 0; j < rows[i].size(); ++j) {
             ov::Tensor tile = rows[i][j];
             if (i > 0) {
-                tile = blend_v(rows[i - 1][j], tile, blend_extent);
+                blend_utils::blend_v_4d(rows[i - 1][j], tile, blend_extent);
             }
             if (j > 0) {
-                tile = blend_h(rows[i][j - 1], tile, blend_extent);
+                blend_utils::blend_h_4d(rows[i][j - 1], tile, blend_extent);
             }
             const auto dst_shape = tile.get_shape();
             result_row.push_back(tensor_utils::slice_tensor(
@@ -301,93 +302,6 @@ void VAEDecoderTilingModule::tile_decode(const ov::Tensor& latent, ov::Tensor& o
     output_latent = tensor_utils::concat_tensors(result_rows, 2);
 }
 
-ov::Tensor VAEDecoderTilingModule::blend_v(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
-    auto shape1 = tile1.get_shape();
-    auto shape2 = tile2.get_shape();
-
-    blend_extent = std::min({(size_t)shape1[2], (size_t)shape2[2], blend_extent});
-
-    if (blend_extent == 0)
-        return tile2;
-
-    size_t N = shape2[0];
-    size_t C = shape2[1];
-    size_t H = shape2[2];
-    size_t W = shape2[3];
-
-    float* ptr1 = tile1.data<float>();
-    float* ptr2 = tile2.data<float>();
-
-    size_t channel_stride_1 = shape1[2] * shape1[3];
-    size_t channel_stride_2 = H * W;
-    size_t batch_stride_1 = C * channel_stride_1;
-    size_t batch_stride_2 = C * channel_stride_2;
-
-    for (size_t n = 0; n < N; ++n) {
-        for (size_t c = 0; c < C; ++c) {
-            for (size_t y = 0; y < blend_extent; ++y) {
-                float weight_b = (float)y / blend_extent;
-                float weight_a = 1.0f - weight_b;
-
-                // Python: a[:, :, -blend_extent + y, :]
-                size_t idx1 = n * batch_stride_1 + c * channel_stride_1 + (shape1[2] - blend_extent + y) * W;
-
-                // Python: b[:, :, y, :]
-                size_t idx2 = n * batch_stride_2 + c * channel_stride_2 + y * W;
-
-                for (size_t x = 0; x < W; ++x) {
-                    ptr2[idx2 + x] = ptr1[idx1 + x] * weight_a + ptr2[idx2 + x] * weight_b;
-                }
-            }
-        }
-    }
-
-    return tile2;
-}
-
-ov::Tensor VAEDecoderTilingModule::blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent) {
-    auto shape1 = tile1.get_shape();
-    auto shape2 = tile2.get_shape();
-
-    blend_extent = std::min({(size_t)shape1[3], (size_t)shape2[3], blend_extent});
-
-    if (blend_extent == 0)
-        return tile2;
-
-    size_t N = shape2[0];
-    size_t C = shape2[1];
-    size_t H = shape2[2];
-    size_t W = shape2[3];
-    size_t W1 = shape1[3];  // tile1 width, calc offset
-
-    float* ptr1 = tile1.data<float>();
-    float* ptr2 = tile2.data<float>();
-
-    size_t channel_stride1 = H * W1;
-    size_t batch_stride1 = C * channel_stride1;
-    size_t channel_stride2 = H * W;
-    size_t batch_stride2 = C * channel_stride2;
-
-    for (size_t n = 0; n < N; ++n) {
-        for (size_t c = 0; c < C; ++c) {
-            for (size_t y = 0; y < H; ++y) {
-                // ptr1 take last blend_extent columns, index offset is W1 - blend_extent
-                size_t row_offset1 = n * batch_stride1 + c * channel_stride1 + y * W1 + (W1 - blend_extent);
-                // ptr2 take first blend_extent columns, index offset is 0
-                size_t row_offset2 = n * batch_stride2 + c * channel_stride2 + y * W;
-
-                for (size_t x = 0; x < blend_extent; ++x) {
-                    float weight_b = (float)x / blend_extent;
-                    float weight_a = 1.0f - weight_b;
-
-                    ptr2[row_offset2 + x] = ptr1[row_offset1 + x] * weight_a + ptr2[row_offset2 + x] * weight_b;
-                }
-            }
-        }
-    }
-
-    return tile2;
-}
 
 }  // namespace module
 }  // namespace genai

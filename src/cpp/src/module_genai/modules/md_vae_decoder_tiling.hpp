@@ -35,10 +35,9 @@ private:
     bool m_enable_tiling = true;
     InferRequest m_slice_infer_request;
 
-    void tile_decode(const ov::Tensor& latent, ov::Tensor& output_latent);
+    // 4D tiling (images)
+    void tile_decode_4d(const ov::Tensor& latent, ov::Tensor& output_latent);
     ov::Tensor decoder(const ov::Tensor& tile);
-    ov::Tensor blend_v(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent);
-    ov::Tensor blend_h(ov::Tensor& tile1, ov::Tensor& tile2, size_t blend_extent);
 };
 
 }  // namespace module
