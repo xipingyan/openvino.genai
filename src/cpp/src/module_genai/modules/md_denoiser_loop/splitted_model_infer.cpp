@@ -67,9 +67,10 @@ void CSplittedModelInfer::get_splitted_model_paths(const std::string& model_path
     OPENVINO_ASSERT(!m_splitted_model_paths.empty(), "No splitted models found in " + model_path);
     OPENVINO_ASSERT(
         m_splitted_model_paths.size() >= 2,
-        "At least two splitted models are required. Found only " + std::to_string(m_splitted_model_paths.size()));
+        "At least two partition models are required (excluding preprocessing/postprocessing models). Found only " +
+            std::to_string(m_splitted_model_paths.size()) + " partition models.");
     OPENVINO_ASSERT(!m_preprocess_model_path.empty() && !m_postprocess_model_path.empty(),
-                    "Preprocess and postprocess models are required.");
+                    "Both preprocessing (_preprocess.xml) and postprocessing (_postprocess.xml) models are required.");
 }
 
 void CSplittedModelInfer::load_model(const std::string& model_path, const ov::AnyMap& properties) {
