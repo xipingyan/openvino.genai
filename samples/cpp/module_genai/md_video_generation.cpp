@@ -47,7 +47,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contain_key(param_name, {"width", "w"})) {
+        if (param_type == "Int" && utils::contain_key(param_name, {"width"})) {
             if (width.empty()) {
                 throw std::runtime_error("Width is empty.");
             }
@@ -55,7 +55,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contain_key(param_name, {"height", "h"})) {
+        if (param_type == "Int" && utils::contain_key(param_name, {"height"})) {
             if (height.empty()) {
                 throw std::runtime_error("Height is empty.");
             }
@@ -71,7 +71,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
             continue;
         }
 
-        if (param_type == "Int" && utils::contain_key(param_name, {"num_inference_steps", "steps"})) {
+        if (param_type == "Int" && utils::contain_key(param_name, {"num_inference_steps"})) {
             if (num_inference_steps.empty()) {
                 throw std::runtime_error("Number of inference steps is empty.");
             }
