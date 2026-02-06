@@ -17,7 +17,7 @@ namespace ov::genai::module::thread_utils {
 #endif
 
 #ifndef DISABLE_THREAD
-#    define DISABLE_THREAD 1  // Current mulitple threads may cause GPU crash.
+#    define DISABLE_THREAD 1  // Current multiple threads may cause GPU crash.
 #endif
 
 #if ENABLE_DYNAMIC_MODEL_WEIGHTS
