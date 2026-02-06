@@ -111,6 +111,7 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     }
     m_preprocess_infer_request.infer();
 
+    // The "tokens" tensor produced by the preprocess stage is used as the initial hidden_states.
     ov::Tensor hidden_states_tensor = m_preprocess_infer_request.get_tensor("tokens");
     ov::Tensor text_embeds_tensor = m_preprocess_infer_request.get_tensor("text_embeds");      // [-1,-1,1536]
     ov::Tensor timestep_proj_tensor = m_preprocess_infer_request.get_tensor("timestep_proj");  // [-1,6,1536]
