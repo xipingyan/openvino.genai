@@ -196,10 +196,6 @@ void DenoiserLoopModule::run() {
         this->outputs["latents"].data = run(latents, prompt_embeds, negative_prompt_embeds, num_inference_steps, guidance_scale);
     }
 
-    // {
-    //     PROFILE(pm, "load_model_weights_finish");
-    //     thread_utils::load_model_weights_finish(future);
-    // }
 }
 
 // Image generation
