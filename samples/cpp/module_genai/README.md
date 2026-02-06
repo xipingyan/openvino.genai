@@ -76,9 +76,9 @@ export prompt="A cat and a dog baking a cake together in a kitchen. The cat is c
 export neg_prompt="Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
 
 ./build/samples/cpp/module_genai/md_video_generation \
-    -cfg "$cfg" 
-    -prompt "$prompt" 
-    --negative_prompt $neg_prompt 
+    -cfg "$cfg" \
+    -prompt "$prompt" \
+    --negative_prompt $neg_prompt \
     --num_frames 16 --height 128 --width 128 --num_inference_steps 9
 ```
 `Note:` Update **model_path** inside the config YAML if you keep models in a different location.
