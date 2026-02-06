@@ -53,7 +53,6 @@ std::vector<DenoiserLoopTestData> denoiser_loop_test_data() {
     datas.push_back(wan_data);
 
     DenoiserLoopTestData wan_data_splitted_model = wan_data;
-    wan_data_splitted_model.model_path = TEST_MODEL::Wan_2_1();
     wan_data_splitted_model.splitted_model = true;
     datas.push_back(wan_data_splitted_model);
     return datas;
