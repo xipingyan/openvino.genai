@@ -1,7 +1,9 @@
 #include "splitted_model_infer.hpp"
 
 #include <regex>
+
 #include "logger.hpp"
+#include "module_genai/utils/tensor_utils.hpp"
 #include "module_genai/utils/thread_helper.hpp"
 
 namespace ov::genai::module {
@@ -206,7 +208,9 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
         future_flag = std::move(next_future_flag);
     }
 
-    GENAI_DEBUG("hidden_states_tensor is remote tensor: " + std::to_string(hidden_states_tensor.is<ov::RemoteTensor>()));
+    GENAI_DEBUG(
+        "hidden_states_tensor is remote tensor: " + std::to_string(hidden_states_tensor.is<ov::RemoteTensor>()) +
+        ", shape:" + tensor_utils::shape_to_string(hidden_states_tensor.get_shape()));
 
     // Postprocess
     m_postprocess_infer_request.set_tensor("hidden_states", hidden_states_tensor);
