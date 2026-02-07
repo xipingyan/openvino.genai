@@ -115,11 +115,12 @@ void CSplittedModelInfer::load_model(const std::string& model_path, const ov::An
                 m_compiled_models.push_back(std::move(cm));
             } else {
                 m_compiled_models.push_back(utils::singleton_core().compile_model(model, m_context, properties_splitted_model));
+                m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
             }
         } else {
             m_compiled_models.push_back(utils::singleton_core().compile_model(model, device, properties_splitted_model));
+            m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
         }
-        m_infer_requests.push_back(m_compiled_models.back().create_infer_request());
     }
 #endif
 }
@@ -150,7 +151,7 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 
     std::future<bool> future_flag;
     if (m_dynamic_load_model_weights) {
-        future_flag = std::move(thread_utils::load_model_weights_async(m_compiled_models[0], m_infer_requests[0]));
+        future_flag = std::move(thread_utils::load_model_weights_async(m_compiled_models[0]));
     }
 
     // Preprocess
@@ -183,27 +184,32 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     std::future<bool> next_future_flag;
     for (int i = 0; i < num_splitted_models; ++i) {
         PROFILE(pm, "splitted_model_infer_" + std::to_string(i));
+        ov::InferRequest curInferRequest;
         if (m_dynamic_load_model_weights) {
             if (i + 1 < num_splitted_models) {
                 next_future_flag =
-                    thread_utils::load_model_weights_async(m_compiled_models[i + 1], m_infer_requests[i + 1]);
+                    thread_utils::load_model_weights_async(m_compiled_models[i + 1]);
             }
             if (future_flag.valid())
                 future_flag.wait();
+
+            curInferRequest = m_compiled_models[i].create_infer_request();
+        } else {
+            curInferRequest = m_infer_requests[i];
         }
 
-        m_infer_requests[i].set_output_tensor(0, hidden_states_tensor);
-        m_infer_requests[i].set_tensor("hidden_states", hidden_states_tensor);
-        m_infer_requests[i].set_tensor("text_embeds", text_embeds_tensor);
-        m_infer_requests[i].set_tensor("timestep_proj", timestep_proj_tensor);
-        m_infer_requests[i].set_tensor("rotary_cos", rotary_cos_tensor);
-        m_infer_requests[i].set_tensor("rotary_sin", rotary_sin_tensor);
+        curInferRequest.set_output_tensor(0, hidden_states_tensor);
+        curInferRequest.set_tensor("hidden_states", hidden_states_tensor);
+        curInferRequest.set_tensor("text_embeds", text_embeds_tensor);
+        curInferRequest.set_tensor("timestep_proj", timestep_proj_tensor);
+        curInferRequest.set_tensor("rotary_cos", rotary_cos_tensor);
+        curInferRequest.set_tensor("rotary_sin", rotary_sin_tensor);
         {
             PROFILE(pmi, "infer");
-            m_infer_requests[i].infer();
+            curInferRequest.infer();
         }
         if (m_dynamic_load_model_weights) {
-            thread_utils::release_model_weights_async(m_compiled_models[i], m_infer_requests[i]);
+            thread_utils::release_model_weights_async(m_compiled_models[i], std::move(curInferRequest));
         }
         future_flag = std::move(next_future_flag);
     }
