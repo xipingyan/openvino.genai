@@ -54,7 +54,7 @@ void DenoiserLoopModule::print_static_config() {
       model_path: "model"
       splitted_model: "bool value"          # [Optional], default false.
       cache_dir: "./cache_dir_transformer/" # [Optional], default is empty string. But `splitted_model` and `dynamic_load_weights` depend on it.
-      dynamic_load_weights: "bool value"    # [Optional], default true. Whether to dynamically load/release model weights during inference to save GPU memory.
+      dynamic_load_weights: "bool value"    # [Optional], default false. Whether to dynamically load/release model weights during inference to save GPU memory.
     )" << std::endl;
 }
 
