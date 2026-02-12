@@ -138,7 +138,7 @@ protected:
         params["splitted_model"] = m_test_data.splitted_model ? "true" : "false";
         params["dynamic_load_weights"] = m_test_data.dynamic_load_model_weights ? "true" : "false";
         if (m_test_data.dynamic_load_model_weights) {
-            params["cache_dir"] = "./unittset_cache_dir_denoiserloop";
+            params["cache_dir"] = "./unittest_cache_dir_denoiserloop";
         }
         denoiser_loop["params"] = params;
         pipeline_modules["denoiser_loop"] = denoiser_loop;
