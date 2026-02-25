@@ -164,6 +164,15 @@ bool IBaseModule::check_bool_param(const std::string& param_name, const bool& de
     return default_value;
 }
 
+// PipelineDesc implementation
+PipelineDesc::PipelineDesc() : m_resource_cache(std::make_unique<PipelineResourceCache>()) {}
+
+PipelineDesc::~PipelineDesc() = default;
+
+PipelineResourceCache& PipelineDesc::get_resource_cache() {
+    return *m_resource_cache;
+}
+
 }  // namespace module
 }  // namespace genai
 }  // namespace ov
