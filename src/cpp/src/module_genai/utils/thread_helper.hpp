@@ -28,13 +28,13 @@ inline std::future<bool> load_model_weights_async(ov::CompiledModel& compiled_mo
 }
 
 inline std::future<bool> release_model_weights_async(ov::CompiledModel& compiled_model, ov::InferRequest infer_request) {
-    auto load_fun = [&]() -> bool {
+    auto release_fun = [&]() -> bool {
         PROFILE(pm, "release_model_weights async");
         infer_request = ov::InferRequest();  // reset infer request to release the reference to the model weights
         compiled_model.release_model_weights();
         return true;
     };
-    return std::async(std::launch::async, load_fun);
+    return std::async(std::launch::async, release_fun);
 }
 #endif
 
