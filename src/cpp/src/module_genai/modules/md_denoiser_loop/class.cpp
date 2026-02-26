@@ -85,6 +85,11 @@ bool DenoiserLoopModule::initialize() {
 
     m_dynamic_load_weights = check_bool_param("dynamic_load_weights", false);
 
+    check_cache_dir();
+    if (m_dynamic_load_weights && m_cache_dir.empty()) {
+        GENAI_ERR("TransformerModule[" + module_desc->name + "]: 'cache_dir' must be set when 'dynamic_load_weights' is enabled");
+        return false;
+    }
     std::filesystem::path model_path = module_desc->get_full_path(it_path->second);
     auto transformer_model_path = model_path / "transformer/openvino_model.xml";
     if (m_model_type == DiffusionModelType::ZIMAGE) {
