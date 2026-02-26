@@ -119,9 +119,11 @@ void CSplittedModelInfer::load_model(const std::string& model_path,
                 properties_splitted_model[ov::weights_path.name()] =
                     std::filesystem::path(path).replace_extension(".bin").string();
                 auto cm = utils::singleton_core().compile_model(model, m_context, properties_splitted_model);
+#    ifdef ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS
                 // Release model weights after compilation to save GPU memory. Load weights again in infer() when
                 // weights are needed.
                 cm.release_model_weights();
+#    endif
                 m_compiled_models.push_back(std::move(cm));
             } else {
                 m_compiled_models.push_back(
