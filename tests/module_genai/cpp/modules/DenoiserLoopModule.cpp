@@ -95,8 +95,9 @@ public:
         REGISTER_TEST_NAME();
         std::tie(m_test_data, m_device) = GetParam();
 
-        if (m_device != "GPU" && m_test_data.dynamic_load_model_weights) {
-            GTEST_SKIP() << "Skipping test for non-GPU device.";
+        bool is_gpu = m_device.find("GPU") != std::string::npos || m_device.find("gpu") != std::string::npos;
+        if (!is_gpu && m_test_data.dynamic_load_model_weights) {
+            GTEST_SKIP() << "dynamic_load_model_weights is only supported for GPU device.";
         }
     }
 
