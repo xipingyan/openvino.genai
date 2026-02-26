@@ -58,12 +58,13 @@ std::vector<DenoiserLoopTestData> denoiser_loop_test_data() {
     wan_data_splitted_model.splitted_model = true;
     datas.push_back(wan_data_splitted_model);
 
+#ifdef ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS
     // Dynamic load weights for Split model
     DenoiserLoopTestData wan_data_dyn_weights = wan_data;
     wan_data_dyn_weights.splitted_model = true;
     wan_data_dyn_weights.dynamic_load_model_weights = true;
     datas.push_back(wan_data_dyn_weights);
-
+#endif
     return datas;
 }
 
