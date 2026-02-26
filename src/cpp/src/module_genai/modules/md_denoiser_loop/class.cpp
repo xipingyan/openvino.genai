@@ -112,7 +112,6 @@ bool DenoiserLoopModule::initialize() {
     }
 
     auto properties = ov::AnyMap{};
-    check_cache_dir();
     if (!m_cache_dir.empty()) {
         properties["CACHE_DIR"] = m_cache_dir;
     }
