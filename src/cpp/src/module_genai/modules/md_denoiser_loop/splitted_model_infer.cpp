@@ -15,7 +15,7 @@ CSplittedModelInfer::CSplittedModelInfer(const std::string& model_path,
     : m_dynamic_load_model_weights(dynamic_load_model_weights),
       m_is_gpu(device.find("GPU") != std::string::npos || device.find("gpu") != std::string::npos),
       m_properties(properties) {
-#if !ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS
+#ifndef ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS
     OPENVINO_ASSERT(!m_dynamic_load_model_weights,
                     "Dynamic loading of model weights is not enabled in this build. Please set "
                     "ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS to 1 and rebuild.");
