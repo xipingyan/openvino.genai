@@ -241,7 +241,11 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
 #    ifdef ENABLE_DYNAMIC_LOAD_MODEL_WEIGHTS
         if (m_dynamic_load_model_weights) {
 #        if ENABLE_MULTIPLE_THREAD_LOAD_MODEL_WEIGHT
-            thread_utils::release_model_weights_async(m_compiled_models[i], std::move(curInferRequest));
+            auto release_future =
+                thread_utils::release_model_weights_async(m_compiled_models[i], std::move(curInferRequest));
+            if (release_future.valid()) {
+                release_future.wait();
+            }
 #        else
             curInferRequest = ov::InferRequest();  // release infer request before releasing model weights to ensure the
                                                    // model weights can be released successfully.
