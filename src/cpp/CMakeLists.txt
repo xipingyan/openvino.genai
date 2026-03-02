@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+
 list(APPEND SOURCE_FILES "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 
 # Dependencies
@@ -131,6 +132,32 @@ set(TARGET_NAME_OBJ ${TARGET_NAME}_obj)
 
 add_library(${TARGET_NAME_OBJ} OBJECT ${SOURCE_FILES})
 
+target_sources(${TARGET_NAME_OBJ} PRIVATE
+    src/modeling/models/qwen3_5/modeling_qwen3_5_moe.cpp
+    src/modeling/models/qwen3_5/modeling_qwen3_5_text.cpp
+    src/modeling/models/qwen3_5/processing_qwen3_5.cpp
+    src/modeling/builder_context.cpp
+    src/modeling/weights/weight_parameter.cpp
+    src/modeling/weights/quantization_selector.cpp
+    src/modeling/weights/weight_loader.cpp
+    src/modeling/weights/quantization_config.cpp
+    src/modeling/weights/synthetic_weight_source.cpp
+    src/modeling/layers/vocab_embedding.cpp
+    src/modeling/layers/lm_head.cpp
+    src/modeling/layers/rms_norm.cpp
+    src/modeling/layers/layer_norm.cpp
+    src/modeling/ops/context.cpp
+    src/modeling/ops/rope.cpp
+    src/modeling/ops/tensor_ops.cpp
+    src/modeling/ops/kv_cache.cpp
+    src/modeling/ops/nn.cpp
+    src/modeling/ops/tensor.cpp
+    src/modeling/ops/shape.cpp
+    src/modeling/ops/llm.cpp
+    src/modeling/ops/ops.cpp
+    src/modeling/module.cpp
+)
+
 target_include_directories(${TARGET_NAME_OBJ}
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
            "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>"
@@ -153,6 +180,12 @@ endif()
 target_include_directories(${TARGET_NAME_OBJ} SYSTEM PRIVATE "${safetensors.h_SOURCE_DIR}")
 
 target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::runtime openvino::threading nlohmann_json::nlohmann_json minja ${YAML_CPP_TARGET} PRIVATE TBB::tbb)
+
+# modeling/ sources use internal OpenVINO dev-api headers (e.g. openvino/op/linear_attn.hpp)
+# openvino::core::dev exposes src/core/dev_api which contains these headers.
+if(TARGET openvino::core::dev)
+    target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::core::dev)
+endif()
 
 target_compile_features(${TARGET_NAME_OBJ} PRIVATE cxx_std_17)
 
@@ -190,7 +223,7 @@ endif()
 
 target_compile_features(${TARGET_NAME} INTERFACE cxx_std_17)
 
-# Add /bigobj flag for MSVC to handle large object files  
+# Add /bigobj flag for MSVC to handle large object files
 if(MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE "/bigobj")
 endif()
