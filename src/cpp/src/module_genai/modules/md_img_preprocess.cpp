@@ -5,6 +5,7 @@
 
 #include "module_genai/module_factory.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
+#include "model/qwen3_5/qwen3_5preprocessor.hpp"
 
 #include <chrono>
 #include <thread>
@@ -105,7 +106,7 @@ void ImagePreprocessModule::run() {
             this->outputs["source_sizes"].data = sizes_vec;
         } else if (model_type == VLMModelType::QWEN3_5) {
             ov::Tensor images = tensor_utils::stack(images_data, 0);
-            Qwen3_5PreprocessorOutput output = std::get<std::shared_ptr<Qwen3_5Preprocessor>>(encoder_ptr)->preprocess(images);
+            auto output = std::any_cast<Qwen3_5PreprocessorOutput>(std::get<std::shared_ptr<Preprocessor>>(encoder_ptr)->preprocess(images));
             this->outputs["pixel_values"].data = output.pixel_values;
             this->outputs["grid_thw"].data = output.grid_thw;
             this->outputs["pos_embeds"].data = output.pos_embeds;
@@ -120,7 +121,7 @@ void ImagePreprocessModule::run() {
             this->outputs["source_size"].data =
                 std::vector<int>{static_cast<int>(encoded_img.resized_source_size.height), static_cast<int>(encoded_img.resized_source_size.width)};
         } else if (model_type == VLMModelType::QWEN3_5) {
-            Qwen3_5PreprocessorOutput output = std::get<std::shared_ptr<Qwen3_5Preprocessor>>(encoder_ptr)->preprocess(image1_data);
+            auto output = std::any_cast<Qwen3_5PreprocessorOutput>(std::get<std::shared_ptr<Preprocessor>>(encoder_ptr)->preprocess(image1_data));
             this->outputs["pixel_values"].data = output.pixel_values;
             this->outputs["grid_thw"].data = output.grid_thw;
             this->outputs["pos_embeds"].data = output.pos_embeds;
