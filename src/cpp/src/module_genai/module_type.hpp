@@ -31,6 +31,7 @@ namespace module {
         X(LLMInferenceModule, 40) \
         X(DenoiserLoopModule, 41) \
         X(VAEDecoderModule, 42) \
+        X(LLMInferenceSDPAModule, 43) \
         X(ResultModule, 50) \
         X(SaveImageModule, 51) \
         X(SaveVideoModule, 52) \
