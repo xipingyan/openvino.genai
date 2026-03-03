@@ -26,7 +26,7 @@ Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path
     load_pos_embed_weight(model_path);
 }
 
-std::any Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
+Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
     const auto img_shape = images.get_shape();
     if (img_shape.size() != 3 && img_shape.size() != 4) {
         OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C]");
@@ -173,7 +173,7 @@ std::any Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
     auto pos_embeds = build_pos_embeds(grid_thw);
     auto rotary = build_rotary_cos_sin(grid_thw);
 
-    return Qwen3_5PreprocessorOutput{pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
+    return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
 }
 
 void Qwen3_5Preprocessor::load_pos_embed_weight(const std::filesystem::path &model_path) {

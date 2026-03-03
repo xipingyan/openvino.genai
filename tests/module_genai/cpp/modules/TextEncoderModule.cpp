@@ -184,10 +184,10 @@ protected:
                 input_node("image", to_string(DataType::OVTensor), pipeline_params_name + ".image"));
             cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
             cur_node["outputs"].push_back(output_node("pixel_values", to_string(DataType::OVTensor)));
-            cur_node["outputs"].push_back(output_node("grid_thw", to_string(DataType::VecInt)));
-            cur_node["outputs"].push_back(output_node("pos_embeds", to_string(DataType::VecInt)));
-            cur_node["outputs"].push_back(output_node("rotary_cos", to_string(DataType::VecInt)));
-            cur_node["outputs"].push_back(output_node("rotary_sin", to_string(DataType::VecInt)));
+            cur_node["outputs"].push_back(output_node("grid_thw", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("pos_embeds", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("rotary_cos", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("rotary_sin", to_string(DataType::OVTensor)));
             cur_node["params"] = YAML::Node();
             cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5();
             pipeline_modules[image_preprocessor_name] = cur_node;

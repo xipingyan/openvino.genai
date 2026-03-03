@@ -91,6 +91,7 @@ bool TextEncoderModule::initialize() {
         m_merge_length = std::pow(vision_config.spatial_merge_size, 2);
     } else {
         GENAI_ERR("TextEncoderModule[" + module_desc->name + "]: Unsupported model type: " + module_desc->model_type);
+        return false;
     }
     
     return true;

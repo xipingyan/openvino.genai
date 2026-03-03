@@ -9,7 +9,6 @@
 #include <string>
 #include "openvino/runtime/tensor.hpp"
 #include "qwen3_5config.hpp"
-#include "../../preprocessor.hpp"
 
 namespace ov::genai::module {
 
@@ -21,11 +20,11 @@ struct Qwen3_5PreprocessorOutput {
     ov::Tensor rotary_sin;
 };
 
-class Qwen3_5Preprocessor : public Preprocessor {
+class Qwen3_5Preprocessor {
 public:
     explicit Qwen3_5Preprocessor(const std::filesystem::path& model_path);
 
-    std::any preprocess(const ov::Tensor &images) override;
+    Qwen3_5PreprocessorOutput preprocess(const ov::Tensor &images);
 private:
     Qwen3_5VisionPreprocessConfig m_preprocess_config;
     Qwen3_5VisionConfig m_vision_config;
