@@ -5,7 +5,7 @@
 
 #include "module_genai/module_factory.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
-#include "model/qwen3_5/qwen3_5preprocessor.hpp"
+#include "module_genai/modules/model/qwen3_5/qwen3_5preprocessor.hpp"
 
 #include <chrono>
 #include <thread>
@@ -69,8 +69,12 @@ ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, c
 
     _model_type = to_vlm_model_type(desc->model_type);
 
-    _encoder_ptr = VisionEncoder::create(model_path, _model_type, device);
-    OPENVINO_ASSERT(_encoder_ptr != nullptr, "Failed to create VisionEncoder for ImagePreprocessModule: " + desc->name);
+    _vision_preprocess_ptr = VisionPreprocess::create(model_path, _model_type);
+    if (_vision_preprocess_ptr == nullptr) {
+        _encoder_ptr = VisionEncoder::create(model_path, _model_type, device);
+        OPENVINO_ASSERT(_encoder_ptr != nullptr,
+                        "Failed to create VisionEncoder for ImagePreprocessModule: " + desc->name);
+    }
 
     // if (_model_type == VLMModelType::QWEN2_VL || _model_type == VLMModelType::QWEN2_5_VL) {
     //     encoder_ptr = std::make_shared<VisionEncoderQwen2VL>(std::filesystem::path(model_path), device, ov::AnyMap{});
@@ -91,19 +95,18 @@ void ImagePreprocessModule::run_image(const bool& has_image_input, const bool& h
         images_data.push_back(get_input("image").as<ov::Tensor>());
     }
 
-    std::vector<ov::Tensor> output_tensors;
-    std::vector<ImageSize> output_sizes;
-    for (size_t i = 0; i < images_data.size(); ++i) {
-        auto encoded_img = _encoder_ptr->encode(images_data[i], ov::AnyMap{});
-        output_tensors.push_back(encoded_img.resized_source);
-        output_sizes.push_back(encoded_img.resized_source_size);
-    }
-
-    if (_model_type == VLMModelType::QWEN3_5) {
-        // For Qwen 3.5, the vision encoder outputs more tensors for each image, which are used for further image
-        // processing in the model. So we only set batch processed vision output "raw_datas" and "source_sizes" for
-        // "images" input, and set single image output "raw_data" and "source_size" for "image" input.
+    if (_vision_preprocess_ptr) {
+        _vision_preprocess_ptr->preprocess(images_data, {});
+        _vision_preprocess_ptr->result_to_output(this->outputs);
     } else {
+        std::vector<ov::Tensor> output_tensors;
+        std::vector<ImageSize> output_sizes;
+        for (size_t i = 0; i < images_data.size(); ++i) {
+            auto encoded_img = _encoder_ptr->encode(images_data[i], ov::AnyMap{});
+            output_tensors.push_back(encoded_img.resized_source);
+            output_sizes.push_back(encoded_img.resized_source_size);
+        }
+
         if (has_images_input) {
             this->outputs["raw_datas"].data = output_tensors;
             std::vector<std::vector<int>> sizes_vec;
@@ -127,12 +130,11 @@ void ImagePreprocessModule::run_video(const bool& has_video_input, const bool& h
         frames.push_back(get_input("video").as<ov::Tensor>());
     }
 
-    auto encoded_video = _encoder_ptr->encode_frames(frames, ov::AnyMap{});
-    if (_model_type == VLMModelType::QWEN3_5) {
-        // For Qwen 3.5, the vision encoder outputs more tensors for each image, which are used for further image
-        // processing in the model. So we only set batch processed vision output "raw_datas" and "source_sizes" for
-        // "images" input, and set single image output "raw_data" and "source_size" for "image" input.
+    if (_vision_preprocess_ptr) {
+        _vision_preprocess_ptr->preprocess({}, frames);
+        _vision_preprocess_ptr->result_to_output(this->outputs);
     } else {
+        auto encoded_video = _encoder_ptr->encode_frames(frames, ov::AnyMap{});
         this->outputs["raw_datas"].data = encoded_video.video_features;
         this->outputs["resized_source_size"].data = encoded_video.resized_source_size;
         this->outputs["frame_num"].data = encoded_video.frame_num;

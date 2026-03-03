@@ -8,8 +8,10 @@
 
 #include "module_genai/module.hpp"
 #include "module_genai/module_type.hpp"
-#include "model/qwen3_5/qwen3_5preprocessor.hpp"
+#include "module_genai/modules/model/qwen3_5/qwen3_5preprocessor.hpp"
 #include "visual_language/qwen2vl/classes.hpp"
+// include vision_preprocess.hpp
+#include "vision_preprocess.hpp"
 
 namespace ov {
 namespace genai {
@@ -19,6 +21,7 @@ class ImagePreprocessModule : public IBaseModule {
 
 private:
     VLMModelType _model_type;
+    VisionPreprocess::PTR _vision_preprocess_ptr = nullptr;
     VisionEncoder::Ptr _encoder_ptr = nullptr;
     void run_image(const bool& has_image_input, const bool& has_images_input);
     void run_video(const bool& has_video_input, const bool& has_videos_input);
