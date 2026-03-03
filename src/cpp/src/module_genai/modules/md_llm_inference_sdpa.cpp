@@ -1,6 +1,8 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+
 #include "md_llm_inference_sdpa.hpp"
 
 #include "module_genai/module_factory.hpp"
@@ -496,3 +498,5 @@ void LLMInferenceSDPAModule::run() {
 }  // namespace module
 }  // namespace genai
 }  // namespace ov
+
+#endif  // ENABLE_OPENVINO_NEW_ARCH

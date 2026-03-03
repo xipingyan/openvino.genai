@@ -132,31 +132,11 @@ set(TARGET_NAME_OBJ ${TARGET_NAME}_obj)
 
 add_library(${TARGET_NAME_OBJ} OBJECT ${SOURCE_FILES})
 
-target_sources(${TARGET_NAME_OBJ} PRIVATE
-    src/modeling/models/qwen3_5/modeling_qwen3_5_moe.cpp
-    src/modeling/models/qwen3_5/modeling_qwen3_5_text.cpp
-    src/modeling/models/qwen3_5/processing_qwen3_5.cpp
-    src/modeling/builder_context.cpp
-    src/modeling/weights/weight_parameter.cpp
-    src/modeling/weights/quantization_selector.cpp
-    src/modeling/weights/weight_loader.cpp
-    src/modeling/weights/quantization_config.cpp
-    src/modeling/weights/synthetic_weight_source.cpp
-    src/modeling/layers/vocab_embedding.cpp
-    src/modeling/layers/lm_head.cpp
-    src/modeling/layers/rms_norm.cpp
-    src/modeling/layers/layer_norm.cpp
-    src/modeling/ops/context.cpp
-    src/modeling/ops/rope.cpp
-    src/modeling/ops/tensor_ops.cpp
-    src/modeling/ops/kv_cache.cpp
-    src/modeling/ops/nn.cpp
-    src/modeling/ops/tensor.cpp
-    src/modeling/ops/shape.cpp
-    src/modeling/ops/llm.cpp
-    src/modeling/ops/ops.cpp
-    src/modeling/module.cpp
-)
+if(ENABLE_OPENVINO_NEW_ARCH)
+    file(GLOB_RECURSE MODELING_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/*.cpp")
+    target_sources(${TARGET_NAME_OBJ} PRIVATE ${MODELING_SOURCES})
+    target_compile_definitions(${TARGET_NAME_OBJ} PRIVATE ENABLE_OPENVINO_NEW_ARCH)
+endif()
 
 target_include_directories(${TARGET_NAME_OBJ}
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

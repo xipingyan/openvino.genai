@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+
 #include "../utils/load_image.hpp"
 #include "../utils/model_yaml.hpp"
 #include "../utils/ut_modules_base.hpp"
@@ -202,3 +204,5 @@ INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          LLMInferenceSDPAModuleTest,
                          ::testing::ValuesIn(g_test_params),
                          LLMInferenceSDPAModuleTest::get_test_case_name);
+
+#endif  // ENABLE_OPENVINO_NEW_ARCH
