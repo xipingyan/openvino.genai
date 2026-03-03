@@ -23,6 +23,7 @@ enum class VLMModelType {
     GEMMA3,
     QWEN3_VL,
     QWEN3_5,
+    QWEN3_5_MOE,
 };
 
 VLMModelType to_vlm_model_type(const std::string& value);
