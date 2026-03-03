@@ -44,7 +44,7 @@ void VisionEncoderModule::print_static_config() {
       - name: "images_sequence"                            # Used by Qwen 2.5-VL
         type: "VecInt"                                     # Support DataType: [VecInt]
         source: "ParentModuleName.OutputPortName"
-      - name: "input_ids"                                  # [Optional] When output position_ids is needed.
+      - name: "input_ids"                                  # Required for Qwen 3.5. Optional for other models when position-related outputs are needed.
         type: "OVTensor"                                   # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "grid_thw"                                   # Used by Qwen 3.5
