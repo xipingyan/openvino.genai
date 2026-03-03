@@ -9,6 +9,7 @@
 
 #include "module_genai/modules/md_img_preprocess/vision_preprocess.hpp"
 #include "module_genai/utils/vision_preprocess.hpp"
+#include "module_genai/modules/model/qwen3_5/qwen3_5preprocessor.hpp"
 
 namespace ov::genai::module {
 
@@ -17,12 +18,12 @@ public:
     Qwen3_5VisionPreprocess() = delete;
     Qwen3_5VisionPreprocess(const std::filesystem::path& model_path, VLMModelType model_type);
 
-    void preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) override;
+    PreprocessOutput preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) override;
 
-    void result_to_output(std::map<std::string, OutputModule>& output) const override;
+    // void result_to_output(std::map<std::string, OutputModule>& output) const override;
 
 private:
-    std::unique_ptr<IVideoProcessor> m_video_processor;
+    std::shared_ptr<Qwen3_5Preprocessor> m_preprocessor;
 };
 
 }  // namespace ov::genai::module

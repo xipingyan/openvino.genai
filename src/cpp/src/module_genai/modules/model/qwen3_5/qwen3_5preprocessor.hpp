@@ -10,10 +10,9 @@
 #include <string>
 #include "openvino/runtime/tensor.hpp"
 #include "qwen3_5config.hpp"
+#include "module_genai/utils/vision_preprocess.hpp"
 
 namespace ov::genai::module {
-
-class IVideoProcessor;
 
 struct Qwen3_5PreprocessorOutput {
     ov::Tensor pixel_values;

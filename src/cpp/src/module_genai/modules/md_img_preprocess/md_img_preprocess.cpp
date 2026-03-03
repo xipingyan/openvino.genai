@@ -75,14 +75,6 @@ ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, c
         OPENVINO_ASSERT(_encoder_ptr != nullptr,
                         "Failed to create VisionEncoder for ImagePreprocessModule: " + desc->name);
     }
-
-    // if (_model_type == VLMModelType::QWEN2_VL || _model_type == VLMModelType::QWEN2_5_VL) {
-    //     encoder_ptr = std::make_shared<VisionEncoderQwen2VL>(std::filesystem::path(model_path), device, ov::AnyMap{});
-    // } else if (_model_type == VLMModelType::QWEN3_5) {
-    //     encoder_ptr = std::make_shared<Qwen3_5Preprocessor>(std::filesystem::path(model_path));
-    // } else {
-    //     OPENVINO_THROW("ImagePreprocessModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);
-    // }
 }
 
 ImagePreprocessModule::~ImagePreprocessModule() {}
@@ -96,8 +88,12 @@ void ImagePreprocessModule::run_image(const bool& has_image_input, const bool& h
     }
 
     if (_vision_preprocess_ptr) {
-        _vision_preprocess_ptr->preprocess(images_data, {});
-        _vision_preprocess_ptr->result_to_output(this->outputs);
+        auto output = _vision_preprocess_ptr->preprocess(images_data, {});
+        this->outputs["pixel_values"].data = output.pixel_values;
+        this->outputs["grid_thw"].data = output.grid_thw;
+        this->outputs["pos_embeds"].data = output.pos_embeds;
+        this->outputs["rotary_cos"].data = output.rotary_cos;
+        this->outputs["rotary_sin"].data = output.rotary_sin;
     } else {
         std::vector<ov::Tensor> output_tensors;
         std::vector<ImageSize> output_sizes;
@@ -131,8 +127,7 @@ void ImagePreprocessModule::run_video(const bool& has_video_input, const bool& h
     }
 
     if (_vision_preprocess_ptr) {
-        _vision_preprocess_ptr->preprocess({}, frames);
-        _vision_preprocess_ptr->result_to_output(this->outputs);
+        auto output = _vision_preprocess_ptr->preprocess({}, frames);
     } else {
         auto encoded_video = _encoder_ptr->encode_frames(frames, ov::AnyMap{});
         this->outputs["raw_datas"].data = encoded_video.video_features;
@@ -175,49 +170,6 @@ void ImagePreprocessModule::run() {
                        "]: No valid input found. Please provide one of the following inputs: 'image', 'images', "
                        "'video', 'videos'.");
     }
-
-    // if (exists_input("images")) {
-    //     auto images_data = get_input("images").as<std::vector<ov::Tensor>>();
-
-    //     std::vector<ov::Tensor> output_tensors;
-    //     std::vector<ImageSize> output_sizes;
-    //     for (size_t i = 0; i < images_data.size(); ++i) {
-    //         auto encoded_img = _encoder_ptr->encode(images_data[i], ov::AnyMap{});
-    //         output_tensors.push_back(encoded_img.resized_source);
-    //         output_sizes.push_back(encoded_img.resized_source_size);
-    //     }
-    //     this->outputs["raw_datas"].data = output_tensors;
-    //     std::vector<std::vector<int>> sizes_vec;
-    //     for (const auto& sz : output_sizes) {
-    //         sizes_vec.push_back({static_cast<int>(sz.height), static_cast<int>(sz.width)});
-    //     }
-    //     this->outputs["source_sizes"].data = sizes_vec;
-
-    //     // } else if (model_type == VLMModelType::QWEN3_5) {
-    //     //     ov::Tensor images = tensor_utils::stack(images_data, 0);
-    //     //     Qwen3_5PreprocessorOutput output = std::get<std::shared_ptr<Qwen3_5Preprocessor>>(encoder_ptr)->preprocess(images);
-    //     //     this->outputs["pixel_values"].data = output.pixel_values;
-    //     //     this->outputs["grid_thw"].data = output.grid_thw;
-    //     //     this->outputs["pos_embeds"].data = output.pos_embeds;
-    //     //     this->outputs["rotary_cos"].data = output.rotary_cos;
-    //     //     this->outputs["rotary_sin"].data = output.rotary_sin;
-    //     // }
-    // } else {
-    //     auto image1_data = get_input("image").as<ov::Tensor>();
-    //     if (model_type == VLMModelType::QWEN2_VL || model_type == VLMModelType::QWEN2_5_VL) {
-    //         auto encoded_img = std::get<std::shared_ptr<VisionEncoderQwen2VL>>(encoder_ptr)->encode(image1_data, ov::AnyMap{});
-    //         this->outputs["raw_data"].data = encoded_img.resized_source;
-    //         this->outputs["source_size"].data =
-    //             std::vector<int>{static_cast<int>(encoded_img.resized_source_size.height), static_cast<int>(encoded_img.resized_source_size.width)};
-    //     } else if (model_type == VLMModelType::QWEN3_5) {
-    //         Qwen3_5PreprocessorOutput output = std::get<std::shared_ptr<Qwen3_5Preprocessor>>(encoder_ptr)->preprocess(image1_data);
-    //         this->outputs["pixel_values"].data = output.pixel_values;
-    //         this->outputs["grid_thw"].data = output.grid_thw;
-    //         this->outputs["pos_embeds"].data = output.pos_embeds;
-    //         this->outputs["rotary_cos"].data = output.rotary_cos;
-    //         this->outputs["rotary_sin"].data = output.rotary_sin;
-    //     }
-    // }
 }
 
 }  // namespace module

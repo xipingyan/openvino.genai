@@ -17,6 +17,14 @@ namespace ov::genai::module {
 
 using OutputModule = IBaseModule::OutputModule;
 
+struct PreprocessOutput {
+    ov::Tensor pixel_values;
+    ov::Tensor grid_thw;
+    ov::Tensor pos_embeds;
+    ov::Tensor rotary_cos;
+    ov::Tensor rotary_sin;
+};
+
 // Vision preprocessing facade.
 //
 // Current implementation encapsulates Qwen3VLVideoProcessor, but the public
@@ -33,9 +41,7 @@ public:
     virtual ~VisionPreprocess() = default;
 
     // Preprocess images and videos.
-    virtual void preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) = 0;
-
-    virtual void result_to_output(std::map<std::string, OutputModule>& output) const = 0;
+    virtual PreprocessOutput preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) = 0;
 
 private:
     VisionPreprocess() = delete;

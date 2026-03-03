@@ -31,7 +31,7 @@ Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path
 Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
     const auto img_shape = images.get_shape();
     if (img_shape.size() != 3 && img_shape.size() != 4) {
-        OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C]");
+        OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C], get shape: ", img_shape);
     }
     if (images.get_element_type() != ov::element::u8) {
         OPENVINO_THROW("images must be u8 for Qwen3_5 preprocessing");
