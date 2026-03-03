@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "module_genai/modules/md_img_preprocess/vision_preprocess.hpp"
-#include "module_genai/modules/model/qwen3_vl/qwen3_vl_video_processor.hpp"
+#include "module_genai/utils/vision_preprocess.hpp"
 
 namespace ov::genai::module {
 
