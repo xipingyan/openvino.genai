@@ -24,6 +24,7 @@ Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path
     : m_preprocess_config(Qwen3_5VisionPreprocessConfig::from_json_file(model_path / "preprocessor_config.json")),
       m_vision_config(Qwen3_5VisionConfig::from_json_file(model_path / "config.json")) {
     load_pos_embed_weight(model_path);
+    m_video_processor = std::make_shared<Qwen3VLVideoProcessor>(model_path);
 }
 
 Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
@@ -174,6 +175,21 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
     auto rotary = build_rotary_cos_sin(grid_thw);
 
     return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
+}
+
+Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const std::vector<ov::Tensor> &frames) {
+    m_video_processor->preprocess(frames);
+    return {};
+}
+
+std::vector<Qwen3_5PreprocessorOutput> Qwen3_5Preprocessor::preprocess_videos(
+    const std::vector<std::vector<ov::Tensor>>& batch_frames) {
+    std::vector<Qwen3_5PreprocessorOutput> outputs;
+    outputs.reserve(batch_frames.size());
+    for (const auto& frames : batch_frames) {
+        outputs.push_back(preprocess_video(frames));
+    }
+    return outputs;
 }
 
 void Qwen3_5Preprocessor::load_pos_embed_weight(const std::filesystem::path &model_path) {

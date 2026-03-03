@@ -157,6 +157,8 @@ ov::Tensor merge_text_and_video_image_embeddings(
     const int64_t video_pad_token_id
 );
 
+ImageSize smart_resize(size_t height, size_t width, size_t factor, size_t min_pixels, size_t max_pixels);
+
 } // namespace qwen2vl_utils
 
 } // namespace ov::genai

@@ -18,7 +18,10 @@ class ImagePreprocessModule : public IBaseModule {
     DeclareModuleConstructor(ImagePreprocessModule);
 
 private:
-    std::variant<std::shared_ptr<VisionEncoderQwen2VL>, std::shared_ptr<Qwen3_5Preprocessor>> encoder_ptr;
+    VLMModelType _model_type;
+    VisionEncoder::Ptr _encoder_ptr = nullptr;
+    void run_image(const bool& has_image_input, const bool& has_images_input);
+    void run_video(const bool& has_video_input, const bool& has_videos_input);
 };
 
 REGISTER_MODULE_CONFIG(ImagePreprocessModule);

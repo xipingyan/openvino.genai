@@ -59,6 +59,13 @@ struct EncodedImage {
 
     /// @brief Number of image tokens required to append to a normalized prompt
     size_t num_image_tokens = 0;
+
+    // Qwen3_VL and Qwen3_5 use the same vision encoder
+    ov::Tensor pixel_values;
+    ov::Tensor grid_thw;
+    ov::Tensor pos_embeds;
+    ov::Tensor rotary_cos;
+    ov::Tensor rotary_sin;
 };
 
 /// @brief Embeddings of a given video. 
@@ -75,6 +82,13 @@ struct EncodedVideo {
 
     /// @brief A number of encoded frames.
     size_t frame_num;
+
+    // Qwen3_VL and Qwen3_5 use the same vision encoder
+    ov::Tensor pixel_values;
+    ov::Tensor grid_thw;
+    ov::Tensor pos_embeds;
+    ov::Tensor rotary_cos;
+    ov::Tensor rotary_sin;
 };
 
 /// @brief A class used to infer embeddings of an image using

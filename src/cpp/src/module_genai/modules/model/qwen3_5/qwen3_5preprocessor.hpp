@@ -9,6 +9,7 @@
 #include <string>
 #include "openvino/runtime/tensor.hpp"
 #include "qwen3_5config.hpp"
+#include "module_genai/modules/model/qwen3_vl/qwen3_vl_video_processor.hpp"
 
 namespace ov::genai::module {
 
@@ -25,7 +26,13 @@ public:
     explicit Qwen3_5Preprocessor(const std::filesystem::path& model_path);
 
     Qwen3_5PreprocessorOutput preprocess(const ov::Tensor &images);
+
+    Qwen3_5PreprocessorOutput preprocess_video(const std::vector<ov::Tensor> &frames);
+    // preprocess a batch of videos, each video is represented as a vector of frames (ov::Tensor)
+    // Just keep an interface for batch preprocess, the implementation can be optimized later
+    std::vector<Qwen3_5PreprocessorOutput> preprocess_videos(const std::vector<std::vector<ov::Tensor>> &batch_frames);
 private:
+    std::shared_ptr<Qwen3VLVideoProcessor> m_video_processor = nullptr;
     Qwen3_5VisionPreprocessConfig m_preprocess_config;
     Qwen3_5VisionConfig m_vision_config;
     ov::Tensor m_pos_embed_weight;
