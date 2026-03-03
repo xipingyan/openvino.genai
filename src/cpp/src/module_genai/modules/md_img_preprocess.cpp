@@ -146,14 +146,22 @@ void ImagePreprocessModule::run() {
     bool has_images_input = exists_input("images");
     bool has_image_input = exists_input("image");
     bool has_image = has_images_input || has_image_input;
-    OPENVINO_ASSERT(!(has_images_input && has_image_input), "ImagePreprocessModule: Both 'image' and 'images' inputs exist. Please provide only one of them.");
+    if (has_image) {
+        OPENVINO_ASSERT(
+            !(has_images_input && has_image_input),
+            "ImagePreprocessModule: Both 'image' and 'images' inputs exist. Please provide only one of them.");
+    }
     bool has_video_input = exists_input("video");
     bool has_videos_input = exists_input("videos");
     bool has_video = has_video_input || has_videos_input;
-    OPENVINO_ASSERT(!(has_video_input && has_videos_input),
-                    "ImagePreprocessModule: Both 'video' and 'videos' inputs exist. Please provide only one of them.");
+    if (has_video) {
+        OPENVINO_ASSERT(
+            !(has_video_input && has_videos_input),
+            "ImagePreprocessModule: Both 'video' and 'videos' inputs exist. Please provide only one of them.");
+    }
+
     OPENVINO_ASSERT(
-        has_image && has_video,
+        !(has_image && has_video),
         "ImagePreprocessModule: Inputs for both image and video exist. Please provide only one type of input.");
 
     if (has_images_input || has_image_input) {
