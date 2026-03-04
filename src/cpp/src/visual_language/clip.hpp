@@ -37,7 +37,7 @@ struct clip_image_u8 {
  */
 clip_image_u8 tensor_to_clip_image_u8(const ov::Tensor& image_tensor);
 
-clip_image_u8 frames_tensor_to_clip_image_u8(const ov::Tensor& frames_tensor, const size_t& frame_index);
+clip_image_u8 frames_tensor_to_clip_image_u8(const ov::Tensor& frames_tensor, size_t frame_index);
 
 // RGB float32 image (NHWC)
 // Memory layout: RGBRGBRGB...
