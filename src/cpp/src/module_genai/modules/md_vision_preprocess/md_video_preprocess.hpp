@@ -16,18 +16,17 @@
 namespace ov {
 namespace genai {
 namespace module {
-class ImagePreprocessModule : public IBaseModule {
-    DeclareModuleConstructor(ImagePreprocessModule);
+class VideoPreprocessModule : public IBaseModule {
+    DeclareModuleConstructor(VideoPreprocessModule);
 
 private:
     VLMModelType _model_type;
     VisionPreprocess::PTR _vision_preprocess_ptr = nullptr;
     VisionEncoder::Ptr _encoder_ptr = nullptr;
-    void run_image(const bool& has_images_input);
     void run_video(const bool& has_videos_input);
 };
 
-REGISTER_MODULE_CONFIG(ImagePreprocessModule);
+REGISTER_MODULE_CONFIG(VideoPreprocessModule);
 
 }  // namespace module
 }  // namespace genai

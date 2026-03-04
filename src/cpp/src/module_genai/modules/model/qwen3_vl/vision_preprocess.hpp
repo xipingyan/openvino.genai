@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "module_genai/modules/md_img_preprocess/vision_preprocess.hpp"
+#include "module_genai/modules/md_vision_preprocess/vision_preprocess.hpp"
 #include "module_genai/utils/vision_preprocess.hpp"
 
 namespace ov::genai::module {

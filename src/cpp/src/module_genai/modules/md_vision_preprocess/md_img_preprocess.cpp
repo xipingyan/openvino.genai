@@ -21,18 +21,12 @@ void ImagePreprocessModule::print_static_config() {
   image_preprocessor:           # Module Name
     type: "ImagePreprocessModule"
     device: "CPU"               # Optional, default to CPU
-    description: "Image or Video preprocessing. Don't support video and image preprocess at the same time in a single module."
+    description: "Image preprocessing."
     inputs:
       - name: "image"           # [optional]
         type: "OVTensor"        # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "images"          # [Optional] multiple images
-        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video"           # [optional] video frames
-        type: "OVTensor"        # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "videos"          # [Optional] multiple videos
         type: "VecOVTensor"     # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
     outputs:
@@ -53,10 +47,6 @@ void ImagePreprocessModule::print_static_config() {
       - name: "rotary_cos"      # Output port name, used by Qwen 3.5
         type: "OVTensor"        # Support DataType: [OVTensor]
       - name: "rotary_sin"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
-      - name: "video_grid_thw"    # Output port name, used by Qwen 3.5 for video input
-        type: "OVTensor"        # Support DataType: [OVTensor]
-      - name: "pixel_values_videos"    # Output port name, used by Qwen 3.5 for video input
         type: "OVTensor"        # Support DataType: [OVTensor]
     params:
       model_path: "models/openvino_vision_embeddings_model.xml"
@@ -122,28 +112,6 @@ void ImagePreprocessModule::run_image(const bool& has_images_input) {
     }
 }
 
-void ImagePreprocessModule::run_video(const bool& has_videos_input) {
-    std::vector<ov::Tensor> frames;
-    if (has_videos_input) {
-        frames = get_input("videos").as<std::vector<ov::Tensor>>();
-    } else {
-        frames.push_back(get_input("video").as<ov::Tensor>());
-    }
-
-    if (_vision_preprocess_ptr) {
-        // Facade-based video preprocessing is not supported yet.
-        // Reject video inputs explicitly to avoid returning without required outputs.
-        OPENVINO_ASSERT(false,
-                        "Video preprocessing via VisionPreprocess is not supported in ImagePreprocessModule. "
-                        "Please configure the module to use VisionEncoder for video inputs.");
-    } else {
-        auto encoded_video = _encoder_ptr->encode_frames(frames, ov::AnyMap{});
-        this->outputs["raw_datas"].data = encoded_video.video_features;
-        this->outputs["resized_source_size"].data = encoded_video.resized_source_size;
-        this->outputs["frame_num"].data = encoded_video.frame_num;
-    }
-}
-
 void ImagePreprocessModule::run() {
     GENAI_INFO("Running module: " + module_desc->name);
     prepare_inputs();
@@ -156,27 +124,12 @@ void ImagePreprocessModule::run() {
             !(has_images_input && has_image_input),
             "ImagePreprocessModule: Both 'image' and 'images' inputs exist. Please provide only one of them.");
     }
-    bool has_video_input = exists_input("video");
-    bool has_videos_input = exists_input("videos");
-    bool has_video = has_video_input || has_videos_input;
-    if (has_video) {
-        OPENVINO_ASSERT(
-            !(has_video_input && has_videos_input),
-            "ImagePreprocessModule: Both 'video' and 'videos' inputs exist. Please provide only one of them.");
-    }
-
-    OPENVINO_ASSERT(
-        !(has_image && has_video),
-        "ImagePreprocessModule: Inputs for both image and video exist. Please provide only one type of input.");
 
     if (has_images_input || has_image_input) {
       run_image(has_images_input);
-    } else if (has_video_input || has_videos_input) {
-      run_video(has_videos_input);
     } else {
         OPENVINO_THROW("ImagePreprocessModule[" + module_desc->name +
-                       "]: No valid input found. Please provide one of the following inputs: 'image', 'images', "
-                       "'video', 'videos'.");
+                       "]: No valid input found. Please provide one of the following inputs: 'image', 'images'.");
     }
 }
 
