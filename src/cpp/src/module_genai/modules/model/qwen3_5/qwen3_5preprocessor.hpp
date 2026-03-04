@@ -51,6 +51,11 @@ private:
     std::pair<size_t, size_t> smart_resize(size_t height, size_t width, size_t factor);
 
     ov::Tensor resize(const ov::Tensor& src, ImageSize dst_size);
+
+    // 1: layout conversion (HWC to CHW)
+    // 2: resizing;
+    // 3: rescale and normalize pixel values. m_preprocess_config.image_mean, and m_preprocess_config.image_std are
+    // applied in this step.
     void resize_bilinear_to_chw(const uint8_t* src,
                                 size_t src_h,
                                 size_t src_w,

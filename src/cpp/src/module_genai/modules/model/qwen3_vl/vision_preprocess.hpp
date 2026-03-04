@@ -33,6 +33,16 @@ ImageSize smart_resize(int num_frames,
                        int factor = 32,
                        size_t min_pixels = 128 * 128,
                        size_t max_pixels = 16 * 16 * 2 * 2 * 2 * 6144);
+
+// Pads the input video tensor on the temporal dimension by duplicating the last frame
+// For example input shape [T, C, H, W] and pad=1, the output video will
+// have shape [T+1, C, H, W], where the last frame is a duplicate of the original last frame.
+ov::Tensor video_padding(const ov::Tensor& video, const size_t& pad);
+
+ov::Tensor ovtensor_view(ov::Tensor& input, const ov::Shape& target_shape);
+
+ov::Tensor ovtensor_permute(const ov::Tensor& input, const std::vector<size_t>& order);
+
 }  // namespace qwen3vl_utils
 
 }  // namespace ov::genai::module
