@@ -20,6 +20,10 @@ clip_image_u8 frames_tensor_to_clip_image_u8(const ov::Tensor& frames_tensor, co
     if (shape.size() != 4) {
         OPENVINO_THROW("Each video tensor must have shape [T, H, W, C]");
     }
+    const auto element_type = frames_tensor.get_element_type();
+    if (element_type != ov::element::u8) {
+        OPENVINO_THROW("Video tensor must have element type u8");
+    }
     size_t t = shape[0];
     size_t h = shape[1];
     size_t w = shape[2];
