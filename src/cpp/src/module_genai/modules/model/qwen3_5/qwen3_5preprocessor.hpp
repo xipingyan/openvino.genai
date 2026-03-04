@@ -33,11 +33,11 @@ public:
 
     Qwen3_5PreprocessorOutput preprocess(const ov::Tensor &images);
 
-    // @Param: video: shape [N, T, H, W, C] or [T, H, W, C], uint8, where N is batch size, T is temporal dimension
-    // (number of frames), H and W are height and width of each frame, C is number of channels (3 for RGB). Output
-    // grid_thw will be [N, 3] representing the grid dimensions for each video in the batch. Currently we only support
-    // batch size of 1 for video input due to the complexity of handling variable-length videos and batching them
-    // together. Future work may include support for batching multiple videos together.
+    // @Param: video: shape [T, H, W, C], uint8, where T is temporal dimension (number of frames),
+    // H and W are height and width of each frame, and C is number of channels (3 for RGB). Output
+    // grid_thw will be [3] representing the grid dimensions [T, H', W'] for the (single) video input.
+    // Batched video inputs with shape [N, T, H, W, C] are not currently supported. Future work may
+    // include support for batching multiple videos together.
     Qwen3_5PreprocessorOutput preprocess_video(const ov::Tensor &video);
 private:
     Qwen3_5VisionPreprocessConfig m_preprocess_config;
