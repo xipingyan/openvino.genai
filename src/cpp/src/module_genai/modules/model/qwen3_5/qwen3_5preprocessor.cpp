@@ -209,9 +209,8 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
         }
 
         resized_video = resize(video, resized_size);
-    }
-    else {
-        resized_video = video;
+    } else {
+        resized_video = to_f32(video);
     }
 
     // Pad temporal dimension to be divisible by temporal_patch_size, and spatial dimensions to be divisible by patch_size. This simplifies the preprocessing logic and allows us to reuse the same code for both image and video preprocessing after this step. The padding values do not matter much since they will be masked out in attention and will not contribute much to the final output due to the convolutional inductive bias in the early layers of the model.
@@ -365,27 +364,6 @@ ov::Tensor Qwen3_5Preprocessor::resize(const ov::Tensor& src, ImageSize dst_size
     OPENVINO_ASSERT(channels == 3U, "Source tensor must have 3 channels");
 
     ov::Tensor dst(ov::element::f32, {batch, channels, static_cast<size_t>(dst_size.height), static_cast<size_t>(dst_size.width)});
-
-    if (src_h == dst_size.height && src_w == dst_size.width) {
-        // No resizing needed, just convert to f32 and change layout to CHW for each batch
-        const uint8_t* src_data = src.data<const uint8_t>();
-        float* dst_data = dst.data<float>();
-        for (size_t b = 0; b < batch; ++b) {
-            const uint8_t* src_batch = src_data + b * src_h * src_w * channels;
-            float* dst_batch = dst_data + b * channels * src_h * src_w;
-            for (size_t c = 0; c < channels; ++c) {
-                for (size_t h = 0; h < src_h; ++h) {
-                    for (size_t w = 0; w < src_w; ++w) {
-                        size_t src_idx = (h * src_w + w) * channels + c;
-                        size_t dst_idx = (c * src_h + h) * src_w + w;
-                        dst_batch[dst_idx] = static_cast<float>(src_batch[src_idx]);
-                    }
-                }
-            }
-        }
-        return dst;
-    }
-
     // Process each batch.
     for (size_t b = 0; b < batch; ++b) {
         const uint8_t* src_data = src.data<const uint8_t>() + b * src_h * src_w * channels;

@@ -4,7 +4,7 @@
 #pragma once
 #include <string>
 #include <vector>
-
+namespace ov::genai::module {
 class VideoMetadata {
     int total_num_frames;
     float fps = 0.0f;
@@ -14,3 +14,5 @@ class VideoMetadata {
     std::string video_backend;
     std::vector<int> frames_indices;
 };
+
+}  // namespace ov::genai::module

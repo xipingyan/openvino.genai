@@ -41,13 +41,13 @@ public:
         // Get image paths and device from parameters
         const auto& is_single_video = std::get<0>(obj.param);
         const auto& device = std::get<1>(obj.param);
-        const auto& models_tupe = std::get<2>(obj.param);
+        const auto& models_tuple = std::get<2>(obj.param);
 
         std::string result;
         result += (is_single_video) ? "SingleVideo_" : "BatchVideo_";
         result += device;
-        result += "_ModelType_" + sanitize_for_gtest(std::get<0>(models_tupe)); // models_type
-        result += "_ModelPath_" + sanitize_for_gtest(get_last_component(std::get<1>(models_tupe))); // models_path
+        result += "_ModelType_" + sanitize_for_gtest(std::get<0>(models_tuple)); // models_type
+        result += "_ModelPath_" + sanitize_for_gtest(get_last_component(std::get<1>(models_tuple))); // models_path
         return result;
     }
 
@@ -125,27 +125,27 @@ protected:
         }
     }
 
-    void check_output_tesnor(const ov::Tensor& output, const std::vector<float>& expected, const ov::Shape& expected_shape, const std::string& tensor_name) {
+    void check_output_tensor(const ov::Tensor& output, const std::vector<float>& expected, const ov::Shape& expected_shape, const std::string& tensor_name) {
         EXPECT_TRUE(compare_shape(output.get_shape(), expected_shape)) << tensor_name << " shape does not match expected shape.";
         EXPECT_TRUE(compare_big_tensor(output, expected, _threshold)) << tensor_name << " values do not match expected values.";
     }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
         auto pixel_values_videos = pipe.get_output("pixel_values_videos").as<ov::Tensor>();
-        check_output_tesnor(pixel_values_videos, _expected_output.pixel_values, _expected_output.pixel_values_shape, "pixel_values_videos");
+        check_output_tensor(pixel_values_videos, _expected_output.pixel_values, _expected_output.pixel_values_shape, "pixel_values_videos");
         
         auto video_grid_thw = pipe.get_output("video_grid_thw").as<ov::Tensor>();
         EXPECT_TRUE(compare_shape(video_grid_thw.get_shape(), _expected_output.video_grid_thw_shape)) << "video_grid_thw shape does not match expected shape.";
         EXPECT_TRUE(compare_big_tensor<int64_t>(video_grid_thw, _expected_output.video_grid_thw, _threshold)) << "video_grid_thw values do not match expected values.";
 
         auto pos_embeds = pipe.get_output("pos_embeds").as<ov::Tensor>();
-        check_output_tesnor(pos_embeds, _expected_output.pos_embeds, _expected_output.pos_embeds_shape, "pos_embeds");
+        check_output_tensor(pos_embeds, _expected_output.pos_embeds, _expected_output.pos_embeds_shape, "pos_embeds");
 
         auto rotary_cos = pipe.get_output("rotary_cos").as<ov::Tensor>();
-        check_output_tesnor(rotary_cos, _expected_output.rotary_cos, _expected_output.rotary_cos_shape, "rotary_cos");
+        check_output_tensor(rotary_cos, _expected_output.rotary_cos, _expected_output.rotary_cos_shape, "rotary_cos");
 
         auto rotary_sin = pipe.get_output("rotary_sin").as<ov::Tensor>();
-        check_output_tesnor(rotary_sin, _expected_output.rotary_sin, _expected_output.rotary_sin_shape, "rotary_sin");
+        check_output_tensor(rotary_sin, _expected_output.rotary_sin, _expected_output.rotary_sin_shape, "rotary_sin");
     }
 };
 
