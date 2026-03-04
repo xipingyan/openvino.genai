@@ -30,7 +30,7 @@ std::string Wan_2_1() {
 }
 
 std::string Qwen3_5() {
-    return get_model_path() + "/Qwen3.5-0.8B/";
+    return get_model_path() + "/Qwen3.5-35B-A3B-Base_VL_OV_IR/";
 }
 
 std::string Qwen3_5_0_8B() {

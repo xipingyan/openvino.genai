@@ -233,7 +233,7 @@ protected:
 
         image_preprocessor["outputs"] = outputs;
         YAML::Node model_path;
-        model_path["model_path"] = TEST_MODEL::Qwen3_5();
+        model_path["model_path"] = TEST_MODEL::Qwen3_5_0_8B();
         image_preprocessor["params"] = model_path;
         pipeline_modules["image_preprocessor"] = image_preprocessor;
 

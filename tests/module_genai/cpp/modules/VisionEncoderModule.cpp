@@ -279,7 +279,7 @@ protected:
             cur_node["outputs"].push_back(output_node("position_ids", to_string(DataType::OVTensor)));
             cur_node["outputs"].push_back(output_node("rope_delta", to_string(DataType::OVTensor)));
             cur_node["params"] = YAML::Node();
-            cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5() + "qwen3_5_vision.xml";
+            cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5_0_8B() + "qwen3_5_vision.xml";
             cur_node["params"]["vision_start_token_id"] = 248053;
             pipeline_modules[vision_encoder_name] = cur_node;
         }
