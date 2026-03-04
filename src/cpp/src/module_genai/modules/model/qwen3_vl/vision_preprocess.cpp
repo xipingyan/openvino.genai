@@ -13,7 +13,9 @@
 namespace ov::genai::module {
 
 Qwen3VisionPreprocess::Qwen3VisionPreprocess(const std::filesystem::path& model_path, VLMModelType model_type)
-    : VisionPreprocess(model_type) {}
+    : VisionPreprocess(model_type) {
+    (void)model_path;
+}
 
 PreprocessOutput Qwen3VisionPreprocess::preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) {
     OPENVINO_ASSERT(images.empty() || videos.empty(), "Qwen3VisionPreprocess: images and videos cannot both be non-empty");
