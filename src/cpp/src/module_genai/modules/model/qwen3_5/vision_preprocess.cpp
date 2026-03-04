@@ -19,7 +19,6 @@ Qwen3_5VisionPreprocess::Qwen3_5VisionPreprocess(const std::filesystem::path& mo
 PreprocessOutput Qwen3_5VisionPreprocess::preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) {
     OPENVINO_ASSERT(images.empty() || videos.empty(), "Qwen3_5VisionPreprocess: images and videos cannot both be non-empty");
     OPENVINO_ASSERT(videos.size() == 1u || videos.empty(), "Qwen3_5VisionPreprocess: only a single video input is supported due to the complexity of handling variable-length videos and batching them together");
-    OPENVINO_ASSERT(!(images.size() > 0 && !videos.empty()), "Qwen3_5VisionPreprocess: cannot process images and videos at the same time");
 
     ov::Tensor stack_images;
     PreprocessOutput preprocess_output;
