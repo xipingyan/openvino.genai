@@ -11,6 +11,7 @@
 #include "openvino/runtime/tensor.hpp"
 #include "qwen3_5config.hpp"
 #include "module_genai/utils/vision_preprocess.hpp"
+#include "visual_language/vision_encoder.hpp"
 
 namespace ov::genai::module {
 
@@ -49,6 +50,7 @@ private:
 
     std::pair<size_t, size_t> smart_resize(size_t height, size_t width, size_t factor);
 
+    ov::Tensor resize(const ov::Tensor& src, ImageSize dst_size);
     void resize_bilinear_to_chw(const uint8_t* src,
                                 size_t src_h,
                                 size_t src_w,
@@ -56,7 +58,7 @@ private:
                                 bool nchw,
                                 size_t dst_h,
                                 size_t dst_w,
-                                std::vector<float>& dst_chw);
+                                float*& dst_chw);
 
     ov::Tensor build_pos_embeds(const ov::Tensor &grid_thw);
 

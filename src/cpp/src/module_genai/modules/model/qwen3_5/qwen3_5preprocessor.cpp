@@ -70,6 +70,7 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
         }
 
         std::vector<float> frame;
+        float* frame_data = frame.data();
         resize_bilinear_to_chw(src_img,
                                in_h,
                                in_w,
@@ -77,7 +78,7 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
                                nchw,
                                out_h,
                                out_w,
-                               frame);
+                               frame_data);
 
         const size_t frames = 1;
         size_t padded_frames = frames;
@@ -194,7 +195,8 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
     OPENVINO_ASSERT(channels == 3U, "video must have 3 channels");
 
     const size_t factor = static_cast<size_t>(m_preprocess_config.patch_size * m_preprocess_config.merge_size);
-    
+
+    ov::Tensor resized_video;
     if (m_preprocess_config.do_resize) {
         auto resized_size = qwen3vl_utils::smart_resize(frame_num,
                                                         in_h,
@@ -206,11 +208,15 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
         if (resized_size.height % m_preprocess_config.patch_size != 0 || resized_size.width % m_preprocess_config.patch_size != 0) {
             OPENVINO_THROW("Resized image must be divisible by patch_size");
         }
+
+        resized_video = resize(video, resized_size);
     }
-    
+    else {
+        resized_video = video;
+    }
 
-
-
+    // rescale_and_normalize
+    OPENVINO_THROW("Video preprocessing is not implemented yet");
     return {};
 }
 
@@ -284,6 +290,55 @@ std::pair<size_t, size_t> Qwen3_5Preprocessor::smart_resize(size_t height,
     return {h_bar, w_bar};
 }
 
+ov::Tensor Qwen3_5Preprocessor::resize(const ov::Tensor& src, ImageSize dst_size) {
+    if (src.get_element_type() != ov::element::u8) {
+        OPENVINO_THROW("Only uint8 source tensor is supported for resizing");
+    }
+    if (src.get_shape().size() != 4) {
+        OPENVINO_THROW("Source tensor must have shape [B, H, W, C]");
+    }
+    
+    const size_t batch = src.get_shape()[0];
+    const size_t src_h = src.get_shape()[1];
+    const size_t src_w = src.get_shape()[2];
+    const size_t channels = src.get_shape()[3];
+    OPENVINO_ASSERT(channels == 3U, "Source tensor must have 3 channels");
+
+    ov::Tensor dst(ov::element::f32, {channels, static_cast<size_t>(dst_size.height), static_cast<size_t>(dst_size.width)});
+
+    if (src_h == dst_size.height && src_w == dst_size.width) {
+        // No resizing needed, just convert to f32 and change layout to CHW
+        const uint8_t* src_data = src.data<const uint8_t>();
+        float* dst_data = dst.data<float>();
+        for (size_t c = 0; c < channels; ++c) {
+            for (size_t h = 0; h < src_h; ++h) {
+                for (size_t w = 0; w < src_w; ++w) {
+                    size_t src_idx = (h * src_w + w) * channels + c;
+                    size_t dst_idx = (c * src_h + h) * src_w + w;
+                    dst_data[dst_idx] = static_cast<float>(src_data[src_idx]);
+                }
+            }
+        }
+        return dst;
+    }
+
+    // Process each batch.
+    for (size_t b = 0; b < batch; ++b) {
+        const uint8_t* src_data = src.data<const uint8_t>() + b * src_h * src_w * channels;
+        float* dst_data = dst.data<float>() + b * channels * dst_size.height * dst_size.width;
+
+        resize_bilinear_to_chw(src_data,
+                               src_h,
+                               src_w,
+                               channels,
+                               false,
+                               dst_size.height,
+                               dst_size.width,
+                               dst_data);
+    }
+    return dst;
+}
+
 void Qwen3_5Preprocessor::resize_bilinear_to_chw(const uint8_t *src,
                                                  size_t src_h,
                                                  size_t src_w,
@@ -291,8 +346,8 @@ void Qwen3_5Preprocessor::resize_bilinear_to_chw(const uint8_t *src,
                                                  bool nchw,
                                                  size_t dst_h,
                                                  size_t dst_w,
-                                                 std::vector<float> &dst_chw) {
-    dst_chw.assign(channels * dst_h * dst_w, 0.0f);
+                                                 float*& dst_chw) {
+    OPENVINO_ASSERT(dst_chw != nullptr, "dst_chw pointer cannot be null");
     const float scale_y = static_cast<float>(src_h) / static_cast<float>(dst_h);
     const float scale_x = static_cast<float>(src_w) / static_cast<float>(dst_w);
 

@@ -1414,6 +1414,7 @@ Qwen3_5VisionInputs Qwen3_5VisionPreprocessor::preprocess(const ov::Tensor& imag
         }
 
         std::vector<float> frame;
+        float* frame_ptr = frame.data();
         resize_bilinear_to_chw(src_img,
                                in_h,
                                in_w,
@@ -1423,7 +1424,7 @@ Qwen3_5VisionInputs Qwen3_5VisionPreprocessor::preprocess(const ov::Tensor& imag
                                out_w,
                                preprocess_cfg_.image_mean,
                                preprocess_cfg_.image_std,
-                               frame);
+                               frame_ptr);
 
         const size_t frames = 1;
         size_t padded_frames = frames;
