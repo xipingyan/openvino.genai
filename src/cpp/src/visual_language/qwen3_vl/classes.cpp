@@ -357,8 +357,8 @@ ov::Tensor InputsEmbedderQwen3VL::get_inputs_embeds(
 
         // deepstack_visual_embeds extra input
         const size_t num_layers = m_vlm_config.vision_config_deepstack_visual_indexes.size();
-        const size_t emd_dim = text_embeds.get_shape()[2];
-        ov::Tensor deepstack_visual_embeds(ov::element::f32, {num_layers, 1, emd_dim});
+        const size_t embed_dim = text_embeds.get_shape()[2];
+        ov::Tensor deepstack_visual_embeds(ov::element::f32, {num_layers, 1, embed_dim});
         std::fill_n(deepstack_visual_embeds.data<float>(), deepstack_visual_embeds.get_size(), 0.0f);
         m_lm_extra_inputs["deepstack_visual_embeds"] = std::move(deepstack_visual_embeds);
 
