@@ -69,7 +69,7 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
             OPENVINO_THROW("Resized image must be divisible by patch_size");
         }
 
-        std::vector<float> frame;
+        std::vector<float> frame = std::vector<float>(channels * out_h * out_w);
         float* frame_data = frame.data();
         resize_bilinear_to_chw(src_img,
                                in_h,
