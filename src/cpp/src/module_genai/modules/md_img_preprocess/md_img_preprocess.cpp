@@ -131,7 +131,11 @@ void ImagePreprocessModule::run_video(const bool& has_videos_input) {
     }
 
     if (_vision_preprocess_ptr) {
-        auto output = _vision_preprocess_ptr->preprocess({}, frames);
+        // Facade-based video preprocessing is not supported yet.
+        // Reject video inputs explicitly to avoid returning without required outputs.
+        OPENVINO_ASSERT(false,
+                        "Video preprocessing via VisionPreprocess is not supported in ImagePreprocessModule. "
+                        "Please configure the module to use VisionEncoder for video inputs.");
     } else {
         auto encoded_video = _encoder_ptr->encode_frames(frames, ov::AnyMap{});
         this->outputs["raw_datas"].data = encoded_video.video_features;
