@@ -306,7 +306,7 @@ ov::Tensor Qwen3_5Preprocessor::resize(const ov::Tensor& src, ImageSize dst_size
     const size_t channels = src.get_shape()[3];
     OPENVINO_ASSERT(channels == 3U, "Source tensor must have 3 channels");
 
-    ov::Tensor dst(ov::element::f32, {channels, static_cast<size_t>(dst_size.height), static_cast<size_t>(dst_size.width)});
+    ov::Tensor dst(ov::element::f32, {batch, channels, static_cast<size_t>(dst_size.height), static_cast<size_t>(dst_size.width)});
 
     if (src_h == dst_size.height && src_w == dst_size.width) {
         // No resizing needed, just convert to f32 and change layout to CHW
