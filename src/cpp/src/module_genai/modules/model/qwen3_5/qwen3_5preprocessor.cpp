@@ -308,15 +308,19 @@ ov::Tensor Qwen3_5Preprocessor::resize(const ov::Tensor& src, ImageSize dst_size
     ov::Tensor dst(ov::element::f32, {batch, channels, static_cast<size_t>(dst_size.height), static_cast<size_t>(dst_size.width)});
 
     if (src_h == dst_size.height && src_w == dst_size.width) {
-        // No resizing needed, just convert to f32 and change layout to CHW
+        // No resizing needed, just convert to f32 and change layout to CHW for each batch
         const uint8_t* src_data = src.data<const uint8_t>();
         float* dst_data = dst.data<float>();
-        for (size_t c = 0; c < channels; ++c) {
-            for (size_t h = 0; h < src_h; ++h) {
-                for (size_t w = 0; w < src_w; ++w) {
-                    size_t src_idx = (h * src_w + w) * channels + c;
-                    size_t dst_idx = (c * src_h + h) * src_w + w;
-                    dst_data[dst_idx] = static_cast<float>(src_data[src_idx]);
+        for (size_t b = 0; b < batch; ++b) {
+            const uint8_t* src_batch = src_data + b * src_h * src_w * channels;
+            float* dst_batch = dst_data + b * channels * src_h * src_w;
+            for (size_t c = 0; c < channels; ++c) {
+                for (size_t h = 0; h < src_h; ++h) {
+                    for (size_t w = 0; w < src_w; ++w) {
+                        size_t src_idx = (h * src_w + w) * channels + c;
+                        size_t dst_idx = (c * src_h + h) * src_w + w;
+                        dst_batch[dst_idx] = static_cast<float>(src_batch[src_idx]);
+                    }
                 }
             }
         }
