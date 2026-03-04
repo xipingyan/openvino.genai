@@ -104,8 +104,14 @@ public:
 
     // Qwen3-VL specific config
     /// @brief Number of position embeddings in vision encoder for Qwen3-VL model.
+    /// @details Currently, VLMConfig(const std::filesystem::path&) does not load this
+    ///          value from config.json; the default is used unless overridden
+    ///          programmatically. JSON loading may be added in a future revision.
     size_t vision_config_num_position_embeddings = 2304;
     /// @brief DeepStack visual indexes for Qwen3-VL model.
+    /// @details Currently, VLMConfig(const std::filesystem::path&) does not populate
+    ///          this from config.json; it remains empty unless set programmatically.
+    ///          JSON loading may be added in a future revision.
     std::vector<size_t> vision_config_deepstack_visual_indexes;
 
     /// @brief Default constructor.
