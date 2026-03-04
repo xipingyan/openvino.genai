@@ -26,7 +26,6 @@ Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path
     : m_preprocess_config(Qwen3_5VisionPreprocessConfig::from_json_file(model_path / "preprocessor_config.json")),
       m_vision_config(Qwen3_5VisionConfig::from_json_file(model_path / "config.json")) {
     load_pos_embed_weight(model_path);
-        // m_video_processor = std::make_shared<Qwen3_5VLVideoProcessor>(model_path);
 }
 
 Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {

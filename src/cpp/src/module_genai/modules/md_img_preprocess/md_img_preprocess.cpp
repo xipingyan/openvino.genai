@@ -79,7 +79,7 @@ ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, c
 
 ImagePreprocessModule::~ImagePreprocessModule() {}
 
-void ImagePreprocessModule::run_image(const bool& has_image_input, const bool& has_images_input) {
+void ImagePreprocessModule::run_image(const bool& has_images_input) {
     std::vector<ov::Tensor> images_data;
     if (has_images_input) {
         images_data = get_input("images").as<std::vector<ov::Tensor>>();
@@ -118,7 +118,7 @@ void ImagePreprocessModule::run_image(const bool& has_image_input, const bool& h
     }
 }
 
-void ImagePreprocessModule::run_video(const bool& has_video_input, const bool& has_videos_input) {
+void ImagePreprocessModule::run_video(const bool& has_videos_input) {
     std::vector<ov::Tensor> frames;
     if (has_videos_input) {
         frames = get_input("videos").as<std::vector<ov::Tensor>>();
@@ -162,9 +162,9 @@ void ImagePreprocessModule::run() {
         "ImagePreprocessModule: Inputs for both image and video exist. Please provide only one type of input.");
 
     if (has_images_input || has_image_input) {
-      run_image(has_image_input, has_images_input);
+      run_image(has_images_input);
     } else if (has_video_input || has_videos_input) {
-      run_video(has_video_input, has_videos_input);
+      run_video(has_videos_input);
     } else {
         OPENVINO_THROW("ImagePreprocessModule[" + module_desc->name +
                        "]: No valid input found. Please provide one of the following inputs: 'image', 'images', "

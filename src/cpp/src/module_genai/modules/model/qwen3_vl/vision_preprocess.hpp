@@ -22,7 +22,6 @@ public:
     // void result_to_output(std::map<std::string, OutputModule>& output) const override;
 
 private:
-    std::unique_ptr<IVideoProcessor> m_video_processor;
 };
 
 namespace qwen3vl_utils {
