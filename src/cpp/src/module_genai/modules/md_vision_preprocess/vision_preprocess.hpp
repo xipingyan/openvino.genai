@@ -31,8 +31,9 @@ struct PreprocessOutput {
 
 // Vision preprocessing facade.
 //
-// Current implementation encapsulates Qwen3VLVideoProcessor, but the public
-// API is intentionally model-agnostic so we can add more backends later.
+// The public API is intentionally model-agnostic so we can add more backends
+// later. Currently, the factory returns a Qwen3_5VisionPreprocess instance
+// (and QWEN3_VL is not yet implemented and returns nullptr).
 class VisionPreprocess {
 public:
     using PTR = std::shared_ptr<VisionPreprocess>;
