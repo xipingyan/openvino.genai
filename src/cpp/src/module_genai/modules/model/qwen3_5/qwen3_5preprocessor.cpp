@@ -226,21 +226,22 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
     }
 
     resized_shape = resized_video.get_shape();
-    int grid_t = static_cast<int>(resized_shape[0]);
-    int channel = static_cast<int>(resized_shape[1]);
+    size_t grid_t = static_cast<size_t>(resized_shape[0]);
+    size_t channel = static_cast<size_t>(resized_shape[1]);
 
     grid_t = grid_t / m_preprocess_config.temporal_patch_size;
-    int grid_h = resized_h / m_preprocess_config.patch_size;
-    int grid_w = resized_w / m_preprocess_config.patch_size;
+    size_t grid_h = resized_h / m_preprocess_config.patch_size;
+    size_t grid_w = resized_w / m_preprocess_config.patch_size;
+    size_t batch = 1;
 
-    auto nchw_shape = ov::Shape{1,
+    auto nchw_shape = ov::Shape{batch,
                                 grid_t,
                                 m_preprocess_config.temporal_patch_size,
                                 channel,
-                                grid_h,  // merge_size
+                                grid_h / m_preprocess_config.merge_size,
                                 m_preprocess_config.merge_size,
                                 m_preprocess_config.patch_size,
-                                grid_w,  // merge_size
+                                grid_w / m_preprocess_config.merge_size,
                                 m_preprocess_config.merge_size,
                                 m_preprocess_config.patch_size};
 
@@ -248,11 +249,33 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
 
     auto patches = qwen3vl_utils::ovtensor_permute(resized_video, {0, 1, 4, 7, 5, 8, 3, 2, 6, 9});
 
-    std::cout << "patches shape: " << patches.get_shape() << std::endl;
+    auto patches_shape = patches.get_shape();
+    auto pixel_values_videos_shape = ov::Shape{
+        patches_shape[0] * patches_shape[1] * patches_shape[2] * patches_shape[3] * patches_shape[4] * patches_shape[5],
+        patches_shape[6],
+        patches_shape[7],
+        patches_shape[8],
+        patches_shape[9]};
+    auto pixel_values_videos = qwen3vl_utils::ovtensor_reshape(patches, pixel_values_videos_shape, true);
+    auto video_grid_thw = ov::Tensor(ov::element::i64, {batch, 3});
+    auto* video_grid = video_grid_thw.data<int64_t>();
+    for (size_t b = 0; b < batch; ++b) {
+        video_grid[b * 3 + 0] = static_cast<int64_t>(grid_t);
+        video_grid[b * 3 + 1] = static_cast<int64_t>(grid_h);
+        video_grid[b * 3 + 2] = static_cast<int64_t>(grid_w);
+    }
 
-    // rescale_and_normalize
-    OPENVINO_THROW("Video preprocessing is not implemented yet");
-    return {};
+    auto pos_embeds = build_pos_embeds(video_grid_thw);
+    auto rotary = build_rotary_cos_sin(video_grid_thw);
+
+    Qwen3_5PreprocessorOutput output;
+    output.pixel_values_videos = pixel_values_videos;
+    output.video_grid_thw = video_grid_thw;
+    output.pos_embeds = pos_embeds;
+    output.rotary_cos = rotary.first;
+    output.rotary_sin = rotary.second;
+
+    return output;
 }
 
 void Qwen3_5Preprocessor::load_pos_embed_weight(const std::filesystem::path &model_path) {

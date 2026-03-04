@@ -120,6 +120,16 @@ ov::Tensor ovtensor_view(ov::Tensor& input, const ov::Shape& target_shape) {
     return input;
 }
 
+ov::Tensor ovtensor_reshape(const ov::Tensor& input, const ov::Shape& target_shape, bool is_contiguous) {
+    OPENVINO_ASSERT(input.get_size() == ov::shape_size(target_shape), "Target shape size must match input tensor size for reshape operation.");
+    if (is_contiguous) {
+        // If the tensor is contiguous, we can simply return a view with the new shape
+        return ovtensor_view(const_cast<ov::Tensor&>(input), target_shape);
+    } else {
+        OPENVINO_THROW("Reshape with non-contiguous memory layout is not supported in this implementation.");
+    }
+}
+
 ov::Tensor ovtensor_permute(const ov::Tensor& input, const std::vector<size_t>& order) {
     const auto& input_shape = input.get_shape();
     size_t rank = input_shape.size();

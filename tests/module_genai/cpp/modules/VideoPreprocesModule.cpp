@@ -6,8 +6,21 @@
 #include "../utils/model_yaml.hpp"
 #include "../utils/load_image.hpp"
 
-// Tuple: (is_single_video, device, pair<models_type, models_path>)
-using test_params = std::tuple<bool, std::string, std::pair<std::string, std::string>>;
+struct ExpectedOutput {
+    std::vector<float> pixel_values;
+    ov::Shape pixel_values_shape;
+    std::vector<int64_t> video_grid_thw;
+    ov::Shape video_grid_thw_shape;
+    std::vector<float> pos_embeds;
+    ov::Shape pos_embeds_shape;
+    std::vector<float> rotary_cos;
+    ov::Shape rotary_cos_shape;
+    std::vector<float> rotary_sin;
+    ov::Shape rotary_sin_shape;
+};
+
+// Tuple: (is_single_video, device, pair<models_type, models_path, expected_output>)
+using test_params = std::tuple<bool, std::string, std::tuple<std::string, std::string, ExpectedOutput>>;
 using namespace ov::genai::module;
 
 class VideoPreprocessModuleTest : public ModuleTestBase, public ::testing::TestWithParam<test_params> {
@@ -16,6 +29,7 @@ private:
     bool _is_single_video;
     std::string _models_path;
     std::string _models_type;
+    ExpectedOutput _expected_output;
 
     bool is_single_video() const {
         return _is_single_video;
@@ -27,18 +41,23 @@ public:
         // Get image paths and device from parameters
         const auto& is_single_video = std::get<0>(obj.param);
         const auto& device = std::get<1>(obj.param);
+        const auto& models_tupe = std::get<2>(obj.param);
+
         std::string result;
         result += (is_single_video) ? "SingleVideo_" : "BatchVideo_";
         result += device;
+        result += "_ModelType_" + sanitize_for_gtest(std::get<0>(models_tupe)); // models_type
+        result += "_ModelPath_" + sanitize_for_gtest(get_last_component(std::get<1>(models_tupe))); // models_path
         return result;
     }
 
     void SetUp() override {
         REGISTER_TEST_NAME();
-        std::map<std::string, std::string> models_map;
-        std::tie(_is_single_video, _device, models_map) = GetParam();
-        _models_type = models_map.begin()->first;
-        _models_path = models_map.begin()->second;
+        std::tuple<std::string, std::string, ExpectedOutput> model;
+        std::tie(_is_single_video, _device, model) = GetParam();
+        _models_type = std::get<0>(model);
+        _models_path = std::get<1>(model);
+        _expected_output = std::get<2>(model);
     }
 
     void TearDown() override {}
@@ -58,19 +77,19 @@ protected:
         YAML::Node inputs;
         YAML::Node input_image;
         input_image["name"] = (is_single_video()) ? "video" : "videos";
-        input_image["type"] = "OVTensor";
+        input_image["type"] = (is_single_video()) ? "OVTensor" : "VecOVTensor";
         inputs.push_back(input_image);
         video_preprocessor["inputs"] = inputs;
 
         YAML::Node outputs;
-        YAML::Node pixel_values;
-        pixel_values["name"] = "pixel_values";
-        pixel_values["type"] = "OVTensor";
-        outputs.push_back(pixel_values);
-        YAML::Node grid_thw;
-        grid_thw["name"] = "grid_thw";
-        grid_thw["type"] = "OVTensor";
-        outputs.push_back(grid_thw);
+        YAML::Node pixel_values_videos;
+        pixel_values_videos["name"] = "pixel_values_videos";
+        pixel_values_videos["type"] = "OVTensor";
+        outputs.push_back(pixel_values_videos);
+        YAML::Node video_grid_thw;
+        video_grid_thw["name"] = "video_grid_thw";
+        video_grid_thw["type"] = "OVTensor";
+        outputs.push_back(video_grid_thw);
         YAML::Node pos_embeds;
         pos_embeds["name"] = "pos_embeds";
         pos_embeds["type"] = "OVTensor";
@@ -95,68 +114,38 @@ protected:
 
     ov::AnyMap prepare_inputs() override {
         ov::AnyMap inputs;
-        auto img1 = utils::load_image(_image_paths[0]);
-        EXPECT_TRUE(img1) << "Failed to load test image: " + _image_paths[0];
-        if (!img1) return inputs;
-        inputs["image"] = img1;
-        return inputs;
+        auto video = utils::create_countdown_frames();
+        if (_is_single_video) {
+            inputs["video"] = video;
+            return inputs;
+        } else {
+            std::vector<ov::Tensor> videos = {video, video};
+            inputs["videos"] = videos;
+            return inputs;
+        }
     }
 
-    const std::vector<float> expected_pixel_values = {
-        0.968627, 0.968627, 0.968627, 0.968627, 0.968627, 0.968015, 0.964338, 0.960539, 0.953186, 0.945833, 0.935172, 0.924142, 0.913113, 0.902083, 0.891054, 0.880025, 0.968627, 0.968627, 0.968627, 0.968403
-    };
-    const ov::Shape expected_pixel_values_shape = {256, 3, 2, 16, 16};
-
-    const std::vector<int64_t> expected_grid_thw = {
-        1, 16, 16
-    };
-    const ov::Shape expected_grid_thw_shape = {1, 3};
-
-    const std::vector<float> expected_pos_embeds = {
-        -0.026367, -0.320312, 0.045410, -0.069336, -0.250000, 0.028809, 0.153320, 0.125977, 0.104004, 0.156250, -0.351562, 0.160156, 0.080566, -0.015747, -0.375000, 0.011719, -0.016235, -0.022705, 0.108887, 0.048828
-    };
-    const ov::Shape expected_pos_embeds_shape = {256, 768};
-
-    const std::vector<float> expected_rotary_cos = {
-        1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000, 1.000000
-    };
-    const ov::Shape expected_rotary_cos_shape = {256, 64};
-
-    const std::vector<float> expected_rotary_sin = {
-        0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000
-    };
-    const ov::Shape expected_rotary_sin_shape = {256, 64};
+    void check_output_tesnor(const ov::Tensor& output, const std::vector<float>& expected, const ov::Shape& expected_shape, const std::string& tensor_name) {
+        EXPECT_TRUE(compare_shape(output.get_shape(), expected_shape)) << tensor_name << " shape does not match expected shape.";
+        EXPECT_TRUE(compare_big_tensor(output, expected, _threshold)) << tensor_name << " values do not match expected values.";
+    }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto pixel_values = pipe.get_output("pixel_values").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(pixel_values.get_shape(), expected_pixel_values_shape))
-            << "pixel_values's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(pixel_values, expected_pixel_values, _threshold))
-            << "pixel_values do not match expected values";
-
-        auto grid_thw = pipe.get_output("grid_thw").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(grid_thw.get_shape(), expected_grid_thw_shape))
-            << "grid_thw's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor<int64_t>(grid_thw, expected_grid_thw, _threshold))
-            << "grid_thw do not match expected values";
+        auto pixel_values_videos = pipe.get_output("pixel_values_videos").as<ov::Tensor>();
+        check_output_tesnor(pixel_values_videos, _expected_output.pixel_values, _expected_output.pixel_values_shape, "pixel_values_videos");
+        
+        auto video_grid_thw = pipe.get_output("video_grid_thw").as<ov::Tensor>();
+        EXPECT_TRUE(compare_shape(video_grid_thw.get_shape(), _expected_output.video_grid_thw_shape)) << "video_grid_thw shape does not match expected shape.";
+        EXPECT_TRUE(compare_big_tensor<int64_t>(video_grid_thw, _expected_output.video_grid_thw, _threshold)) << "video_grid_thw values do not match expected values.";
 
         auto pos_embeds = pipe.get_output("pos_embeds").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(pos_embeds.get_shape(), expected_pos_embeds_shape))
-            << "pos_embeds's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(pos_embeds, expected_pos_embeds, _threshold))
-            << "pos_embeds do not match expected values";
+        check_output_tesnor(pos_embeds, _expected_output.pos_embeds, _expected_output.pos_embeds_shape, "pos_embeds");
 
         auto rotary_cos = pipe.get_output("rotary_cos").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(rotary_cos.get_shape(), expected_rotary_cos_shape))
-            << "rotary_cos's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(rotary_cos, expected_rotary_cos, _threshold))
-            << "rotary_cos do not match expected values";
+        check_output_tesnor(rotary_cos, _expected_output.rotary_cos, _expected_output.rotary_cos_shape, "rotary_cos");
 
         auto rotary_sin = pipe.get_output("rotary_sin").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(rotary_sin.get_shape(), expected_rotary_sin_shape))
-            << "rotary_sin's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(rotary_sin, expected_rotary_sin, _threshold))
-            << "rotary_sin do not match expected values";
+        check_output_tesnor(rotary_sin, _expected_output.rotary_sin, _expected_output.rotary_sin_shape, "rotary_sin");
     }
 };
 
@@ -164,10 +153,29 @@ TEST_P(VideoPreprocessModuleTest, ModuleTest) {
     run();
 }
 
-auto test_image_3 = std::vector<std::string>{TEST_DATA::img_dog_120_120()};
+namespace VideoPreprocessModuleTestParams {
+
+auto test_video_types = std::vector<bool>{true};  // true: single video, false: batch video
+auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
+
+ExpectedOutput qwen3_5_expected_output = {
+    .pixel_values = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+    .pixel_values_shape = {1056, 3, 2, 16, 16},
+    .video_grid_thw = {3, 16, 22},
+    .video_grid_thw_shape = {1, 3},
+    .pos_embeds = {-0.0263672, -0.320312, 0.0454102, -0.0693359, -0.25, 0.0288086, 0.15332, 0.125977, 0.104004, 0.15625},
+    .pos_embeds_shape = {1056, 768},
+    .rotary_cos = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    .rotary_cos_shape = {1056, 64},
+    .rotary_sin = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    .rotary_sin_shape = {1056, 64}};
+// <models_type, models_path, expected_output>
+std::vector<std::tuple<std::string, std::string, ExpectedOutput>> test_models = {{"qwen3_5", TEST_MODEL::Qwen3_5_0_8B(), qwen3_5_expected_output}};
+}  // namespace VideoPreprocessModuleTestParams
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          VideoPreprocessModuleTest,
-                         ::testing::Combine(::testing::Values(test_image_3),
-                                            ::testing::ValuesIn(test_devices)),
+                         ::testing::Combine(::testing::ValuesIn(VideoPreprocessModuleTestParams::test_video_types),
+                                            ::testing::ValuesIn(VideoPreprocessModuleTestParams::test_devices),
+                                            ::testing::ValuesIn(VideoPreprocessModuleTestParams::test_models)),
                          VideoPreprocessModuleTest::get_test_case_name);

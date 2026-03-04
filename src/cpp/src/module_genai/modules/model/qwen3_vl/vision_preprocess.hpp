@@ -43,6 +43,8 @@ ov::Tensor ovtensor_view(ov::Tensor& input, const ov::Shape& target_shape);
 
 ov::Tensor ovtensor_permute(const ov::Tensor& input, const std::vector<size_t>& order);
 
+ov::Tensor ovtensor_reshape(const ov::Tensor& input, const ov::Shape& target_shape, bool is_contiguous = true);
+
 }  // namespace qwen3vl_utils
 
 }  // namespace ov::genai::module
