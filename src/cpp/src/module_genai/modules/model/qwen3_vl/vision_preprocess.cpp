@@ -107,7 +107,7 @@ ov::Tensor video_padding(const ov::Tensor& video, const size_t& pad) {
     // Copy padded frames (duplicate the last frame)
     dst = dst + (T * resized_channels * resized_h * resized_w);  // point to the start of padding region
     const auto* last_frame = src + (T - 1) * resized_channels * resized_h * resized_w;
-    for (int t = 0; t < pad; ++t) {
+    for (size_t t = 0; t < pad; ++t) {
         std::copy(last_frame,
                   last_frame + resized_channels * resized_h * resized_w,
                   dst + t * resized_channels * resized_h * resized_w);

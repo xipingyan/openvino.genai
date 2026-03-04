@@ -216,7 +216,7 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
     // Pad temporal dimension to be divisible by temporal_patch_size, and spatial dimensions to be divisible by patch_size. This simplifies the preprocessing logic and allows us to reuse the same code for both image and video preprocessing after this step. The padding values do not matter much since they will be masked out in attention and will not contribute much to the final output due to the convolutional inductive bias in the early layers of the model.
     auto resized_shape = resized_video.get_shape();
     auto T = resized_shape[0];
-    auto resized_channels = resized_shape[1];
+
     auto resized_h = resized_shape[2];
     auto resized_w = resized_shape[3];
     int pad = (m_preprocess_config.temporal_patch_size - (T % m_preprocess_config.temporal_patch_size)) % m_preprocess_config.temporal_patch_size;
