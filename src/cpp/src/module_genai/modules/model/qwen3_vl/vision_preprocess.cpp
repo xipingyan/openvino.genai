@@ -4,6 +4,9 @@
 #include "module_genai/modules/model/qwen3_vl/vision_preprocess.hpp"
 
 #include <utility>
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
 
 #include "openvino/core/except.hpp"
 
