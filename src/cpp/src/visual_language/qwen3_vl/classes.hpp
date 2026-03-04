@@ -4,6 +4,11 @@
 #pragma once
 
 #include <filesystem>
+#include <array>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "visual_language/vlm_config.hpp"
 #include "visual_language/vision_encoder.hpp"
