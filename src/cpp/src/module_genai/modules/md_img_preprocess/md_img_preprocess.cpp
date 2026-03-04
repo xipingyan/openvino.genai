@@ -54,6 +54,10 @@ void ImagePreprocessModule::print_static_config() {
         type: "OVTensor"        # Support DataType: [OVTensor]
       - name: "rotary_sin"      # Output port name, used by Qwen 3.5
         type: "OVTensor"        # Support DataType: [OVTensor]
+      - name: "video_grid_thw"    # Output port name, used by Qwen 3.5 for video input
+        type: "OVTensor"        # Support DataType: [OVTensor]
+      - name: "pixel_values_videos"    # Output port name, used by Qwen 3.5 for video input
+        type: "OVTensor"        # Support DataType: [OVTensor]
     params:
       model_path: "models/openvino_vision_embeddings_model.xml"
     )" << std::endl;
