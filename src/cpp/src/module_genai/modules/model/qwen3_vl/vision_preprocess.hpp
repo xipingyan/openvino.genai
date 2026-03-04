@@ -25,4 +25,15 @@ private:
     std::unique_ptr<IVideoProcessor> m_video_processor;
 };
 
+namespace qwen3vl_utils {
+
+ImageSize smart_resize(int num_frames,
+                       int height,
+                       int width,
+                       int temporal_factor = 2,
+                       int factor = 32,
+                       size_t min_pixels = 128 * 128,
+                       size_t max_pixels = 16 * 16 * 2 * 2 * 2 * 6144);
+}  // namespace qwen3vl_utils
+
 }  // namespace ov::genai::module

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cmath>
 #include <algorithm>
+#include "module_genai/modules/model/qwen3_vl/vision_preprocess.hpp"
 
 namespace ov::genai::module {
 
@@ -178,19 +179,39 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
     return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
 }
 
-Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const std::vector<ov::Tensor> &frames) {
-    // m_video_processor->preprocess(frames);
-    return {};
-}
-
-std::vector<Qwen3_5PreprocessorOutput> Qwen3_5Preprocessor::preprocess_videos(
-    const std::vector<std::vector<ov::Tensor>>& batch_frames) {
-    std::vector<Qwen3_5PreprocessorOutput> outputs;
-    outputs.reserve(batch_frames.size());
-    for (const auto& frames : batch_frames) {
-        outputs.push_back(preprocess_video(frames));
+Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor &video) {
+    if (video.get_shape().size() != 4) {
+        OPENVINO_THROW("video must have shape [T, H, W, C], get shape: ", video.get_shape());
     }
-    return outputs;
+    if (video.get_element_type() != ov::element::u8) {
+        OPENVINO_THROW("video must be u8 for Qwen3_5 preprocessing");
+    }
+
+    const size_t frame_num = video.get_shape()[0];
+    const size_t in_h = video.get_shape()[1];
+    const size_t in_w = video.get_shape()[2];
+    const size_t channels = video.get_shape()[3];
+    OPENVINO_ASSERT(channels == 3U, "video must have 3 channels");
+
+    const size_t factor = static_cast<size_t>(m_preprocess_config.patch_size * m_preprocess_config.merge_size);
+    
+    if (m_preprocess_config.do_resize) {
+        auto resized_size = qwen3vl_utils::smart_resize(frame_num,
+                                                        in_h,
+                                                        in_w,
+                                                        m_preprocess_config.temporal_patch_size,
+                                                        factor,
+                                                        65536,
+                                                        234881024);
+        if (resized_size.height % m_preprocess_config.patch_size != 0 || resized_size.width % m_preprocess_config.patch_size != 0) {
+            OPENVINO_THROW("Resized image must be divisible by patch_size");
+        }
+    }
+    
+
+
+
+    return {};
 }
 
 void Qwen3_5Preprocessor::load_pos_embed_weight(const std::filesystem::path &model_path) {

@@ -23,6 +23,10 @@ struct PreprocessOutput {
     ov::Tensor pos_embeds;
     ov::Tensor rotary_cos;
     ov::Tensor rotary_sin;
+
+    // Video-specific outputs:
+    ov::Tensor pixel_values_videos;
+    ov::Tensor video_grid_thw;
 };
 
 // Vision preprocessing facade.
