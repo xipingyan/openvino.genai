@@ -3,7 +3,7 @@
 #include <vector>
 #include <openvino/runtime/tensor.hpp>
 
-namespace module_genai {
+namespace ov::genai::module {
 namespace utils {
 
 class IVideoProcessor {
@@ -15,4 +15,4 @@ public:
 };
 
 }  // namespace utils
-}  // namespace module_genai
+}  // namespace ov::genai::module
