@@ -8,6 +8,7 @@
 
 #include "module_genai/module.hpp"
 #include "module_genai/module_type.hpp"
+#include "module_genai/modules/models/whisper/feature_extraction_whisper.hpp"
 
 namespace ov {
 namespace genai {
@@ -17,6 +18,7 @@ class AudioPreprocessModule : public IBaseModule {
 
 private:
     VLMModelType _model_type;
+    std::shared_ptr<WhisperFeatureExtractor> m_feature_extractor_ptr = nullptr;
 
     void preprocess_audio(const bool& has_audios_input);
 };

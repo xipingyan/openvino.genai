@@ -133,7 +133,7 @@ ExpectedOutput qwen3_5_expected_output = {
     /*input_features={data, shape}*/{std::vector<float>{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, ov::Shape{1, 512}},
     /*feature_attention_mask={data, shape}*/{std::vector<int32_t>{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, ov::Shape{1, 512}}
 };
-std::vector<std::tuple<std::string, std::string, ExpectedOutput>> test_models = {{"qwen3", TEST_MODEL::Qwen3_Omni_4B_Instruct_Multilingual(), qwen3_5_expected_output}};
+std::vector<std::tuple<std::string, std::string, ExpectedOutput>> test_models = {{"qwen3_omni", TEST_MODEL::Qwen3_Omni_4B_Instruct_Multilingual(), qwen3_5_expected_output}};
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          AudioPreprocessModuleTest,

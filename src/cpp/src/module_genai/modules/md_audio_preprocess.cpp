@@ -47,12 +47,45 @@ AudioPreprocessModule::AudioPreprocessModule(const IBaseModuleDesc::PTR& desc, c
     }
 
     _model_type = to_vlm_model_type(desc->model_type);
+
+    m_feature_extractor_ptr = std::make_shared<WhisperFeatureExtractor>(model_path);
+    OPENVINO_ASSERT(m_feature_extractor_ptr != nullptr, "Failed to create WhisperFeatureExtractor with model path: " + model_path);
 }
 
 AudioPreprocessModule::~AudioPreprocessModule() {}
 
 void AudioPreprocessModule::preprocess_audio(const bool& has_audios_input) {
+    std::vector<ov::Tensor> audio_tensors;
+    if (has_audios_input) {
+        audio_tensors = get_input("audios").as<std::vector<ov::Tensor>>();
+    } else {
+        audio_tensors.push_back(get_input("audio").as<ov::Tensor>());
+    }
 
+    ov::TensorVector vec_input_features;
+    ov::TensorVector vec_attention_masks;
+    for (const auto& tensor : audio_tensors) {
+        auto outputs = m_feature_extractor_ptr->extract(tensor, 16000, true);
+        vec_input_features.push_back(std::move(outputs.input_features));
+        if (outputs.attention_mask.has_value()) {
+            vec_attention_masks.push_back(std::move(outputs.attention_mask.value()));
+        }
+        std::cout << "tensor: " << tensor.get_shape() << std::endl;
+        std::cout << "outputs.input_features: " << outputs.input_features.get_shape() << std::endl;
+        std::cout << "outputs.attention_mask: " << outputs.attention_mask.value().get_shape() << std::endl;
+    }
+
+    if (has_audios_input) {
+        this->outputs["input_features"].dt_type = DataType::VecOVTensor;
+        this->outputs["input_features"].data = vec_input_features;
+        this->outputs["feature_attention_mask"].dt_type = DataType::VecOVTensor;
+        this->outputs["feature_attention_mask"].data = vec_attention_masks;
+    } else {
+        this->outputs["input_features"].dt_type = DataType::OVTensor;
+        this->outputs["input_features"].data = vec_input_features[0];
+        this->outputs["feature_attention_mask"].dt_type = DataType::OVTensor;
+        this->outputs["feature_attention_mask"].data = vec_attention_masks[0];
+    }
 }
 
 void AudioPreprocessModule::run() {
