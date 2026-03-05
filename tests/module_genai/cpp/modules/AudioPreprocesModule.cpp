@@ -5,7 +5,7 @@
 #include "../utils/utils.hpp"
 #include "../utils/model_yaml.hpp"
 #include "../utils/load_image.hpp"
-
+namespace AudioPreprocessModuleTest {
 struct ExpectedOutput {
     std::pair<std::vector<float>, ov::Shape> input_features;
     std::pair<std::vector<int32_t>, ov::Shape> feature_attention_mask;
@@ -126,8 +126,6 @@ TEST_P(AudioPreprocessModuleTest, ModuleTest) {
     run();
 }
 
-namespace AudioPreprocessModuleTestParams {
-
 auto test_audio_types = std::vector<bool>{true};  // true: single audio, false: batch audio
 auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
 
@@ -136,11 +134,12 @@ ExpectedOutput qwen3_5_expected_output = {
     /*feature_attention_mask={data, shape}*/{std::vector<int32_t>{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, ov::Shape{1, 512}}
 };
 std::vector<std::tuple<std::string, std::string, ExpectedOutput>> test_models = {{"qwen3", TEST_MODEL::Qwen3_Omni_4B_Instruct_Multilingual(), qwen3_5_expected_output}};
-}  // namespace AudioPreprocessModuleTestParams
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          AudioPreprocessModuleTest,
-                         ::testing::Combine(::testing::ValuesIn(AudioPreprocessModuleTestParams::test_audio_types),
-                                            ::testing::ValuesIn(AudioPreprocessModuleTestParams::test_devices),
-                                            ::testing::ValuesIn(AudioPreprocessModuleTestParams::test_models)),
+                         ::testing::Combine(::testing::ValuesIn(test_audio_types),
+                                            ::testing::ValuesIn(test_devices),
+                                            ::testing::ValuesIn(test_models)),
                          AudioPreprocessModuleTest::get_test_case_name);
+
+}  // namespace AudioPreprocessModuleTest
