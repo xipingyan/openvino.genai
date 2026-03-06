@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
         std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
         std::string audio_path = utils::get_input_arg(argc, argv, "-audio", std::string{});
 
-        ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path);
+        ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path, audio_path);
 
         for (const auto& [key, value] : inputs) {
             std::cout << "[Input] " << key << ": ";
