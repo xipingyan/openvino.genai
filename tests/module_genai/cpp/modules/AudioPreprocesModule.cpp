@@ -109,7 +109,9 @@ protected:
     }
 
     void check_output_tensor(const ov::Tensor& output, const std::vector<float>& expected, const ov::Shape& expected_shape, const std::string& tensor_name) {
-        EXPECT_TRUE(compare_shape(output.get_shape(), expected_shape)) << tensor_name << " shape does not match expected shape.";
+        EXPECT_TRUE(compare_shape(output.get_shape(), expected_shape))
+            << tensor_name << " shape does not match expected shape: " << expected_shape
+            << ", got: " << output.get_shape();
         EXPECT_TRUE(compare_big_tensor(output, expected, _threshold)) << tensor_name << " values do not match expected values.";
     }
 
@@ -130,9 +132,19 @@ auto test_audio_types = std::vector<bool>{true};  // true: single audio, false: 
 auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
 
 ExpectedOutput qwen3_5_expected_output = {
-    /*input_features={data, shape}*/{std::vector<float>{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, ov::Shape{1, 512}},
-    /*feature_attention_mask={data, shape}*/{std::vector<int32_t>{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, ov::Shape{1, 512}}
-};
+    /*input_features={data, shape}*/ {std::vector<float>{-0.171524f,
+                                                         0.324615f,
+                                                         0.451607f,
+                                                         0.534605f,
+                                                         0.595251f,
+                                                         0.642851f,
+                                                         0.681975f,
+                                                         0.715166f,
+                                                         0.743978f,
+                                                         0.769428f},
+                                      ov::Shape{128, 290}},
+    /*feature_attention_mask={data, shape}*/ {std::vector<int32_t>{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, ov::Shape{290}}};
+
 std::vector<std::tuple<std::string, std::string, ExpectedOutput>> test_models = {{"qwen3_omni", TEST_MODEL::Qwen3_Omni_4B_Instruct_Multilingual(), qwen3_5_expected_output}};
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,

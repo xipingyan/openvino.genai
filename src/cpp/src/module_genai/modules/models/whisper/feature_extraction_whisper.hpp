@@ -29,8 +29,9 @@ public:
     // Pads/truncates to the model's configured maximum length (typically 30s @ 16kHz)
     // and returns log-mel filterbank features with shape [1, feature_size, n_frames].
     WhisperFeatureExtractorOutput extract(const ov::Tensor& raw_speech,
-                                          std::optional<size_t> sampling_rate = std::nullopt,
-                                          bool return_attention_mask = false);
+                                         std::optional<size_t> sampling_rate = std::nullopt,
+                                         bool return_attention_mask = false,
+                                         float dither = 0.0f);
 
     size_t feature_size() const noexcept;
     size_t sampling_rate() const noexcept;

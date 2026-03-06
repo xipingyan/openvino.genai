@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <random>
 
 #include <openvino/core/except.hpp>
 
@@ -15,7 +16,8 @@ WhisperFeatureExtractor::WhisperFeatureExtractor(const std::filesystem::path& mo
 
 WhisperFeatureExtractorOutput WhisperFeatureExtractor::extract(const ov::Tensor& raw_speech,
                                                                std::optional<size_t> sampling_rate,
-                                                               bool return_attention_mask) {
+                                                               bool return_attention_mask,
+                                                               float dither) {
     if (sampling_rate.has_value() && sampling_rate.value() != m_impl.sampling_rate) {
         OPENVINO_THROW("WhisperFeatureExtractor: expected sampling_rate=",
                        m_impl.sampling_rate,
@@ -23,33 +25,40 @@ WhisperFeatureExtractorOutput WhisperFeatureExtractor::extract(const ov::Tensor&
                        sampling_rate.value());
     }
 
-    const size_t target_samples = m_impl.n_samples;
-    const size_t valid_samples = std::min(raw_speech.get_size(), target_samples);
-
-    std::vector<float> padded;
-    padded.reserve(target_samples);
-    padded.insert(padded.end(), raw_speech.data<float>(), raw_speech.data<float>() + valid_samples);
-    if (padded.size() < target_samples) {
-        padded.resize(target_samples, 0.0f);
+    const ov::Shape shape = raw_speech.get_shape();
+    if (!(shape.size() == 1 || (shape.size() == 2 && shape[0] == 1))) {
+        OPENVINO_THROW("WhisperFeatureExtractor: expected raw_speech shape [L] or [1, L], got ", shape);
     }
 
-    ov::genai::WhisperFeatures features = m_impl.extract(padded);
+    const size_t input_samples = (shape.size() == 2) ? shape[1] : shape[0];
+    const size_t valid_samples = input_samples;
 
-    ov::Tensor input_features(ov::element::f32, ov::Shape{1, features.feature_size, features.n_frames});
+    std::vector<float> waveform;
+    waveform.reserve(valid_samples);
+    waveform.insert(waveform.end(), raw_speech.data<float>(), raw_speech.data<float>() + valid_samples);
+
+    if (dither != 0.0f) {
+        std::mt19937 rng{std::random_device{}()};
+        std::normal_distribution<float> normal{0.0f, 1.0f};
+        for (auto& sample : waveform) {
+            sample += dither * normal(rng);
+        }
+    }
+
+    ov::genai::WhisperFeatures features = m_impl.extract(waveform, /*pad_to_30s*/ false);
+
+    ov::Tensor input_features(ov::element::f32, ov::Shape{features.feature_size, features.n_frames});
     std::memcpy(input_features.data(), features.data.data(), features.data.size() * sizeof(float));
 
     WhisperFeatureExtractorOutput out{std::move(input_features), std::nullopt, 0};
 
-    // Frame count corresponding to the unpadded prefix.
-    // Whisper STFT produces (L // hop_length) frames after dropping the last frame.
-    out.num_frames = (m_impl.hop_length == 0) ? 0 : (valid_samples / m_impl.hop_length);
-    out.num_frames = std::min(out.num_frames, static_cast<size_t>(features.n_frames));
+    // torch.stft(center=true) with reflect pad and dropping the last frame yields (L // hop_length) frames.
+    out.num_frames = features.n_frames;
 
     if (return_attention_mask) {
-        ov::Tensor mask(ov::element::i32, ov::Shape{1, features.n_frames});
+        ov::Tensor mask(ov::element::i32, ov::Shape{features.n_frames});
         auto* mask_data = mask.data<int32_t>();
-        std::fill(mask_data, mask_data + features.n_frames, 0);
-        std::fill(mask_data, mask_data + out.num_frames, 1);
+        std::fill(mask_data, mask_data + features.n_frames, 1);
         out.attention_mask = std::move(mask);
     }
 

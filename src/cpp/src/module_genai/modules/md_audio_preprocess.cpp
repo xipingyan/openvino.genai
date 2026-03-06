@@ -70,9 +70,6 @@ void AudioPreprocessModule::preprocess_audio(const bool& has_audios_input) {
         if (outputs.attention_mask.has_value()) {
             vec_attention_masks.push_back(std::move(outputs.attention_mask.value()));
         }
-        std::cout << "tensor: " << tensor.get_shape() << std::endl;
-        std::cout << "outputs.input_features: " << outputs.input_features.get_shape() << std::endl;
-        std::cout << "outputs.attention_mask: " << outputs.attention_mask.value().get_shape() << std::endl;
     }
 
     if (has_audios_input) {
