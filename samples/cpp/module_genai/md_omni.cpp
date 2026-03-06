@@ -51,7 +51,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path
             continue;
         }
 
-        if (param_type == "Audio" && utils::contains_key(param_name, {"audio"})) {
+        if (param_type == "String" && utils::contains_key(param_name, {"audio"})) {
             if (audio_path.empty()) {
                 throw std::runtime_error("Audio path is empty.");
             }

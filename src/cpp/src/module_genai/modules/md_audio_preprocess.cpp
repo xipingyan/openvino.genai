@@ -41,12 +41,6 @@ void AudioPreprocessModule::print_static_config() {
 AudioPreprocessModule::AudioPreprocessModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
     std::string model_path = desc->get_full_path(desc->params["model_path"]);
-    std::string device = desc->device;
-    if (device.empty()) {
-        device = "CPU";
-    }
-
-    _model_type = to_vlm_model_type(desc->model_type);
 
     m_feature_extractor_ptr = std::make_shared<WhisperFeatureExtractor>(model_path);
     OPENVINO_ASSERT(m_feature_extractor_ptr != nullptr, "Failed to create WhisperFeatureExtractor with model path: " + model_path);
