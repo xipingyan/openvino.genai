@@ -83,7 +83,16 @@ int main(int argc, char* argv[]) {
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path);
 
         for (const auto& [key, value] : inputs) {
-            std::cout << "[Input] " << key << ": " << value.as<std::string>() << std::endl;
+            std::cout << "[Input] " << key << ": ";
+            if (value.is<std::string>()) {
+                std::cout << value.as<std::string>();
+            } else if (value.is<ov::Tensor>()) {
+                const auto& tensor = value.as<ov::Tensor>();
+                std::cout << "Tensor (rank=" << tensor.get_shape().size() << ")";
+            } else {
+                std::cout << "<non-string input>";
+            }
+            std::cout << std::endl;
         }
 
         ov::genai::module::ModulePipeline pipe(config_path);
