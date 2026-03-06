@@ -74,6 +74,9 @@ void AudioPreprocessModule::preprocess_audio(const bool& has_audios_input) {
     } else {
         this->outputs["input_features"].dt_type = DataType::OVTensor;
         this->outputs["input_features"].data = vec_input_features[0];
+        OPENVINO_ASSERT(!vec_attention_masks.empty(),
+                        "AudioPreprocessModule: attention mask generation failed or was disabled, "
+                        "but a single-audio attention mask output is required.");
         this->outputs["feature_attention_mask"].dt_type = DataType::OVTensor;
         this->outputs["feature_attention_mask"].data = vec_attention_masks[0];
     }
