@@ -32,7 +32,11 @@ void AudioPreprocessModule::print_static_config() {
       - name: "input_features"  # Output port name.
         type: "OVTensor"        # Support DataType: [OVTensor]
       - name: "feature_attention_mask"  # Output port name
-        type: "OVTensor"                # Support DataType: [OVTensor]     
+        type: "OVTensor"                # Support DataType: [OVTensor]   
+      - name: "vec_input_features"  # Output port name.
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
+      - name: "vec_feature_attention_mask"  # Output port name
+        type: "VecOVTensor"                # Support DataType: [VecOVTensor]     
     params:
       model_path: "models_path"
     )" << std::endl;
