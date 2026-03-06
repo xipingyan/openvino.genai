@@ -9,8 +9,9 @@
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/vlm_config.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5config.hpp"
-
-
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+#include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
+#endif
 namespace ov {
 namespace genai {
 namespace module {
@@ -41,6 +42,7 @@ private:
                                    const size_t video_id,
                                    const int64_t vision_start_token_id,
                                    const std::vector<std::pair<std::size_t, std::size_t>>& history_vision_count);
+    ov::Tensor build_vision_attention_mask(const ov::Tensor& grid_thw);
 
     std::unique_ptr<CircularBufferQueue<ov::InferRequest>> m_request_queue;
     bool m_with_cu_seqlens_input { false };
@@ -53,6 +55,10 @@ private:
     int64_t m_vision_start_token_id = 0;
     int64_t m_image_pad_token_id = 0;
     int64_t m_video_pad_token_id = 0;
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+    std::variant<modeling::models::Qwen3VLConfig> m_vl_config;
+    std::optional<std::variant<modeling::models::Qwen3VLInputPlanner>> m_vl_input_planner;
+#endif
 };
 
 REGISTER_MODULE_CONFIG(VisionEncoderModule) ;

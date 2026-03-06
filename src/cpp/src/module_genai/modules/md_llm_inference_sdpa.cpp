@@ -25,6 +25,7 @@
 
 #include "openvino/genai/chat_history.hpp"
 #include "module_genai/utils/com_utils.hpp"
+#include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
 
 namespace ov {
 namespace genai {
@@ -71,6 +72,9 @@ pipeline_modules:
         source: "ParentModuleName.OutputPortName"
       - name: "grid_thw"             # [Optional] grid dimensions [N,3] for 3D MRoPE position ids
         type: "OVTensor"
+        source: "ParentModuleName.OutputPortName"
+      - name: "deepstack_embeds"      # [Optional] deepstack visual embeddings for Qwen3-Omni
+        type: "VecOVTensor"
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "generated_text"
@@ -178,13 +182,26 @@ bool LLMInferenceSDPAModule::initialize() {
 
     // Resolve model directory
     std::filesystem::path models_path = get_optional_param("model_path");
-    if (models_path.empty()) {
-        models_path = get_param("model_cfg_path");
+    bool is_xml_file = false;
+    std::shared_ptr<ov::Model> text_ir = nullptr;
+    if (models_path.extension() == ".xml") {
+        if (!std::filesystem::exists(models_path)) {
+            GENAI_ERR("Specified model_path XML file does not exist: " + models_path.string());
+            return false;
+        }
+        is_xml_file = true;
+        text_ir = m_core.read_model(models_path);
+        models_path = models_path.parent_path();
+    } else {
+        if (models_path.empty()) {
+            models_path = get_param("model_cfg_path");
+        }
+        if (models_path.empty() || !std::filesystem::is_directory(models_path)) {
+            GENAI_ERR("LLMInferenceSDPAModule: model_path is required and must be an existing directory");
+            return false;
+        }
     }
-    if (models_path.empty() || !std::filesystem::is_directory(models_path)) {
-        GENAI_ERR("LLMInferenceSDPAModule: model_path is required and must be an existing directory");
-        return false;
-    }
+    
 
     // Override max_new_tokens from params
     {
@@ -204,44 +221,47 @@ bool LLMInferenceSDPAModule::initialize() {
     }
 
     // Resolve IR paths
-    const std::string qs = quant_suffix();
-    GENAI_INFO("LLMInferenceSDPAModule: quant suffix = " + qs);
+    if (!is_xml_file) {
+        const std::string qs = quant_suffix();
+        GENAI_INFO("LLMInferenceSDPAModule: quant suffix = " + qs);
 
-    const auto text_xml    = models_path / ("qwen3_5_text"    + qs + ".xml");
-    const auto text_bin    = models_path / ("qwen3_5_text"    + qs + ".bin");
-    const auto text_vl_xml = models_path / ("qwen3_5_text_vl" + qs + ".xml");
-    const auto text_vl_bin = models_path / ("qwen3_5_text_vl" + qs + ".bin");
+        const auto text_xml    = models_path / ("qwen3_5_text"    + qs + ".xml");
+        const auto text_bin    = models_path / ("qwen3_5_text"    + qs + ".bin");
+        const auto text_vl_xml = models_path / ("qwen3_5_text_vl" + qs + ".xml");
+        const auto text_vl_bin = models_path / ("qwen3_5_text_vl" + qs + ".bin");
 
-    // Prefer VL IR (supports both text and VL modes at runtime).
-    // Fall back to text-only IR when VL IR is not available.
-    std::filesystem::path chosen_text_xml, chosen_text_bin;
-    if (has_ir_pair(text_vl_xml, text_vl_bin)) {
-        chosen_text_xml = text_vl_xml;
-        chosen_text_bin = text_vl_bin;
-        m_text_uses_vl_ir = true;
-    } else if (has_ir_pair(text_xml, text_bin)) {
-        chosen_text_xml = text_xml;
-        chosen_text_bin = text_bin;
-        m_text_uses_vl_ir = false;
-        GENAI_INFO("VL text IR not found; using text-only IR (VL mode will not be available)");
-    } else {
-        GENAI_ERR("No text IR found. Expected: " + text_vl_xml.string() + " or " + text_xml.string());
-        return false;
-    }
-
-    // Compile the text model
-    GENAI_INFO("LLMInferenceSDPAModule: loading text IR: " + chosen_text_xml.string());
-    auto text_ir = m_core.read_model(chosen_text_xml.string(), chosen_text_bin.string());
-
-    // Verify VL inputs when using VL IR
-    if (m_text_uses_vl_ir) {
-        using IO = ov::genai::modeling::models::Qwen3_5TextIO;
-        if (!has_model_input(text_ir, IO::kVisualEmbeds) ||
-            !has_model_input(text_ir, IO::kVisualPosMask)) {
-            GENAI_ERR("Text IR missing VL inputs (visual_embeds / visual_pos_mask)");
+        // Prefer VL IR (supports both text and VL modes at runtime).
+        // Fall back to text-only IR when VL IR is not available.
+        std::filesystem::path chosen_text_xml, chosen_text_bin;
+        if (has_ir_pair(text_vl_xml, text_vl_bin)) {
+            chosen_text_xml = text_vl_xml;
+            chosen_text_bin = text_vl_bin;
+            m_text_uses_vl_ir = true;
+        } else if (has_ir_pair(text_xml, text_bin)) {
+            chosen_text_xml = text_xml;
+            chosen_text_bin = text_bin;
+            m_text_uses_vl_ir = false;
+            GENAI_INFO("VL text IR not found; using text-only IR (VL mode will not be available)");
+        } else {
+            GENAI_ERR("No text IR found. Expected: " + text_vl_xml.string() + " or " + text_xml.string());
             return false;
         }
+
+        // Compile the text model
+        GENAI_INFO("LLMInferenceSDPAModule: loading text IR: " + chosen_text_xml.string());
+        text_ir = m_core.read_model(chosen_text_xml.string(), chosen_text_bin.string());
+
+        // Verify VL inputs when using VL IR
+        if (m_text_uses_vl_ir) {
+            using IO = ov::genai::modeling::models::Qwen3_5TextIO;
+            if (!has_model_input(text_ir, IO::kVisualEmbeds) ||
+                !has_model_input(text_ir, IO::kVisualPosMask)) {
+                GENAI_ERR("Text IR missing VL inputs (visual_embeds / visual_pos_mask)");
+                return false;
+            }
+        }
     }
+    
 
     // Resolve text device — allow override via params
     std::string text_device = module_desc->device;
@@ -414,7 +434,8 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
                                                     const ov::Tensor& position_ids,
                                                     const ov::Tensor& rope_deltas,
                                                     const ov::Tensor& visual_embeds,
-                                                    const ov::Tensor& visual_pos_mask) {
+                                                    const ov::Tensor& visual_pos_mask,
+                                                    const std::optional<std::vector<ov::Tensor>>& deepstack_embeds) {
     using TIO = ov::genai::modeling::models::Qwen3_5TextIO;
 
     const size_t  batch      = input_ids.get_shape()[0];
@@ -431,6 +452,20 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     text_req.set_tensor(TIO::kBeamIdx,       beam_idx);
     text_req.set_tensor(TIO::kVisualEmbeds,  visual_embeds);
     text_req.set_tensor(TIO::kVisualPosMask, visual_pos_mask);
+    if (deepstack_embeds.has_value()) {
+        for (size_t i = 0; i < deepstack_embeds->size(); i++) {
+            const std::string name =
+                std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                std::to_string(i);
+            text_req.set_tensor(name, deepstack_embeds.value()[i]);
+        }
+        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(m_model_config.text.hidden_size)});
+        std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
+        text_req.set_tensor("audio_features", prefill_audio_features);
+        ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
+        std::memset(prefill_audio_pos_mask.data(), 0, prefill_audio_pos_mask.get_byte_size());
+        text_req.set_tensor("audio_pos_mask", prefill_audio_pos_mask);
+    }
 
     const auto t_prefill0 = std::chrono::steady_clock::now();
     text_req.infer();
@@ -445,6 +480,17 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
 
     ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
     ov::Tensor dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
+    ov::Tensor decode_audio_features =
+        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor decode_audio_pos_mask = make_zeros(ov::element::boolean, {batch, 1});
+    std::vector<ov::Tensor> decode_deepstack;
+    if (deepstack_embeds.has_value()) {
+        decode_deepstack.reserve(deepstack_embeds.value().size());
+        for (size_t i = 0; i < deepstack_embeds.value().size(); ++i) {
+            decode_deepstack.push_back(
+                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)}));
+        }
+    }
 
     int64_t past_len     = prompt_len;
 
@@ -457,8 +503,22 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
         for (size_t b = 0; b < batch; ++b)
             step_ids.data<int64_t>()[b] = next_id;
 
-        auto pos = ov::genai::modeling::models::Qwen3_5InputPlanner::build_decode_position_ids(
-            rope_deltas, past_len, 1);
+        ov::Tensor pos;
+        if (!deepstack_embeds.has_value()) {
+            pos = ov::genai::modeling::models::Qwen3_5InputPlanner::build_decode_position_ids(
+                rope_deltas, past_len, 1);
+        } else {
+            pos = ov::genai::modeling::models::Qwen3VLInputPlanner::build_decode_position_ids(
+                rope_deltas, past_len, 1);
+            text_req.set_tensor("audio_features", decode_audio_features);
+            text_req.set_tensor("audio_pos_mask", decode_audio_pos_mask);
+            for (size_t i = 0; i < decode_deepstack.size(); ++i) {
+                const std::string name =
+                    std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                    std::to_string(i);
+                text_req.set_tensor(name, decode_deepstack[i]);
+            }
+        }
 
         text_req.set_tensor(TIO::kInputIds,      step_ids);
         text_req.set_tensor(TIO::kAttentionMask, step_mask);
@@ -548,11 +608,14 @@ void LLMInferenceSDPAModule::run() {
         ov::Tensor grid_thw        = inputs["grid_thw"].data.as<ov::Tensor>();
         ov::Tensor position_ids    = inputs["position_ids"].data.as<ov::Tensor>();
         ov::Tensor rope_delta      = inputs["rope_delta"].data.as<ov::Tensor>();
-
+        std::optional<std::vector<ov::Tensor>> deepstack_embeds = std::nullopt;
+        if (exists_input("deepstack_embeds")) {
+            deepstack_embeds = inputs["deepstack_embeds"].data.as<std::vector<ov::Tensor>>();
+        }
 
         std::string generated_text = run_vl_decode(input_ids, attention_mask,
                                                     position_ids, rope_delta,
-                                                    visual_embeds, visual_pos_mask);
+                                                    visual_embeds, visual_pos_mask, deepstack_embeds);
         GENAI_INFO("LLM output: " + generated_text);
         this->outputs["generated_text"].data = generated_text;
     } else {

@@ -1,7 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "modeling/models/qwen3_5/processing_qwen3_5.hpp"
+#include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -40,14 +40,14 @@ std::filesystem::path resolve_config_path(const std::filesystem::path& path) {
     return path;
 }
 
-void parse_rope_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3_5RopeConfig& cfg) {
+void parse_rope_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3VLRopeConfig& cfg) {
     using ov::genai::utils::read_json_param;
     read_json_param(data, "mrope_interleaved", cfg.mrope_interleaved);
     read_json_param(data, "mrope_section", cfg.mrope_section);
     read_json_param(data, "rope_type", cfg.rope_type);
 }
 
-void parse_text_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3_5TextConfig& cfg) {
+void parse_text_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3VLTextConfig& cfg) {
     using ov::genai::utils::read_json_param;
     read_json_param(data, "model_type", cfg.model_type);
     read_json_param(data, "vocab_size", cfg.vocab_size);
@@ -65,42 +65,18 @@ void parse_text_config(const nlohmann::json& data, ov::genai::modeling::models::
     read_json_param(data, "attention_dropout", cfg.attention_dropout);
     read_json_param(data, "tie_word_embeddings", cfg.tie_word_embeddings);
     read_json_param(data, "dtype", cfg.dtype);
-    read_json_param(data, "partial_rotary_factor", cfg.partial_rotary_factor);
-    read_json_param(data, "full_attention_interval", cfg.full_attention_interval);
-    read_json_param(data, "layer_types", cfg.layer_types);
-    read_json_param(data, "linear_conv_kernel_dim", cfg.linear_conv_kernel_dim);
-    read_json_param(data, "linear_key_head_dim", cfg.linear_key_head_dim);
-    read_json_param(data, "linear_value_head_dim", cfg.linear_value_head_dim);
-    read_json_param(data, "linear_num_key_heads", cfg.linear_num_key_heads);
-    read_json_param(data, "linear_num_value_heads", cfg.linear_num_value_heads);
-    read_json_param(data, "moe_intermediate_size", cfg.moe_intermediate_size);
-    read_json_param(data, "shared_expert_intermediate_size", cfg.shared_expert_intermediate_size);
-    read_json_param(data, "num_experts", cfg.num_experts);
-    read_json_param(data, "num_experts_per_tok", cfg.num_experts_per_tok);
-    read_json_param(data, "norm_topk_prob", cfg.norm_topk_prob);
-    read_json_param(data, "output_router_logits", cfg.output_router_logits);
-    read_json_param(data, "router_aux_loss_coef", cfg.router_aux_loss_coef);
-    read_json_param(data, "eos_token_id", cfg.eos_token_id);
 
     if (data.contains("rope_scaling")) {
         parse_rope_config(data.at("rope_scaling"), cfg.rope);
-        // Some configs nest rope_theta / partial_rotary_factor inside rope_scaling
-        // instead of at the text_config top level.  Pick them up if present.
-        read_json_param(data.at("rope_scaling"), "rope_theta", cfg.rope_theta);
-        read_json_param(data.at("rope_scaling"), "partial_rotary_factor", cfg.partial_rotary_factor);
     }
     if (data.contains("rope_parameters")) {
         parse_rope_config(data.at("rope_parameters"), cfg.rope);
-        // Same as above — Qwen3.5-MoE checkpoints store rope_theta and
-        // partial_rotary_factor inside rope_parameters.
-        read_json_param(data.at("rope_parameters"), "rope_theta", cfg.rope_theta);
-        read_json_param(data.at("rope_parameters"), "partial_rotary_factor", cfg.partial_rotary_factor);
     }
 
     cfg.finalize();
 }
 
-void parse_vision_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3_5VisionConfig& cfg) {
+void parse_vision_config(const nlohmann::json& data, ov::genai::modeling::models::Qwen3VLVisionConfig& cfg) {
     using ov::genai::utils::read_json_param;
     read_json_param(data, "model_type", cfg.model_type);
     read_json_param(data, "depth", cfg.depth);
@@ -219,7 +195,7 @@ ov::Tensor to_f32(const ov::Tensor& src) {
         return dst;
     }
 
-    OPENVINO_THROW("Unsupported pos_embed dtype for Qwen3_5 preprocessing");
+    OPENVINO_THROW("Unsupported pos_embed dtype for Qwen3VL preprocessing");
 }
 
 void resize_bilinear_to_chw(const uint8_t* src,
@@ -440,7 +416,7 @@ ov::Tensor build_pos_embeds(const ov::Tensor& pos_embed_weight,
 
 std::pair<ov::Tensor, ov::Tensor> build_rotary_cos_sin(
     const ov::Tensor& grid_thw,
-    const ov::genai::modeling::models::Qwen3_5VisionConfig& cfg,
+    const ov::genai::modeling::models::Qwen3VLVisionConfig& cfg,
     int32_t merge_size) {
     if (grid_thw.get_element_type() != ov::element::i64) {
         OPENVINO_THROW("grid_thw must be i64");
@@ -462,7 +438,7 @@ std::pair<ov::Tensor, ov::Tensor> build_rotary_cos_sin(
 
     const int32_t head_dim = cfg.head_dim();
     if (head_dim <= 0 || head_dim % 2 != 0) {
-        OPENVINO_THROW("Invalid head_dim for Qwen3_5 rotary embedding");
+        OPENVINO_THROW("Invalid head_dim for Qwen3VL rotary embedding");
     }
     const int32_t rotary_dim = head_dim / 2;
     if (rotary_dim % 2 != 0) {
@@ -547,25 +523,21 @@ namespace genai {
 namespace modeling {
 namespace models {
 
-int32_t Qwen3_5TextConfig::kv_heads() const {
+int32_t Qwen3VLTextConfig::kv_heads() const {
     return num_key_value_heads > 0 ? num_key_value_heads : num_attention_heads;
 }
 
-int32_t Qwen3_5TextConfig::resolved_head_dim() const {
+int32_t Qwen3VLTextConfig::resolved_head_dim() const {
     if (head_dim > 0) {
         return head_dim;
     }
-    if (hidden_size > 0 && num_attention_heads > 0 && (hidden_size % num_attention_heads == 0)) {
+    if (hidden_size > 0 && num_attention_heads > 0) {
         return hidden_size / num_attention_heads;
     }
     return 0;
 }
 
-bool Qwen3_5TextConfig::is_moe_enabled() const {
-    return num_experts > 0 && moe_intermediate_size > 0 && shared_expert_intermediate_size > 0;
-}
-
-void Qwen3_5TextConfig::finalize() {
+void Qwen3VLTextConfig::finalize() {
     if (num_key_value_heads <= 0) {
         num_key_value_heads = num_attention_heads;
     }
@@ -573,159 +545,80 @@ void Qwen3_5TextConfig::finalize() {
         head_dim = resolved_head_dim();
     }
     if (rope.mrope_section.empty()) {
-        rope.mrope_section = {11, 11, 10};
-    }
-    if (full_attention_interval <= 0) {
-        full_attention_interval = 4;
-    }
-    if (layer_types.empty()) {
-        layer_types.reserve(static_cast<size_t>(num_hidden_layers));
-        for (int32_t i = 0; i < num_hidden_layers; ++i) {
-            layer_types.push_back(((i + 1) % full_attention_interval) == 0 ? "full_attention" : "linear_attention");
-        }
-    }
-    if (linear_conv_kernel_dim <= 0) {
-        linear_conv_kernel_dim = 4;
-    }
-    if (linear_key_head_dim <= 0) {
-        linear_key_head_dim = 128;
-    }
-    if (linear_value_head_dim <= 0) {
-        linear_value_head_dim = 128;
-    }
-    if (linear_num_key_heads <= 0) {
-        linear_num_key_heads = num_attention_heads;
-    }
-    if (linear_num_value_heads <= 0) {
-        linear_num_value_heads = num_attention_heads;
-    }
-    if (num_experts < 0) {
-        num_experts = 0;
-    }
-    if (num_experts > 0 && num_experts_per_tok <= 0) {
-        num_experts_per_tok = 1;
+        rope.mrope_section = {24, 20, 20};
     }
 }
 
-void Qwen3_5TextConfig::validate() const {
+void Qwen3VLTextConfig::validate() const {
     if (hidden_size <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig.hidden_size must be > 0");
+        OPENVINO_THROW("Qwen3VLTextConfig.hidden_size must be > 0");
     }
     if (num_hidden_layers <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig.num_hidden_layers must be > 0");
+        OPENVINO_THROW("Qwen3VLTextConfig.num_hidden_layers must be > 0");
     }
     if (num_attention_heads <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig.num_attention_heads must be > 0");
+        OPENVINO_THROW("Qwen3VLTextConfig.num_attention_heads must be > 0");
     }
     if (kv_heads() <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig.num_key_value_heads must be > 0");
+        OPENVINO_THROW("Qwen3VLTextConfig.num_key_value_heads must be > 0");
     }
     if (num_attention_heads % kv_heads() != 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig.num_attention_heads must be divisible by num_key_value_heads");
+        OPENVINO_THROW("Qwen3VLTextConfig.num_attention_heads must be divisible by num_key_value_heads");
     }
     if (resolved_head_dim() <= 0) {
-        if (hidden_size > 0 && num_attention_heads > 0 && (hidden_size % num_attention_heads != 0) && head_dim <= 0) {
-            OPENVINO_THROW("Qwen3_5TextConfig.hidden_size must be divisible by num_attention_heads "
-                           "when head_dim is not explicitly provided");
-        }
-        OPENVINO_THROW("Qwen3_5TextConfig.head_dim must be > 0");
+        OPENVINO_THROW("Qwen3VLTextConfig.head_dim must be > 0");
     }
-    if (partial_rotary_factor <= 0.0f || partial_rotary_factor > 1.0f) {
-        OPENVINO_THROW("Qwen3_5TextConfig.partial_rotary_factor must be in (0, 1]");
-    }
-    const int32_t head_dim = resolved_head_dim();
-    int32_t rotary_dim = static_cast<int32_t>(std::floor(static_cast<float>(head_dim) * partial_rotary_factor));
-    rotary_dim = std::max<int32_t>(0, std::min<int32_t>(rotary_dim, head_dim));
-    if ((rotary_dim % 2) != 0) {
-        rotary_dim -= 1;
-    }
-    if (rotary_dim <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig produces invalid rotary_dim (<=0). ",
-                       "Increase head_dim or partial_rotary_factor. head_dim=",
-                       head_dim,
-                       ", partial_rotary_factor=",
-                       partial_rotary_factor);
+    if (hidden_size % num_attention_heads != 0) {
+        OPENVINO_THROW("Qwen3VLTextConfig.hidden_size must be divisible by num_attention_heads");
     }
     if (rope.mrope_interleaved && rope.mrope_section.size() != 3) {
-        OPENVINO_THROW("Qwen3_5TextConfig.mrope_section must have 3 elements");
-    }
-    if (layer_types.size() != static_cast<size_t>(num_hidden_layers)) {
-        OPENVINO_THROW("Qwen3_5TextConfig.layer_types size must equal num_hidden_layers");
-    }
-    if (linear_num_key_heads <= 0 || linear_num_value_heads <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig linear head counts must be > 0");
-    }
-    if (linear_num_value_heads % linear_num_key_heads != 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig linear_num_value_heads must be divisible by linear_num_key_heads");
-    }
-    if (linear_key_head_dim <= 0 || linear_value_head_dim <= 0) {
-        OPENVINO_THROW("Qwen3_5TextConfig linear head dims must be > 0");
-    }
-    if (!model_type.empty() && model_type != "qwen3_5_text" && model_type != "qwen3_5_moe_text" && model_type.find("qwen3_omni") == std::string::npos) {
-        OPENVINO_THROW("Unsupported Qwen3_5TextConfig.model_type: ", model_type);
-    }
-
-    if (is_moe_enabled()) {
-        if (num_experts_per_tok <= 0) {
-            OPENVINO_THROW("Qwen3_5TextConfig.num_experts_per_tok must be > 0 when MoE is enabled");
-        }
-        if (num_experts_per_tok > num_experts) {
-            OPENVINO_THROW("Qwen3_5TextConfig.num_experts_per_tok must be <= num_experts");
-        }
-    } else {
-        if (intermediate_size <= 0) {
-            OPENVINO_THROW("Qwen3_5TextConfig.intermediate_size must be > 0 for Dense MLP");
-        }
-        if (num_experts > 0 || moe_intermediate_size > 0 || shared_expert_intermediate_size > 0) {
-            OPENVINO_THROW("Qwen3_5TextConfig has partial MoE fields configured. ",
-                           "Set num_experts/moe_intermediate_size/shared_expert_intermediate_size consistently.");
-        }
+        OPENVINO_THROW("Qwen3VLTextConfig.mrope_section must have 3 elements");
     }
 }
 
-int32_t Qwen3_5VisionConfig::head_dim() const {
+int32_t Qwen3VLVisionConfig::head_dim() const {
     if (num_heads <= 0) {
         return 0;
     }
     return hidden_size / num_heads;
 }
 
-void Qwen3_5VisionConfig::finalize() {
+void Qwen3VLVisionConfig::finalize() {
     if (out_hidden_size <= 0) {
         out_hidden_size = hidden_size;
     }
 }
 
-void Qwen3_5VisionConfig::validate() const {
+void Qwen3VLVisionConfig::validate() const {
     if (depth <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.depth must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig.depth must be > 0");
     }
     if (hidden_size <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.hidden_size must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig.hidden_size must be > 0");
     }
     if (num_heads <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.num_heads must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig.num_heads must be > 0");
     }
     if (hidden_size % num_heads != 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.hidden_size must be divisible by num_heads");
+        OPENVINO_THROW("Qwen3VLVisionConfig.hidden_size must be divisible by num_heads");
     }
     if (patch_size <= 0 || spatial_merge_size <= 0 || temporal_patch_size <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig patch/merge sizes must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig patch/merge sizes must be > 0");
     }
     if (out_hidden_size <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.out_hidden_size must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig.out_hidden_size must be > 0");
     }
     if (num_position_embeddings <= 0) {
-        OPENVINO_THROW("Qwen3_5VisionConfig.num_position_embeddings must be > 0");
+        OPENVINO_THROW("Qwen3VLVisionConfig.num_position_embeddings must be > 0");
     }
     if (!deepstack_visual_indexes.empty()) {
         validate_index_range(deepstack_visual_indexes, depth, "deepstack_visual_indexes");
     }
 }
 
-void Qwen3_5Config::finalize() {
+void Qwen3VLConfig::finalize() {
     if (model_type.empty()) {
-        model_type = "qwen3_5";
+        model_type = "qwen3_vl";
     }
     text.finalize();
     vision.finalize();
@@ -737,26 +630,20 @@ void Qwen3_5Config::finalize() {
     }
 }
 
-void Qwen3_5Config::validate() const {
-    if (model_type != "qwen3_5" && model_type != "qwen3_5_moe" && model_type.find("qwen3_omni") == std::string::npos) {
+void Qwen3VLConfig::validate() const {
+    if (model_type != "qwen3_vl") {
         OPENVINO_THROW("Unsupported model_type: ", model_type);
-    }
-    if (!text.model_type.empty() && text.model_type != "qwen3_5_text" && text.model_type != "qwen3_5_moe_text" && text.model_type.find("qwen3_omni") == std::string::npos) {
-        OPENVINO_THROW("Unsupported text model_type: ", text.model_type);
-    }
-    if (!vision.model_type.empty() && vision.model_type != "qwen3_5" && vision.model_type != "qwen3_5_moe" && vision.model_type.find("qwen3_omni") == std::string::npos) {
-        OPENVINO_THROW("Unsupported vision model_type: ", vision.model_type);
     }
     text.validate();
     vision.validate();
-    if (image_token_id < 0 || video_token_id < 0 || vision_start_token_id < 0 || vision_end_token_id < 0) {
-        OPENVINO_THROW("Invalid token ids in Qwen3_5Config");
+    if (image_token_id < 0 || vision_start_token_id < 0 || vision_end_token_id < 0) {
+        OPENVINO_THROW("Invalid token ids in Qwen3VLConfig");
     }
 }
 
-Qwen3_5Config Qwen3_5Config::from_json(const nlohmann::json& data) {
+Qwen3VLConfig Qwen3VLConfig::from_json(const nlohmann::json& data) {
     using ov::genai::utils::read_json_param;
-    Qwen3_5Config cfg;
+    Qwen3VLConfig cfg;
     read_json_param(data, "model_type", cfg.model_type);
     read_json_param(data, "architectures", cfg.architectures);
     read_json_param(data, "image_token_id", cfg.image_token_id);
@@ -768,13 +655,13 @@ Qwen3_5Config Qwen3_5Config::from_json(const nlohmann::json& data) {
     if (data.contains("text_config")) {
         parse_text_config(data.at("text_config"), cfg.text);
     } else {
-        OPENVINO_THROW("Qwen3_5Config is missing text_config");
+        OPENVINO_THROW("Qwen3VLConfig is missing text_config");
     }
 
     if (data.contains("vision_config")) {
         parse_vision_config(data.at("vision_config"), cfg.vision);
     } else {
-        OPENVINO_THROW("Qwen3_5Config is missing vision_config");
+        OPENVINO_THROW("Qwen3VLConfig is missing vision_config");
     }
 
     cfg.finalize();
@@ -782,202 +669,81 @@ Qwen3_5Config Qwen3_5Config::from_json(const nlohmann::json& data) {
     return cfg;
 }
 
-Qwen3_5Config Qwen3_5Config::from_json_file(const std::filesystem::path& config_path) {
+Qwen3VLConfig Qwen3VLConfig::from_json_file(const std::filesystem::path& config_path) {
     auto resolved = resolve_config_path(config_path);
     if (!std::filesystem::exists(resolved)) {
         OPENVINO_THROW("Config file not found: ", resolved.string());
     }
     nlohmann::json data;
     read_config_json_file(resolved, data);
-    std::string model_type;
-    utils::read_json_param(data, "model_type", model_type);
-    if (model_type.find("qwen3_omni") != std::string::npos) {
-        return from_json(data["thinker_config"]);
-    }
     return from_json(data);
 }
 
-Qwen3_5Config Qwen3_5Config::make_dummy_dense9b_config() {
-    Qwen3_5Config cfg;
-    cfg.model_type = "qwen3_5";
-
-    cfg.text.model_type = "qwen3_5_text";
-    cfg.text.vocab_size = 248320;
-    cfg.text.hidden_size = 4096;
-    cfg.text.intermediate_size = 12288;
-    cfg.text.num_hidden_layers = 32;
-    cfg.text.num_attention_heads = 16;
-    cfg.text.num_key_value_heads = 4;
-    cfg.text.head_dim = 256;
-    cfg.text.max_position_embeddings = 32768;
-    cfg.text.rms_norm_eps = 1e-6f;
-    cfg.text.rope_theta = 10000.0f;
-    cfg.text.hidden_act = "silu";
-    cfg.text.attention_bias = false;
-    cfg.text.tie_word_embeddings = false;
-    cfg.text.partial_rotary_factor = 0.25f;
-    cfg.text.full_attention_interval = 4;
-    cfg.text.linear_conv_kernel_dim = 4;
-    cfg.text.linear_key_head_dim = 128;
-    cfg.text.linear_value_head_dim = 128;
-    cfg.text.linear_num_key_heads = 16;
-    cfg.text.linear_num_value_heads = 32;
-    cfg.text.rope.mrope_interleaved = true;
-    cfg.text.rope.mrope_section = {11, 11, 10};
-
-    cfg.vision.model_type = "qwen3_5";
-    cfg.vision.depth = 27;
-    cfg.vision.hidden_size = 1152;
-    cfg.vision.hidden_act = "gelu_pytorch_tanh";
-    cfg.vision.intermediate_size = 4304;
-    cfg.vision.num_heads = 16;
-    cfg.vision.in_channels = 3;
-    cfg.vision.patch_size = 16;
-    cfg.vision.spatial_merge_size = 2;
-    cfg.vision.temporal_patch_size = 2;
-    cfg.vision.out_hidden_size = cfg.text.hidden_size;
-    cfg.vision.num_position_embeddings = 2304;
-    cfg.vision.deepstack_visual_indexes.clear();
-
-    cfg.image_token_id = 248056;
-    cfg.video_token_id = 248057;
-    cfg.vision_start_token_id = 248053;
-    cfg.vision_end_token_id = 248054;
-    cfg.tie_word_embeddings = false;
-
-    cfg.vision.out_hidden_size = cfg.text.hidden_size;
-
-    cfg.finalize();
-    cfg.validate();
-    return cfg;
-}
-
-Qwen3_5Config Qwen3_5Config::make_dummy_moe35b_config() {
-    Qwen3_5Config cfg;
-    cfg.model_type = "qwen3_5_moe";
-
-    cfg.text.model_type = "qwen3_5_moe_text";
-    cfg.text.vocab_size = 248320;
-    cfg.text.hidden_size = 2048;
-    cfg.text.intermediate_size = 0;
-    cfg.text.moe_intermediate_size = 512;
-    cfg.text.shared_expert_intermediate_size = 512;
-    cfg.text.num_experts = 256;
-    cfg.text.num_experts_per_tok = 8;
-    cfg.text.norm_topk_prob = true;
-    cfg.text.output_router_logits = false;
-    cfg.text.router_aux_loss_coef = 0.001f;
-    cfg.text.num_hidden_layers = 40;
-    cfg.text.num_attention_heads = 16;
-    cfg.text.num_key_value_heads = 2;
-    cfg.text.head_dim = 256;
-    cfg.text.max_position_embeddings = 32768;
-    cfg.text.rms_norm_eps = 1e-6f;
-    cfg.text.rope_theta = 10000.0f;
-    cfg.text.hidden_act = "silu";
-    cfg.text.attention_bias = false;
-    cfg.text.tie_word_embeddings = false;
-    cfg.text.partial_rotary_factor = 0.25f;
-    cfg.text.full_attention_interval = 4;
-    cfg.text.linear_conv_kernel_dim = 4;
-    cfg.text.linear_key_head_dim = 128;
-    cfg.text.linear_value_head_dim = 128;
-    cfg.text.linear_num_key_heads = 16;
-    cfg.text.linear_num_value_heads = 32;
-    cfg.text.rope.mrope_interleaved = true;
-    cfg.text.rope.mrope_section = {11, 11, 10};
-
-    cfg.vision.model_type = "qwen3_5_moe";
-    cfg.vision.depth = 27;
-    cfg.vision.hidden_size = 1152;
-    cfg.vision.hidden_act = "gelu_pytorch_tanh";
-    cfg.vision.intermediate_size = 4304;
-    cfg.vision.num_heads = 16;
-    cfg.vision.in_channels = 3;
-    cfg.vision.patch_size = 16;
-    cfg.vision.spatial_merge_size = 2;
-    cfg.vision.temporal_patch_size = 2;
-    cfg.vision.out_hidden_size = cfg.text.hidden_size;
-    cfg.vision.num_position_embeddings = 2304;
-    cfg.vision.deepstack_visual_indexes.clear();
-
-    cfg.image_token_id = 248056;
-    cfg.video_token_id = 248057;
-    cfg.vision_start_token_id = 248053;
-    cfg.vision_end_token_id = 248054;
-    cfg.tie_word_embeddings = false;
-
-    cfg.finalize();
-    cfg.validate();
-    return cfg;
-}
-
-std::string Qwen3_5ModuleNames::vision_block(int32_t index) {
+std::string Qwen3VLModuleNames::vision_block(int32_t index) {
     return std::string("blocks.") + std::to_string(index);
 }
 
-std::string Qwen3_5ModuleNames::deepstack_merger(int32_t index) {
+std::string Qwen3VLModuleNames::deepstack_merger(int32_t index) {
     return std::string("deepstack_merger_list.") + std::to_string(index);
 }
 
-std::string Qwen3_5ModuleNames::text_layer(int32_t index) {
+std::string Qwen3VLModuleNames::text_layer(int32_t index) {
     return std::string("layers.") + std::to_string(index);
 }
 
-std::vector<std::string> Qwen3_5GraphSpec::vision_required_inputs(bool use_external_pos_embeds) {
+std::vector<std::string> Qwen3VLGraphSpec::vision_required_inputs(bool use_external_pos_embeds) {
     std::vector<std::string> inputs = {
-        Qwen3_5VisionIO::kPixelValues,
-        Qwen3_5VisionIO::kGridThw,
+        Qwen3VLVisionIO::kPixelValues,
+        Qwen3VLVisionIO::kGridThw,
     };
     if (use_external_pos_embeds) {
-        inputs.emplace_back(Qwen3_5VisionIO::kPosEmbeds);
-        inputs.emplace_back(Qwen3_5VisionIO::kRotaryCos);
-        inputs.emplace_back(Qwen3_5VisionIO::kRotarySin);
+        inputs.emplace_back(Qwen3VLVisionIO::kPosEmbeds);
+        inputs.emplace_back(Qwen3VLVisionIO::kRotaryCos);
+        inputs.emplace_back(Qwen3VLVisionIO::kRotarySin);
     }
     return inputs;
 }
 
-std::vector<std::string> Qwen3_5GraphSpec::vision_outputs(const Qwen3_5VisionConfig& cfg) {
-    std::vector<std::string> outputs = {Qwen3_5VisionIO::kVisualEmbeds};
+std::vector<std::string> Qwen3VLGraphSpec::vision_outputs(const Qwen3VLVisionConfig& cfg) {
+    std::vector<std::string> outputs = {Qwen3VLVisionIO::kVisualEmbeds};
     for (size_t i = 0; i < cfg.deepstack_visual_indexes.size(); ++i) {
-        outputs.push_back(std::string(Qwen3_5VisionIO::kDeepstackEmbedsPrefix) + "." + std::to_string(i));
+        outputs.push_back(std::string(Qwen3VLVisionIO::kDeepstackEmbedsPrefix) + "." + std::to_string(i));
     }
     return outputs;
 }
 
-std::vector<std::string> Qwen3_5GraphSpec::text_required_inputs(bool use_inputs_embeds) {
+std::vector<std::string> Qwen3VLGraphSpec::text_required_inputs(bool use_inputs_embeds) {
     std::vector<std::string> inputs = {
-        Qwen3_5TextIO::kAttentionMask,
-        Qwen3_5TextIO::kPositionIds,
-        Qwen3_5TextIO::kBeamIdx,
+        Qwen3VLTextIO::kAttentionMask,
+        Qwen3VLTextIO::kPositionIds,
+        Qwen3VLTextIO::kBeamIdx,
     };
     if (use_inputs_embeds) {
-        inputs.emplace_back(Qwen3_5TextIO::kInputsEmbeds);
+        inputs.emplace_back(Qwen3VLTextIO::kInputsEmbeds);
     } else {
-        inputs.emplace_back(Qwen3_5TextIO::kInputIds);
+        inputs.emplace_back(Qwen3VLTextIO::kInputIds);
     }
     return inputs;
 }
 
-std::vector<std::string> Qwen3_5GraphSpec::text_optional_inputs() {
+std::vector<std::string> Qwen3VLGraphSpec::text_optional_inputs() {
     return {
-        Qwen3_5TextIO::kInputsEmbeds,
-        Qwen3_5TextIO::kVisualEmbeds,
-        Qwen3_5TextIO::kVisualPosMask,
-        Qwen3_5TextIO::kDeepstackEmbedsPrefix,
+        Qwen3VLTextIO::kInputsEmbeds,
+        Qwen3VLTextIO::kVisualEmbeds,
+        Qwen3VLTextIO::kVisualPosMask,
+        Qwen3VLTextIO::kDeepstackEmbedsPrefix,
     };
 }
 
-Qwen3_5InputPlanner::Qwen3_5InputPlanner(const Qwen3_5Config& cfg)
+Qwen3VLInputPlanner::Qwen3VLInputPlanner(const Qwen3VLConfig& cfg)
     : image_token_id_(cfg.image_token_id),
-      video_token_id_(cfg.video_token_id),
       vision_start_token_id_(cfg.vision_start_token_id),
       spatial_merge_size_(cfg.vision.spatial_merge_size) {}
 
-ov::Tensor Qwen3_5InputPlanner::build_visual_pos_mask(const ov::Tensor& input_ids,
+ov::Tensor Qwen3VLInputPlanner::build_visual_pos_mask(const ov::Tensor& input_ids,
                                                       const ov::Tensor* attention_mask) const {
     if (input_ids.get_element_type() != ov::element::i64) {
-        OPENVINO_THROW("input_ids must be i64 for Qwen3_5InputPlanner");
+        OPENVINO_THROW("input_ids must be i64 for Qwen3VLInputPlanner");
     }
     const auto shape = input_ids.get_shape();
     if (shape.size() != 2) {
@@ -991,7 +757,7 @@ ov::Tensor Qwen3_5InputPlanner::build_visual_pos_mask(const ov::Tensor& input_id
     const size_t total = input_ids.get_size();
 
     for (size_t idx = 0; idx < total; ++idx) {
-        bool active = ids[idx] == image_token_id_ || ids[idx] == video_token_id_;
+        bool active = ids[idx] == image_token_id_;
         if (attention_mask && !mask_value(*attention_mask, idx)) {
             active = false;
         }
@@ -1000,12 +766,11 @@ ov::Tensor Qwen3_5InputPlanner::build_visual_pos_mask(const ov::Tensor& input_id
     return mask;
 }
 
-Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
+Qwen3VLInputPlan Qwen3VLInputPlanner::build_plan(const ov::Tensor& input_ids,
                                                  const ov::Tensor* attention_mask,
-                                                 const ov::Tensor* image_grid_thw,
-                                                 const ov::Tensor* video_grid_thw) const {
+                                                 const ov::Tensor* image_grid_thw) const {
     if (input_ids.get_element_type() != ov::element::i64) {
-        OPENVINO_THROW("input_ids must be i64 for Qwen3_5InputPlanner");
+        OPENVINO_THROW("input_ids must be i64 for Qwen3VLInputPlanner");
     }
     const auto shape = input_ids.get_shape();
     if (shape.size() != 2) {
@@ -1023,15 +788,6 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
             OPENVINO_THROW("image_grid_thw must have shape [N, 3]");
         }
     }
-    if (video_grid_thw) {
-        const auto grid_shape = video_grid_thw->get_shape();
-        if (video_grid_thw->get_element_type() != ov::element::i64) {
-            OPENVINO_THROW("video_grid_thw must be i64");
-        }
-        if (grid_shape.size() != 2 || grid_shape[1] != 3) {
-            OPENVINO_THROW("video_grid_thw must have shape [N, 3]");
-        }
-    }
     if (spatial_merge_size_ <= 0) {
         OPENVINO_THROW("spatial_merge_size must be > 0");
     }
@@ -1047,27 +803,9 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
     auto visual_pos_mask = build_visual_pos_mask(input_ids, attention_mask);
 
     const int64_t* ids = input_ids.data<const int64_t>();
-    const int64_t* image_grid = image_grid_thw ? image_grid_thw->data<const int64_t>() : nullptr;
-    const size_t image_grid_rows = image_grid_thw ? image_grid_thw->get_shape().at(0) : 0;
-    size_t image_grid_index = 0;
-
-    std::vector<std::array<int64_t, 3>> expanded_video_grid;
-    if (video_grid_thw) {
-        const int64_t* raw_video_grid = video_grid_thw->data<const int64_t>();
-        const size_t raw_video_rows = video_grid_thw->get_shape().at(0);
-        for (size_t i = 0; i < raw_video_rows; ++i) {
-            const int64_t t = raw_video_grid[i * 3 + 0];
-            const int64_t h = raw_video_grid[i * 3 + 1];
-            const int64_t w = raw_video_grid[i * 3 + 2];
-            if (t <= 0 || h <= 0 || w <= 0) {
-                OPENVINO_THROW("Invalid video_grid_thw values in Qwen3_5InputPlanner");
-            }
-            for (int64_t frame = 0; frame < t; ++frame) {
-                expanded_video_grid.push_back({1, h, w});
-            }
-        }
-    }
-    size_t video_grid_index = 0;
+    const int64_t* grid = image_grid_thw ? image_grid_thw->data<const int64_t>() : nullptr;
+    const size_t grid_rows = image_grid_thw ? image_grid_thw->get_shape().at(0) : 0;
+    size_t grid_index = 0;
 
     auto pos_data = position_ids.data<int64_t>();
     auto delta_data = rope_deltas.data<int64_t>();
@@ -1101,8 +839,7 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
 
         int64_t last_max = -1;
         size_t st = 0;
-        size_t local_image_grid_index = image_grid_index;
-        size_t local_video_grid_index = video_grid_index;
+        size_t local_grid_index = grid_index;
 
         auto append_text = [&](size_t length) {
             if (length == 0) {
@@ -1120,7 +857,7 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
 
         auto append_visual = [&](int64_t t, int64_t h, int64_t w) {
             if (t <= 0 || h <= 0 || w <= 0) {
-                OPENVINO_THROW("Invalid grid_thw values in Qwen3_5InputPlanner");
+                OPENVINO_THROW("Invalid grid_thw values in Qwen3VLInputPlanner");
             }
             const int64_t llm_grid_t = t;
             const int64_t llm_grid_h = h / spatial_merge_size_;
@@ -1143,67 +880,31 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
             last_max = base + max_dim;
         };
 
-        if (image_grid_thw || video_grid_thw) {
-            std::vector<std::pair<size_t, bool>> visual_starts;
-            if (tokens.size() > 1) {
-                visual_starts.reserve(tokens.size() / 4);
-                for (size_t idx = 0; idx + 1 < tokens.size(); ++idx) {
-                    if (tokens[idx] != vision_start_token_id_) {
-                        continue;
-                    }
-                    const int64_t next = tokens[idx + 1];
-                    if (next == image_token_id_) {
-                        visual_starts.emplace_back(idx + 1, true);
-                    } else if (next == video_token_id_) {
-                        visual_starts.emplace_back(idx + 1, false);
-                    }
+        if (image_grid_thw) {
+            while (true) {
+                auto start_it = tokens.begin() + static_cast<std::vector<int64_t>::difference_type>(st);
+                auto it = std::find(start_it, tokens.end(), image_token_id_);
+                if (it == tokens.end()) {
+                    break;
                 }
-            }
-
-            for (const auto& visual_start : visual_starts) {
-                const size_t ed = visual_start.first;
-                const bool is_image = visual_start.second;
-                if (ed < st) {
-                    continue;
+                const size_t ed = static_cast<size_t>(std::distance(tokens.begin(), it));
+                if (local_grid_index >= grid_rows) {
+                    OPENVINO_THROW("image_grid_thw entries are fewer than image tokens");
                 }
                 append_text(ed - st);
-
-                int64_t t = 0;
-                int64_t h = 0;
-                int64_t w = 0;
-                if (is_image) {
-                    if (!image_grid_thw) {
-                        OPENVINO_THROW("image_grid_thw is required for image placeholders");
-                    }
-                    if (local_image_grid_index >= image_grid_rows) {
-                        OPENVINO_THROW("image_grid_thw entries are fewer than image placeholders");
-                    }
-                    t = image_grid[local_image_grid_index * 3 + 0];
-                    h = image_grid[local_image_grid_index * 3 + 1];
-                    w = image_grid[local_image_grid_index * 3 + 2];
-                    local_image_grid_index += 1;
-                } else {
-                    if (!video_grid_thw) {
-                        OPENVINO_THROW("video_grid_thw is required for video placeholders");
-                    }
-                    if (local_video_grid_index >= expanded_video_grid.size()) {
-                        OPENVINO_THROW("video_grid_thw entries are fewer than video placeholders");
-                    }
-                    t = expanded_video_grid[local_video_grid_index][0];
-                    h = expanded_video_grid[local_video_grid_index][1];
-                    w = expanded_video_grid[local_video_grid_index][2];
-                    local_video_grid_index += 1;
-                }
-
+                const int64_t t = grid[local_grid_index * 3 + 0];
+                const int64_t h = grid[local_grid_index * 3 + 1];
+                const int64_t w = grid[local_grid_index * 3 + 2];
                 append_visual(t, h, w);
 
                 const int64_t llm_grid_h = h / spatial_merge_size_;
                 const int64_t llm_grid_w = w / spatial_merge_size_;
                 const int64_t visual_len = t * llm_grid_h * llm_grid_w;
                 if (ed + static_cast<size_t>(visual_len) > tokens.size()) {
-                    OPENVINO_THROW("Visual token length does not match grid_thw");
+                    OPENVINO_THROW("Image tokens length does not match grid_thw");
                 }
                 st = ed + static_cast<size_t>(visual_len);
+                local_grid_index += 1;
             }
         }
 
@@ -1243,14 +944,13 @@ Qwen3_5InputPlan Qwen3_5InputPlanner::build_plan(const ov::Tensor& input_ids,
         }
 
         delta_data[b] = max_pos + 1 - static_cast<int64_t>(seq_len);
-        image_grid_index = local_image_grid_index;
-        video_grid_index = local_video_grid_index;
+        grid_index = local_grid_index;
     }
 
     return {position_ids, visual_pos_mask, rope_deltas};
 }
 
-ov::Tensor Qwen3_5InputPlanner::scatter_visual_embeds(const ov::Tensor& visual_embeds,
+ov::Tensor Qwen3VLInputPlanner::scatter_visual_embeds(const ov::Tensor& visual_embeds,
                                                       const ov::Tensor& visual_pos_mask) {
     const auto mask_shape = visual_pos_mask.get_shape();
     if (mask_shape.size() != 2) {
@@ -1291,7 +991,7 @@ ov::Tensor Qwen3_5InputPlanner::scatter_visual_embeds(const ov::Tensor& visual_e
     return out;
 }
 
-std::vector<ov::Tensor> Qwen3_5InputPlanner::scatter_deepstack_embeds(
+std::vector<ov::Tensor> Qwen3VLInputPlanner::scatter_deepstack_embeds(
     const std::vector<ov::Tensor>& deepstack_embeds,
     const ov::Tensor& visual_pos_mask) {
     std::vector<ov::Tensor> out;
@@ -1302,7 +1002,7 @@ std::vector<ov::Tensor> Qwen3_5InputPlanner::scatter_deepstack_embeds(
     return out;
 }
 
-ov::Tensor Qwen3_5InputPlanner::build_decode_position_ids(const ov::Tensor& rope_deltas,
+ov::Tensor Qwen3VLInputPlanner::build_decode_position_ids(const ov::Tensor& rope_deltas,
                                                           int64_t past_length,
                                                           int64_t seq_len) {
     if (rope_deltas.get_element_type() != ov::element::i64) {
@@ -1343,11 +1043,11 @@ ov::Tensor Qwen3_5InputPlanner::build_decode_position_ids(const ov::Tensor& rope
     return position_ids;
 }
 
-Qwen3_5VisionPreprocessConfig Qwen3_5VisionPreprocessConfig::from_json_file(
+Qwen3VLVisionPreprocessConfig Qwen3VLVisionPreprocessConfig::from_json_file(
     const std::filesystem::path& path) {
     nlohmann::json data;
     read_preprocess_json_file(path, data);
-    Qwen3_5VisionPreprocessConfig cfg;
+    Qwen3VLVisionPreprocessConfig cfg;
     using ov::genai::utils::read_json_param;
     read_json_param(data, "size.shortest_edge", cfg.min_pixels);
     read_json_param(data, "size.longest_edge", cfg.max_pixels);
@@ -1359,9 +1059,9 @@ Qwen3_5VisionPreprocessConfig Qwen3_5VisionPreprocessConfig::from_json_file(
     return cfg;
 }
 
-Qwen3_5VisionPreprocessor::Qwen3_5VisionPreprocessor(
-    const Qwen3_5VisionConfig& vision_cfg,
-    const Qwen3_5VisionPreprocessConfig& preprocess_cfg)
+Qwen3VLVisionPreprocessor::Qwen3VLVisionPreprocessor(
+    const Qwen3VLVisionConfig& vision_cfg,
+    const Qwen3VLVisionPreprocessConfig& preprocess_cfg)
     : vision_cfg_(vision_cfg),
       preprocess_cfg_(preprocess_cfg) {
     if (vision_cfg_.patch_size != preprocess_cfg_.patch_size) {
@@ -1375,14 +1075,14 @@ Qwen3_5VisionPreprocessor::Qwen3_5VisionPreprocessor(
     }
 }
 
-Qwen3_5VisionInputs Qwen3_5VisionPreprocessor::preprocess(const ov::Tensor& images,
+Qwen3VLVisionInputs Qwen3VLVisionPreprocessor::preprocess(const ov::Tensor& images,
                                                           const ov::Tensor& pos_embed_weight) const {
     const auto img_shape = images.get_shape();
     if (img_shape.size() != 3 && img_shape.size() != 4) {
         OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C]");
     }
     if (images.get_element_type() != ov::element::u8) {
-        OPENVINO_THROW("images must be u8 for Qwen3_5 preprocessing");
+        OPENVINO_THROW("images must be u8 for Qwen3VL preprocessing");
     }
 
     const bool has_batch = img_shape.size() == 4;
@@ -1418,7 +1118,7 @@ Qwen3_5VisionInputs Qwen3_5VisionPreprocessor::preprocess(const ov::Tensor& imag
             OPENVINO_THROW("Resized image must be divisible by patch_size");
         }
 
-        std::vector<float> frame = std::vector<float>(channels * out_h * out_w);
+        std::vector<float> frame;
         resize_bilinear_to_chw(src_img,
                                in_h,
                                in_w,
@@ -1530,7 +1230,7 @@ Qwen3_5VisionInputs Qwen3_5VisionPreprocessor::preprocess(const ov::Tensor& imag
     return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
 }
 
-int64_t Qwen3_5VisionPreprocessor::count_visual_tokens(const ov::Tensor& grid_thw,
+int64_t Qwen3VLVisionPreprocessor::count_visual_tokens(const ov::Tensor& grid_thw,
                                                        int32_t spatial_merge_size) {
     if (grid_thw.get_element_type() != ov::element::i64) {
         OPENVINO_THROW("grid_thw must be i64");

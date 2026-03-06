@@ -18,20 +18,28 @@ Qwen3_5VisionConfig Qwen3_5VisionConfig::from_json_file(const std::filesystem::p
     json_file >> data;
     Qwen3_5VisionConfig cfg;
     using ov::genai::utils::read_json_param;
-    read_json_param(data, "vision_config.model_type", cfg.model_type);
-    read_json_param(data, "vision_config.depth", cfg.depth);
-    read_json_param(data, "vision_config.hidden_size", cfg.hidden_size);
-    read_json_param(data, "vision_config.hidden_act", cfg.hidden_act);
-    read_json_param(data, "vision_config.intermediate_size", cfg.intermediate_size);
-    read_json_param(data, "vision_config.num_heads", cfg.num_heads);
-    read_json_param(data, "vision_config.in_channels", cfg.in_channels);
-    read_json_param(data, "vision_config.patch_size", cfg.patch_size);
-    read_json_param(data, "vision_config.spatial_merge_size", cfg.spatial_merge_size);
-    read_json_param(data, "vision_config.temporal_patch_size", cfg.temporal_patch_size);
-    read_json_param(data, "vision_config.out_hidden_size", cfg.out_hidden_size);
-    read_json_param(data, "vision_config.num_position_embeddings", cfg.num_position_embeddings);
-    read_json_param(data, "vision_config.deepstack_visual_indexes", cfg.deepstack_visual_indexes);
-    read_json_param(data, "vision_config.initializer_range", cfg.initializer_range);
+
+    std::string prefix = "vision_config.";
+    std::string model_type;
+    read_json_param(data, "model_type", model_type);
+    if (model_type.find("qwen3_omni") != std::string::npos) {
+        prefix = "thinker_config.vision_config.";
+    }
+
+    read_json_param(data, prefix + "model_type", cfg.model_type);
+    read_json_param(data, prefix + "depth", cfg.depth);
+    read_json_param(data, prefix + "hidden_size", cfg.hidden_size);
+    read_json_param(data, prefix + "hidden_act", cfg.hidden_act);
+    read_json_param(data, prefix + "intermediate_size", cfg.intermediate_size);
+    read_json_param(data, prefix + "num_heads", cfg.num_heads);
+    read_json_param(data, prefix + "in_channels", cfg.in_channels);
+    read_json_param(data, prefix + "patch_size", cfg.patch_size);
+    read_json_param(data, prefix + "spatial_merge_size", cfg.spatial_merge_size);
+    read_json_param(data, prefix + "temporal_patch_size", cfg.temporal_patch_size);
+    read_json_param(data, prefix + "out_hidden_size", cfg.out_hidden_size);
+    read_json_param(data, prefix + "num_position_embeddings", cfg.num_position_embeddings);
+    read_json_param(data, prefix + "deepstack_visual_indexes", cfg.deepstack_visual_indexes);
+    read_json_param(data, prefix + "initializer_range", cfg.initializer_range);
 
     return cfg;
 }

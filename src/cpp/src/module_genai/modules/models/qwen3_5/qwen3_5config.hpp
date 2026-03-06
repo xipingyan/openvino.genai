@@ -7,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include <array>
+#include <optional>
 #include "openvino/runtime/tensor.hpp"
 
 namespace ov::genai::module {
@@ -49,6 +50,7 @@ struct Qwen3_5VisionEmbeddingResult {
     ov::Tensor visual_pos_mask;
     ov::Tensor rope_deltas;
     ov::Tensor visual_embeds;
+    std::optional<std::vector<ov::Tensor>> deepstack_embeds;
 };
 
 }

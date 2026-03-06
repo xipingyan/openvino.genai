@@ -60,7 +60,8 @@ private:
                               const ov::Tensor& position_ids,
                               const ov::Tensor& rope_deltas,
                               const ov::Tensor& visual_embeds,
-                              const ov::Tensor& visual_pos_mask);
+                              const ov::Tensor& visual_pos_mask,
+                              const std::optional<std::vector<ov::Tensor>>& deepstack_embeds = std::nullopt);
 
     // Compiled text model + infer request
     ov::Core m_core;

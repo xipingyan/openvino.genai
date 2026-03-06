@@ -69,6 +69,8 @@ protected:
             inputs.push_back(input_node("visual_embeds",   "OVTensor"));
             inputs.push_back(input_node("visual_pos_mask", "OVTensor"));
             inputs.push_back(input_node("grid_thw",        "OVTensor"));
+            inputs.push_back(input_node("position_ids", "OVTensor"));
+            inputs.push_back(input_node("rope_delta", "OVTensor"));
         }
         llm_sdpa["inputs"] = inputs;
 
@@ -131,12 +133,6 @@ protected:
             ids[2 + n_vis] = text_token_id;
             inputs["input_ids"] = input_ids;
 
-            // visual_embeds: compact visual embeddings [n_vis, hidden]
-            // scatter_visual_embeds expects 2D [V, H] (flat across all images)
-            ov::Tensor visual_embeds(ov::element::f32, {n_vis, hidden});
-            std::fill_n(visual_embeds.data<float>(), n_vis * hidden, 0.01f);
-            inputs["visual_embeds"] = visual_embeds;
-
             // visual_pos_mask: boolean [1, seq_len] — true at visual token positions
             ov::Tensor visual_pos_mask(ov::element::boolean, {1, seq_len});
             auto* mask = visual_pos_mask.data<bool>();
@@ -147,6 +143,16 @@ protected:
             mask[2 + n_vis] = false;                      // text
             inputs["visual_pos_mask"] = visual_pos_mask;
 
+            // visual_embeds: compact visual embeddings [n_vis, hidden]
+            // Then scatter to [batch, seq_len, hidden] using visual_pos_mask
+            ov::Tensor visual_embeds_compact(ov::element::f32, {n_vis, hidden});
+            std::fill_n(visual_embeds_compact.data<float>(), n_vis * hidden, 0.01f);
+
+            // Scatter visual embeddings into full sequence
+            ov::Tensor visual_embeds = ov::genai::modeling::models::Qwen3_5InputPlanner::scatter_visual_embeds(
+                visual_embeds_compact, visual_pos_mask);
+            inputs["visual_embeds"] = visual_embeds;
+
             // grid_thw: [N_images, 3] — (T, H, W) for 3D MRoPE
             // Single image: T=1, H=4, W=4, spatial_merge_size=2 → n_vis = 1×2×2 = 4
             ov::Tensor grid_thw(ov::element::i64, {1, 3});
@@ -155,6 +161,12 @@ protected:
             thw[1] = 4;  // H
             thw[2] = 4;  // W
             inputs["grid_thw"] = grid_thw;
+
+            ov::genai::modeling::models::Qwen3_5InputPlanner planner(model_cfg);
+            auto plan = planner.build_plan(input_ids, nullptr, &grid_thw, nullptr);
+
+            inputs["position_ids"] = plan.position_ids;
+            inputs["rope_delta"] = plan.rope_deltas;
         }
         return inputs;
     }

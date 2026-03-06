@@ -86,7 +86,7 @@ bool TextEncoderModule::initialize() {
     m_processor_config = utils::from_config_json_if_exists<ProcessorConfig>(tokenizer_path, "preprocessor_config.json");
     if (model_type == VLMModelType::QWEN2_VL || model_type == VLMModelType::QWEN2_5_VL) {
         m_merge_length = std::pow(m_processor_config.merge_size, 2);
-    } else if (model_type == VLMModelType::QWEN3_5) {
+    } else if (model_type == VLMModelType::QWEN3_5 || model_type == VLMModelType::QWEN3_OMNI) {
         Qwen3_5VisionConfig vision_config = Qwen3_5VisionConfig::from_json_file(tokenizer_path / "config.json");
         m_merge_length = std::pow(vision_config.spatial_merge_size, 2);
     } else {
@@ -148,7 +148,7 @@ void TextEncoderModule::run() {
         if (images_sequence.size() > 0) {
             this->outputs["images_sequence"].data = images_sequence;
         }
-    } else if (model_type == VLMModelType::QWEN3_5) {
+    } else if (model_type == VLMModelType::QWEN3_5 || model_type == VLMModelType::QWEN3_OMNI) {
         std::optional<ov::Tensor> grid_thw = std::nullopt;
         if (exists_input("grid_thw")) {
             grid_thw = get_input("grid_thw").as<ov::Tensor>();
