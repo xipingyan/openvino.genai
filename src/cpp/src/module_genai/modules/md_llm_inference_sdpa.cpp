@@ -81,6 +81,7 @@ pipeline_modules:
         type: "String"
     params:
       model_path: "model_path"              # Directory containing config.json + IR files
+      cache_dir: "cache_dir"                # Optional directory for caching compiled models, e.g. for GPU device, recommended to set this to a local disk path for better performance
       model_cfg_path: "model_config.json"   # Optional fallback when model_path is not provided
       max_new_tokens: "256"
       text_device: ""                       # Override device for text model (e.g. CPU for VL TDR avoidance)
@@ -202,6 +203,7 @@ bool LLMInferenceSDPAModule::initialize() {
         }
     }
     
+    check_cache_dir();
 
     // Override max_new_tokens from params
     {
@@ -271,14 +273,18 @@ bool LLMInferenceSDPAModule::initialize() {
             text_device = it->second;
     }
 
-    const ov::AnyMap latency_props = {
+    ov::AnyMap properties = {
         ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY),
         ov::hint::num_requests(1)
     };
 
+    if (!m_cache_dir.empty()) {
+        properties.insert({ov::cache_dir.name(), m_cache_dir});
+    }
+
     m_device = text_device;
     GENAI_INFO("LLMInferenceSDPAModule: compiling text -> " + text_device);
-    m_compiled_text = m_core.compile_model(text_ir, text_device, latency_props);
+    m_compiled_text = m_core.compile_model(text_ir, text_device, properties);
 
     // Build tokenizer
     try {
