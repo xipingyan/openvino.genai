@@ -17,7 +17,7 @@ class OPENVINO_GENAI_EXPORTS ModulePipeline {
 
 public:
     /// @brief Construct a ModulePipeline.
-    /// @param config_yaml_content YAML content string for the pipeline configuration.
+    /// @param config_yaml_path Path to the YAML configuration file.
     /// @param properties A config to pass to ov::Core::compile_model().
     /// @param models_map optional pre-loaded models map. Format: {"module_name": {"model_name": ov.Model, ...}, ...}.
     /// This is used to pass pre-loaded models to the pipeline, so that the pipeline can skip loading and compiling
