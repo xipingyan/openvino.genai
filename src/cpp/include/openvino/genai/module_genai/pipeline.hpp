@@ -3,14 +3,6 @@
 
 #pragma once
 
-#include <filesystem>
-#include <fstream>
-#include <optional>
-#include <string>
-#include <vector>
-#include <map>
-
-#include "openvino/genai/generation_config.hpp"
 #include "openvino/genai/llm_pipeline.hpp"
 
 namespace ov {
@@ -24,11 +16,25 @@ using ConfigModelsMap = std::map<std::string, std::map<std::string, std::shared_
 class OPENVINO_GENAI_EXPORTS ModulePipeline {
 
 public:
-    // config_yaml_path: yaml file.
-    ModulePipeline(const std::filesystem::path& config_yaml_path, ConfigModelsMap models_map = {});
+    /// @brief Construct a ModulePipeline.
+    /// @param config_yaml_content YAML content string for the pipeline configuration.
+    /// @param properties A config to pass to ov::Core::compile_model().
+    /// @param models_map optional pre-loaded models map. Format: {"module_name": {"model_name": ov.Model, ...}, ...}.
+    /// This is used to pass pre-loaded models to the pipeline, so that the pipeline can skip loading and compiling
+    /// these models
+    ModulePipeline(const std::filesystem::path& config_yaml_path,
+                   const ov::AnyMap& properties = {},
+                   ConfigModelsMap models_map = {});
 
-    // config_yaml_content: yaml content string.
-    ModulePipeline(const std::string& config_yaml_content, ConfigModelsMap models_map = {});
+    /// @brief Construct a ModulePipeline.
+    /// @param config_yaml_content YAML content string for the pipeline configuration.
+    /// @param properties A config to pass to ov::Core::compile_model().
+    /// @param models_map optional pre-loaded models map. Format: {"module_name": {"model_name": ov.Model, ...}, ...}.
+    /// This is used to pass pre-loaded models to the pipeline, so that the pipeline can skip loading and compiling
+    /// these models
+    ModulePipeline(const std::string& config_yaml_content,
+                   const ov::AnyMap& properties = {},
+                   ConfigModelsMap models_map = {});
 
     ~ModulePipeline();
 

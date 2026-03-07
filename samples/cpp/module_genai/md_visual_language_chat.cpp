@@ -59,12 +59,16 @@ int main(int argc, char* argv[]) {
             throw std::runtime_error(std::string{"Usage: "} + argv[0] +
                                      "\n"
                                      "  -cfg config.yaml \n"
+                                     "  -enable_cache_dir: [Optional] true/false, default false\n"
                                      "  -prompt: input prompt\n"
                                      "  -img: [Optional] image path\n"
                                      "  -video: [Optional] video path\n");
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
+        std::string enable_cache_dir_str = utils::get_input_arg(argc, argv, "-enable_cache_dir", std::string{"false"});
+        bool enable_cache_dir = (enable_cache_dir_str == "1" || enable_cache_dir_str == "true" ||
+                                 enable_cache_dir_str == "True" || enable_cache_dir_str == "TRUE");
         std::string prompt = utils::get_input_arg(argc, argv, "-prompt", std::string{});
         std::string img_path = utils::get_input_arg(argc, argv, "-img", std::string{});
         std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
@@ -75,7 +79,12 @@ int main(int argc, char* argv[]) {
             std::cout << "[Input] " << key << ": " << value.as<std::string>() << std::endl;
         }
 
-        ov::genai::module::ModulePipeline pipe(config_path);
+        ov::AnyMap properties{};
+        if (enable_cache_dir) {
+            properties.insert({ov::cache_dir("vlm_cache")});
+        }
+
+        ov::genai::module::ModulePipeline pipe(config_path, properties);
 
         pipe.generate(inputs);
 

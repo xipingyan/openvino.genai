@@ -5,6 +5,7 @@
 #include <optional>
 #include <sstream>
 #include "logger.hpp"
+#include "openvino/runtime/properties.hpp"
 
 #include "openvino/genai/module_genai/pipeline.hpp"
 
@@ -19,19 +20,54 @@ namespace genai {
 
 namespace module {
 
+namespace {
+
+void apply_properties_to_pipeline_desc(const PipelineDesc::PTR& pipeline_desc, const ov::AnyMap& properties) {
+    const auto it = properties.find(ov::cache_dir.name());
+    if (it == properties.end()) {
+        return;
+    }
+
+    OPENVINO_ASSERT(it->second.is<std::string>(), "ModulePipeline: '", ov::cache_dir.name(), "' must be string");
+    const std::string cache_dir = it->second.as<std::string>();
+
+    auto set_cache_dir = [&cache_dir](PipelineModulesDesc& modules_desc) {
+        for (auto& [module_name, module_desc] : modules_desc) {
+            (void)module_name;
+            if (module_desc && module_desc->params.find("cache_dir") == module_desc->params.end()) {
+                module_desc->params["cache_dir"] = cache_dir;
+            }
+        }
+    };
+
+    set_cache_dir(pipeline_desc->main_pipeline_desc);
+    for (auto& [sub_pipeline_name, sub_modules] : pipeline_desc->sub_pipeline_descs) {
+        (void)sub_pipeline_name;
+        set_cache_dir(sub_modules);
+    }
+}
+
+}  // namespace
+
 // config_yaml_path: yaml file.
-ModulePipeline::ModulePipeline(const std::filesystem::path& config_yaml_path, ConfigModelsMap models_map) {
+ModulePipeline::ModulePipeline(const std::filesystem::path& config_yaml_path,
+                               const ov::AnyMap& properties,
+                               ConfigModelsMap models_map) {
     auto pipeline_desc = utils::load_config(config_yaml_path.string());
     pipeline_desc->setConfigModelsMap(models_map);
+    apply_properties_to_pipeline_desc(pipeline_desc, properties);
 
     ModulePipelineImpl* pImpl = new ModulePipelineImpl(pipeline_desc->main_pipeline_desc, pipeline_desc);
     OPENVINO_ASSERT(pImpl != NULL, "Create ModulePipelineImpl return null.");
     m_pipeline_impl = (ModulePipelineImpl*)pImpl;
 }
 
-ModulePipeline::ModulePipeline(const std::string& config_yaml_content, ConfigModelsMap models_map) {
+ModulePipeline::ModulePipeline(const std::string& config_yaml_content,
+                               const ov::AnyMap& properties,
+                               ConfigModelsMap models_map) {
     auto pipeline_desc = utils::load_config_from_string(config_yaml_content);
     pipeline_desc->setConfigModelsMap(models_map);
+    apply_properties_to_pipeline_desc(pipeline_desc, properties);
 
     ModulePipelineImpl* pImpl = new ModulePipelineImpl(pipeline_desc->main_pipeline_desc, pipeline_desc);
     OPENVINO_ASSERT(pImpl != NULL, "Create ModulePipelineImpl return null.");

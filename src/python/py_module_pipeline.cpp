@@ -209,12 +209,27 @@ void init_module_pipeline(py::module_& m) {
                                                   "ModulePipeline",
                                                   "This class is used for generation with ModulePipeline")
         .def(py::init([py_dict_to_config_models_map](const std::filesystem::path& config_yaml_path,
-                                                      const py::object& models_map,
-                                                      const py::kwargs& kwargs) {
+                                                     const py::object& config,
+                                                     const py::object& models_map,
+                                                     const py::kwargs& kwargs) {
                  auto cpp_models_map = py_dict_to_config_models_map(models_map);
-                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_path, cpp_models_map);
+
+                 ov::AnyMap properties = pyutils::kwargs_to_any_map(kwargs);
+                 if (!config.is_none()) {
+                     PyErr_WarnEx(
+                         PyExc_DeprecationWarning,
+                         "'config' parameters is deprecated, please use kwargs to pass config properties instead.",
+                         1);
+                     auto config_map = config.cast<std::map<std::string, py::object>>();
+                     auto config_properties = pyutils::properties_to_any_map(config_map);
+                     properties.insert(config_properties.begin(), config_properties.end());
+                 }
+                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_path,
+                                                                            properties,
+                                                                            cpp_models_map);
              }),
              py::arg("config_yaml_path"),
+             py::arg("config") = py::none(),
              py::arg("models_map") = py::none(),
              R"(
             Module Pipeline class constructor.
@@ -225,12 +240,26 @@ void init_module_pipeline(py::module_& m) {
             :type models_map: dict[str, dict[str, openvino.Model]], optional
         )")
         .def(py::init([py_dict_to_config_models_map](const std::string& config_yaml_content,
-                                                      const py::object& models_map,
-                                                      const py::kwargs& kwargs) {
+                                                     const py::object& config,
+                                                     const py::object& models_map,
+                                                     const py::kwargs& kwargs) {
                  auto cpp_models_map = py_dict_to_config_models_map(models_map);
-                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_content, cpp_models_map);
+
+                 ov::AnyMap properties = pyutils::kwargs_to_any_map(kwargs);
+                 if (!config.is_none()) {
+                     PyErr_WarnEx(
+                         PyExc_DeprecationWarning,
+                         "'config' parameters is deprecated, please use kwargs to pass config properties instead.",
+                         1);
+                     auto config_map = config.cast<std::map<std::string, py::object>>();
+                     auto config_properties = pyutils::properties_to_any_map(config_map);
+                     properties.insert(config_properties.begin(), config_properties.end());
+                 }
+
+                 return std::make_unique<ov::genai::module::ModulePipeline>(config_yaml_content, properties, cpp_models_map);
              }),
              py::arg("config_yaml_content"),
+             py::arg("config") = py::none(),
              py::arg("models_map") = py::none(),
              R"(
             Module Pipeline class constructor.
@@ -260,8 +289,8 @@ void init_module_pipeline(py::module_& m) {
                     pipe.generate_async(ov_inputs);
                 }
             },
-            (std::string("generate_async(**kwargs) -> None\n\n") + "Accepts arbitrary keyword arguments as AnyMap.\n\n" +
-             module_generate_docstring)
+            (std::string("generate_async(**kwargs) -> None\n\n") +
+             "Accepts arbitrary keyword arguments as AnyMap.\n\n" + module_generate_docstring)
                 .c_str())
         .def(
             "get_output",

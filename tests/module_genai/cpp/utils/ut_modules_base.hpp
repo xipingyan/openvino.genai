@@ -39,7 +39,7 @@ public:
             std::cout << "Saved YAML content to " << filename << std::endl;
         }
 
-        ov::genai::module::ModulePipeline pipe(yaml_content, m_models_map);
+        ov::genai::module::ModulePipeline pipe(yaml_content, ov::AnyMap{}, m_models_map);
 
         ov::AnyMap inputs = prepare_inputs();
         if (m_async) {
