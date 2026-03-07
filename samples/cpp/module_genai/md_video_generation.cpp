@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
         if (argc <= 1) {
             throw std::runtime_error(std::string{"Usage: "} + argv[0] + "\n"
                                      "  -cfg <config.yaml>\n"
-                                     "  -cache_dir: [Optional] string path, default empty\n"
+                                     "  -cache_dir <path> [Optional] (default: empty)\n"
                                      "  -prompt <text>\n"
                                      "  --negative_prompt <text>\n"
                                      "  --height <int> (default 480)\n"
