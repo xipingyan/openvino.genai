@@ -1,5 +1,6 @@
 #include <iostream>
 #include <openvino/genai/module_genai/pipeline.hpp>
+#include <openvino/runtime/properties.hpp>
 
 #include <stdexcept>
 
@@ -82,6 +83,7 @@ int main(int argc, char* argv[]) {
         if (argc <= 1) {
             throw std::runtime_error(std::string{"Usage: "} + argv[0] + "\n"
                                      "  -cfg config.yaml \n"
+                                     "  -cache_dir: [Optional] string path, default empty\n"
                                      "  -prompt: input prompt\n"
                                      "  --height: default 512\n"
                                      "  --width: default 512\n"
@@ -91,6 +93,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg");
+        std::string cache_dir = utils::get_input_arg(argc, argv, "-cache_dir", std::string{});
         std::string prompt = utils::get_input_arg(argc, argv, "-prompt");
         std::string width = utils::get_input_arg(argc, argv, "--width", "512");
         std::string height = utils::get_input_arg(argc, argv, "--height", "512");
@@ -104,7 +107,12 @@ int main(int argc, char* argv[]) {
             std::cout << "[Input] " << key << ": " << value.as<std::string>() << std::endl;
         }
 
-        ov::genai::module::ModulePipeline pipe(config_path);
+        ov::AnyMap properties{};
+        if (!cache_dir.empty()) {
+            properties.insert({ov::cache_dir(cache_dir)});
+        }
+
+        ov::genai::module::ModulePipeline pipe(config_path, properties);
 
         pipe.generate(inputs);
 

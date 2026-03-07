@@ -4,6 +4,7 @@
 #include <string>
 
 #include <openvino/genai/module_genai/pipeline.hpp>
+#include <openvino/runtime/properties.hpp>
 
 #include "utils/utils.hpp"
 #include "yaml-cpp/yaml.h"
@@ -140,6 +141,7 @@ int main(int argc, char* argv[]) {
         if (argc <= 1) {
             throw std::runtime_error(std::string{"Usage: "} + argv[0] + "\n"
                                      "  -cfg <config.yaml>\n"
+                                     "  -cache_dir: [Optional] string path, default empty\n"
                                      "  -prompt <text>\n"
                                      "  --negative_prompt <text>\n"
                                      "  --height <int> (default 480)\n"
@@ -154,6 +156,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg");
+        std::string cache_dir = utils::get_input_arg(argc, argv, "-cache_dir", std::string{});
         std::string prompt = utils::get_input_arg(argc, argv, "-prompt");
         std::string negative_prompt = utils::get_input_arg(argc, argv, "--negative_prompt", "");
         std::string width = utils::get_input_arg(argc, argv, "--width", "480");
@@ -184,7 +187,12 @@ int main(int argc, char* argv[]) {
             std::cout << "  - " << key << ": " << utils::any_to_string(value) << std::endl;
         }
 
-        ov::genai::module::ModulePipeline pipe(config_path);
+        ov::AnyMap properties{};
+        if (!cache_dir.empty()) {
+            properties.insert({ov::cache_dir(cache_dir)});
+        }
+
+        ov::genai::module::ModulePipeline pipe(config_path, properties);
         pipe.generate(inputs);
 
         auto saved_video_output = pipe.get_output("saved_video");
