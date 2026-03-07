@@ -218,7 +218,7 @@ void init_module_pipeline(py::module_& m) {
                  if (!config.is_none()) {
                      PyErr_WarnEx(
                          PyExc_DeprecationWarning,
-                         "'config' parameters is deprecated, please use kwargs to pass config properties instead.",
+                         "'config' parameter is deprecated, please use kwargs to pass config properties instead.",
                          1);
                      auto config_map = config.cast<std::map<std::string, py::object>>();
                      auto config_properties = pyutils::properties_to_any_map(config_map);
