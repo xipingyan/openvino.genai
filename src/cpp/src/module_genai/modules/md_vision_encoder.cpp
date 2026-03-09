@@ -64,6 +64,12 @@ void VisionEncoderModule::print_static_config() {
       - name: "attention_mask"                             # Used by Qwen 3.5
         type: "OVTensor"                                   # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
+      - name: "audio_features"                             # Used by Qwen 3-Omni
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "audio_feature_lengths"                      # Used by Qwen 3-Omni
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
+        source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "image_embedding"
         type: "OVTensor"                                   # Support DataType: [OVTensor]
@@ -77,6 +83,10 @@ void VisionEncoderModule::print_static_config() {
         type: "OVTensor"                                   # Support DataType: [OVTensor]
       - name: "deepstack_embeds"                           # [Optional], Used by Qwen 3-Omni
         type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+      - name: "audio_embedding"                            # [Optional], Used by Qwen 3-Omni
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "audio_pos_mask"                            # [Optional], Used by Qwen 3-Omni
+        type: "OVTensor"                                   # Support DataType: [OVTensor]
     params:
       model_path: "model"
       vision_start_token_id: 100001
@@ -182,9 +192,10 @@ bool VisionEncoderModule::initialize() {
 
     if (model_type == VLMModelType::QWEN3_OMNI) {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
-        modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
-        m_vl_config = vl_config;
-        m_vl_input_planner = modeling::models::Qwen3VLInputPlanner(vl_config);
+        modeling::models::Qwen3OmniConfig omni_config = modeling::models::Qwen3OmniConfig::from_json_file(model_path / "config.json");
+        // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
+        m_omni_config = omni_config;
+        m_omni_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
 #else
         GENAI_ERR("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
         return false;
@@ -276,17 +287,50 @@ void VisionEncoderModule::run() {
         }
         ov::Tensor attention_mask = get_input("attention_mask").as<ov::Tensor>();
 
-        Qwen3_5VisionEmbeddingResult result = embed(
-            preprocessed_image, grid_thw, pos_embeds, rotary_cos, rotary_sin, input_ids, attention_mask);
+        if (model_type == VLMModelType::QWEN3_5) {
+            Qwen3_5VisionEmbeddingResult result = embed(
+                preprocessed_image, grid_thw, pos_embeds, rotary_cos, rotary_sin, input_ids, attention_mask);
 
-        this->outputs["image_embedding"].data   = result.visual_embeds;
-        this->outputs["visual_pos_mask"].data = result.visual_pos_mask;
-        this->outputs["position_ids"].data    = result.position_ids;
-        this->outputs["rope_delta"].data     = result.rope_deltas;
-        if (result.deepstack_embeds.has_value()) {
-            this->outputs["deepstack_embeds"].data = result.deepstack_embeds.value();
+            this->outputs["image_embedding"].data   = result.visual_embeds;
+            this->outputs["visual_pos_mask"].data = result.visual_pos_mask;
+            this->outputs["position_ids"].data    = result.position_ids;
+            this->outputs["rope_delta"].data     = result.rope_deltas;
+        } else {
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+            std::optional<Qwen3OmniAudioInput> audio_input = std::nullopt;
+            if (exists_input("audio_features")) {
+                Qwen3OmniAudioInput real_audio_input {};
+                real_audio_input.audio_features = get_input("audio_features").as<ov::Tensor>();
+                if (exists_input("audio_feature_lengths")) {
+                    real_audio_input.audio_feature_lengths = get_input("audio_feature_lengths").as<ov::Tensor>();
+                    audio_input = real_audio_input;
+                }
+            }
+            Qwen3OmniVisionInput vision_input{preprocessed_image, grid_thw, pos_embeds, rotary_cos, rotary_sin};
+            std::optional<Qwen3OmniVisionInput> opt_vision_input = vision_input;
+            Qwen3OmniVisionEmbeddingResult result = embed(
+                input_ids,
+                attention_mask,
+                opt_vision_input,
+                audio_input);
+            this->outputs["position_ids"].data = result.position_ids;
+            this->outputs["rope_delta"].data = result.rope_deltas;
+            if (result.visual_embeds.has_value()) {
+                this->outputs["image_embedding"].data = result.visual_embeds.value();
+                this->outputs["visual_pos_mask"].data = result.visual_pos_mask.value();
+            }
+            if (result.audio_embeds.has_value()) {
+                this->outputs["audio_embedding"].data = result.audio_embeds.value();
+                this->outputs["audio_pos_mask"].data = result.audio_pos_mask.value();
+            }
+            if (result.deepstack_embeds.has_value()) {
+                this->outputs["deepstack_embeds"].data = result.deepstack_embeds.value();
+            }
         }
         return;
+#else
+        OPENVINO_THROW("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
+#endif
     } else {
         OPENVINO_THROW("Unsupported model: " + module_desc->model_type);
     }
@@ -399,28 +443,6 @@ Qwen3_5VisionEmbeddingResult VisionEncoderModule::embed(
     
     vision_embed_request.infer();
     ov::Tensor vision_embeds = vision_embed_request.get_tensor("visual_embeds");
-
-    if (model_type == VLMModelType::QWEN3_OMNI) {
-#ifdef ENABLE_OPENVINO_NEW_ARCH
-        std::vector<ov::Tensor> deepstack_embeds;
-        std::vector<ov::Tensor> deepstack_padded;
-        deepstack_embeds.reserve(std::get<modeling::models::Qwen3VLConfig>(m_vl_config).vision.deepstack_visual_indexes.size());
-        deepstack_padded.reserve(std::get<modeling::models::Qwen3VLConfig>(m_vl_config).vision.deepstack_visual_indexes.size());
-        for (size_t i = 0; i < std::get<modeling::models::Qwen3VLConfig>(m_vl_config).vision.deepstack_visual_indexes.size(); i++) {
-            const std::string name =
-            std::string(ov::genai::modeling::models::Qwen3VLVisionIO::kDeepstackEmbedsPrefix) + "." +
-            std::to_string(i);
-            deepstack_embeds.push_back(vision_embed_request.get_tensor(name));
-        }
-        auto plan = std::get<modeling::models::Qwen3VLInputPlanner>(m_vl_input_planner.value()).build_plan(input_ids, &attention_mask, &grid_thw);
-        ov::Tensor visual_padded = std::get<modeling::models::Qwen3VLInputPlanner>(m_vl_input_planner.value()).scatter_visual_embeds(vision_embeds, plan.visual_pos_mask);
-        deepstack_padded =
-            ov::genai::modeling::models::Qwen3VLInputPlanner::scatter_deepstack_embeds(deepstack_embeds, plan.visual_pos_mask);
-        return {plan.position_ids, plan.visual_pos_mask, plan.rope_deltas, visual_padded, deepstack_padded};
-#else
-        OPENVINO_THROW("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
-#endif
-    }
 
     const auto &ids_shape = input_ids.get_shape();
     const size_t batch   = ids_shape[0];
@@ -600,6 +622,80 @@ Qwen3_5VisionEmbeddingResult VisionEncoderModule::embed(
 
     return {position_ids, visual_pos_mask, rope_deltas, visual_embeds_scattered};
 }
+
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+// Qwen 3-Omni
+Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
+    const ov::Tensor &input_ids,
+    const ov::Tensor &attention_mask,
+    std::optional<Qwen3OmniVisionInput> &vision_input,
+    std::optional<Qwen3OmniAudioInput> &audio_input) {
+    VLMModelType model_type = to_vlm_model_type(module_desc->model_type);
+    if (model_type != VLMModelType::QWEN3_OMNI) {
+        OPENVINO_THROW("This embed function is only for Qwen 3-Omni model");
+    }
+    Qwen3OmniVisionEmbeddingResult result {};
+    std::optional<ov::Tensor> vision_embeds = std::nullopt;
+    std::vector<ov::Tensor> deepstack_embeds;
+    std::vector<ov::Tensor> deepstack_padded;
+    std::optional<ov::Tensor> grid_thw = std::nullopt;
+    std::optional<ov::Tensor> audio_seqlens = std::nullopt;
+
+    if (vision_input.has_value()) {
+        CircularBufferQueueElementGuard<ov::InferRequest> infer_request_guard(this->m_request_queue.get());
+        ov::InferRequest& vision_embed_request = infer_request_guard.get();
+        vision_embed_request.set_tensor("pixel_values", vision_input.value().pixel_values);
+        vision_embed_request.set_tensor("grid_thw", vision_input.value().grid_thw);
+        vision_embed_request.set_tensor("pos_embeds", vision_input.value().pos_embeds);
+        vision_embed_request.set_tensor("rotary_cos", vision_input.value().rotary_cos);
+        vision_embed_request.set_tensor("rotary_sin", vision_input.value().rotary_sin);
+        vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(vision_input.value().grid_thw));
+
+        vision_embed_request.infer();
+        vision_embeds = vision_embed_request.get_tensor("visual_embeds");
+        grid_thw = vision_input.value().grid_thw;
+
+        const auto& ds_indexes = std::get<modeling::models::Qwen3OmniConfig>(m_omni_config).thinker.vision.deepstack_visual_indexes;
+        deepstack_embeds.reserve(ds_indexes.size());
+        deepstack_padded.reserve(ds_indexes.size());
+        for (size_t i = 0; i < ds_indexes.size(); i++) {
+            const std::string name =
+                std::string(ov::genai::modeling::models::Qwen3OmniVisionIO::kDeepstackEmbedsPrefix) + "." +
+                std::to_string(i);
+            deepstack_embeds.push_back(vision_embed_request.get_tensor(name));
+        }
+    }
+
+    auto& planner = std::get<modeling::models::Qwen3OmniInputPlanner>(m_omni_input_planner.value());
+    auto plan = planner.build_plan(
+        input_ids,
+        &attention_mask,
+        grid_thw.has_value() ? &grid_thw.value() : nullptr,
+        nullptr,
+        audio_input.has_value() ? &audio_input.value().audio_feature_lengths : nullptr);
+    result.position_ids = plan.position_ids;
+    result.rope_deltas = plan.rope_deltas;
+    if (vision_embeds.has_value()) {
+        ov::Tensor visual_padded = ov::genai::modeling::models::Qwen3OmniInputPlanner::scatter_visual_embeds(vision_embeds.value(), plan.visual_pos_mask);
+        result.visual_embeds = visual_padded;
+        result.visual_pos_mask = plan.visual_pos_mask;
+    }
+
+    if (!deepstack_embeds.empty()) {
+        deepstack_padded = ov::genai::modeling::models::Qwen3OmniInputPlanner::scatter_deepstack_embeds(deepstack_embeds, plan.visual_pos_mask);
+        result.deepstack_embeds = deepstack_padded;
+    }
+
+    if (audio_input.has_value()) {
+        ov::Tensor audio_padded = ov::genai::modeling::models::Qwen3OmniInputPlanner::scatter_audio_embeds(audio_input.value().audio_features, plan.audio_pos_mask);
+        result.audio_embeds = audio_padded;
+        result.audio_pos_mask = plan.audio_pos_mask;
+    }
+    
+    return result;
+}
+#endif
+
 
 ov::Tensor VisionEncoderModule::get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw) {
     const size_t spatial_merge_size = m_processor_config.merge_size;

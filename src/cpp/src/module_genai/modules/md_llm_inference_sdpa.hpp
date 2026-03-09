@@ -63,6 +63,16 @@ private:
                               const ov::Tensor& visual_pos_mask,
                               const std::optional<std::vector<ov::Tensor>>& deepstack_embeds = std::nullopt);
 
+    std::string run_qwen3_omni_decode(const ov::Tensor& input_ids,
+                                      const ov::Tensor& attention_mask,
+                                      const ov::Tensor& position_ids,
+                                      const ov::Tensor& rope_deltas,
+                                      const std::optional<ov::Tensor>& visual_embeds = std::nullopt,
+                                      const std::optional<ov::Tensor>& visual_pos_mask = std::nullopt,
+                                      const std::optional<std::vector<ov::Tensor>>& deepstack_embeds = std::nullopt,
+                                      const std::optional<ov::Tensor>& audio_embeds = std::nullopt,
+                                      const std::optional<ov::Tensor>& audio_pos_mask = std::nullopt);
+
     // Compiled text model + infer request
     ov::Core m_core;
     std::optional<ov::CompiledModel> m_compiled_text;

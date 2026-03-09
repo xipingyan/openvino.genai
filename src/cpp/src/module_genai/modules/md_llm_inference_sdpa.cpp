@@ -26,6 +26,7 @@
 #include "openvino/genai/chat_history.hpp"
 #include "module_genai/utils/com_utils.hpp"
 #include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
+#include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 
 namespace ov {
 namespace genai {
@@ -73,8 +74,14 @@ pipeline_modules:
       - name: "grid_thw"             # [Optional] grid dimensions [N,3] for 3D MRoPE position ids
         type: "OVTensor"
         source: "ParentModuleName.OutputPortName"
-      - name: "deepstack_embeds"      # [Optional] deepstack visual embeddings for Qwen3-Omni
+      - name: "deepstack_embeds"     # [Optional] deepstack visual embeddings for Qwen3-Omni
         type: "VecOVTensor"
+        source: "ParentModuleName.OutputPortName"
+      - name: "audio_embeds"      # [Optional] audio embeddings from audio preprocessor for Qwen3-Omni
+        type: "OVTensor"
+        source: "ParentModuleName.OutputPortName"
+      - name: "audio_pos_mask"        # [Optional] boolean mask marking audio token positions for Qwen3-Omni
+        type: "OVTensor"
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "generated_text"
@@ -574,6 +581,148 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     }
 }
 
+ std::string LLMInferenceSDPAModule::run_qwen3_omni_decode(const ov::Tensor& input_ids,
+                                      const ov::Tensor& attention_mask,
+                                      const ov::Tensor& position_ids,
+                                      const ov::Tensor& rope_deltas,
+                                      const std::optional<ov::Tensor>& visual_embeds,
+                                      const std::optional<ov::Tensor>& visual_pos_mask,
+                                      const std::optional<std::vector<ov::Tensor>>& deepstack_embeds,
+                                      const std::optional<ov::Tensor>& audio_embeds,
+                                      const std::optional<ov::Tensor>& audio_pos_mask) {
+    using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
+
+    const size_t  batch      = input_ids.get_shape()[0];
+    const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
+
+    auto beam_idx = make_beam_idx(batch);
+    auto text_req = m_compiled_text->create_infer_request();
+    text_req.reset_state();
+
+    // --- Prefill ---
+    text_req.set_tensor(TIO::kInputIds,      input_ids);
+    text_req.set_tensor(TIO::kAttentionMask, attention_mask);
+    text_req.set_tensor(TIO::kPositionIds,   position_ids);
+    text_req.set_tensor(TIO::kBeamIdx,       beam_idx);
+    if (visual_embeds.has_value() && visual_pos_mask.has_value()) {
+        text_req.set_tensor(TIO::kVisualEmbeds,  visual_embeds.value());
+        text_req.set_tensor(TIO::kVisualPosMask, visual_pos_mask.value());
+    }
+    if (deepstack_embeds.has_value()) {
+        for (size_t i = 0; i < deepstack_embeds->size(); i++) {
+            const std::string name =
+                std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                std::to_string(i);
+            text_req.set_tensor(name, deepstack_embeds.value()[i]);
+        }
+    }
+    if (audio_embeds.has_value() && audio_pos_mask.has_value()) {
+        text_req.set_tensor(TIO::kAudioFeatures, audio_embeds.value());
+        text_req.set_tensor(TIO::kAudioPosMask, audio_pos_mask.value());
+    } else {
+        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(m_model_config.text.hidden_size)});
+        std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
+        text_req.set_tensor(TIO::kAudioFeatures, prefill_audio_features);
+        ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
+        std::memset(prefill_audio_pos_mask.data(), 0, prefill_audio_pos_mask.get_byte_size());
+        text_req.set_tensor(TIO::kAudioPosMask, prefill_audio_pos_mask);
+    }
+
+    const auto t_prefill0 = std::chrono::steady_clock::now();
+    text_req.infer();
+    const auto t_prefill1 = std::chrono::steady_clock::now();
+    int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+
+    // --- Decode loop ---
+    std::vector<int64_t> generated{next_id};
+    ov::Tensor step_ids(ov::element::i64, {batch, 1});
+    ov::Tensor step_mask = make_zeros(ov::element::i64, {batch, 1});
+    for (size_t b = 0; b < batch; ++b) step_mask.data<int64_t>()[b] = 1;
+
+    ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
+    ov::Tensor decode_audio_features =
+        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor decode_audio_pos_mask = make_zeros(ov::element::boolean, {batch, 1});
+    std::vector<ov::Tensor> decode_deepstack;
+    if (deepstack_embeds.has_value()) {
+        decode_deepstack.reserve(deepstack_embeds.value().size());
+        for (size_t i = 0; i < deepstack_embeds.value().size(); ++i) {
+            decode_deepstack.push_back(
+                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)}));
+        }
+    }
+
+    int64_t past_len     = prompt_len;
+
+    size_t decode_steps = 0;
+    const auto t_dec0 = std::chrono::steady_clock::now();
+
+    for (size_t step = 1; step < m_max_new_tokens; ++step) {
+        if (!m_stop_ids.empty() && m_stop_ids.count(next_id)) break;
+
+        for (size_t b = 0; b < batch; ++b)
+            step_ids.data<int64_t>()[b] = next_id;
+
+        ov::Tensor pos = ov::genai::modeling::models::Qwen3OmniInputPlanner::build_decode_position_ids(
+            rope_deltas, past_len, 1);
+
+        text_req.set_tensor(TIO::kInputIds,      step_ids);
+        text_req.set_tensor(TIO::kAttentionMask, step_mask);
+        text_req.set_tensor(TIO::kPositionIds,   pos);
+        text_req.set_tensor(TIO::kBeamIdx,       beam_idx);
+        text_req.set_tensor(TIO::kVisualEmbeds,  dec_vis);
+        text_req.set_tensor(TIO::kVisualPosMask, dec_vis_mask);
+        text_req.set_tensor(TIO::kAudioFeatures, decode_audio_features);
+        text_req.set_tensor(TIO::kAudioPosMask, decode_audio_pos_mask);
+        for (size_t i = 0; i < decode_deepstack.size(); ++i) {
+            const std::string name =
+                std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                std::to_string(i);
+            text_req.set_tensor(name, decode_deepstack[i]);
+        }
+
+        text_req.infer();
+        next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+        generated.push_back(next_id);
+        ++decode_steps;
+        ++past_len;
+    }
+
+    const auto t_dec1 = std::chrono::steady_clock::now();
+
+    if (dump_performance_enabled()) {
+        const double ttft_ms    = elapsed_ms(t_prefill0, t_prefill1);
+        const double decode_ms  = elapsed_ms(t_dec0, t_dec1);
+        const double tpot_ms    = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
+        const double throughput = decode_steps > 0 && decode_ms > 0.0
+                                   ? static_cast<double>(decode_steps) * 1000.0 / decode_ms
+                                   : 0.0;
+        std::cout << std::fixed << std::setprecision(2);
+        std::cout << "Mode: sdpa / vl\n"
+                  << "Device: " << m_device << "\n"
+                  << "Prompt token size: " << prompt_len << "\n"
+                  << "Output token size: " << generated.size() << "\n"
+                  << "TTFT: " << ttft_ms << " ms\n"
+                  << "Decode time: " << decode_ms << " ms\n";
+        if (decode_steps > 0) {
+            std::cout << "TPOT: " << tpot_ms << " ms/token\n"
+                      << "Throughput: " << throughput << " tokens/s\n";
+        } else {
+            std::cout << "TPOT: N/A\nThroughput: N/A\n";
+        }
+    }
+
+    // Decode tokens to text
+    if (m_tokenizer) {
+        return m_tokenizer->decode(generated, ov::genai::skip_special_tokens(true));
+    } else {
+        std::ostringstream oss;
+        for (auto id : generated) oss << id << ' ';
+        return oss.str();
+    }
+}
+
 // ============================================================================
 // run() — module entry point
 // ============================================================================
@@ -589,6 +738,62 @@ void LLMInferenceSDPAModule::run() {
                   "]: input_ids is required");
         return;
     }
+
+    auto model_type = to_vlm_model_type(module_desc->model_type);
+    if (model_type == VLMModelType::QWEN3_OMNI) {
+        if (!exists_input("input_ids")) {
+            GENAI_ERR("LLMInferenceSDPAModule[" + module_desc->name +
+                      "]: input_ids is required for Qwen3-Omni");
+            return;
+        }
+        if (!exists_input("position_ids")) {
+            GENAI_ERR("LLMInferenceSDPAModule[" + module_desc->name +
+                      "]: position_ids is required for Qwen3-Omni");
+            return;
+        }
+        if (!exists_input("rope_delta")) {
+            GENAI_ERR("LLMInferenceSDPAModule[" + module_desc->name +
+                      "]: rope_delta is required for Qwen3-Omni");
+            return;
+        }
+
+        ov::Tensor input_ids = inputs["input_ids"].data.as<ov::Tensor>();
+        ov::Tensor attention_mask;
+        if (exists_input("attention_mask")) {
+            attention_mask = inputs["attention_mask"].data.as<ov::Tensor>();
+        } else {
+            // Build attention_mask internally — all 1s (no padding in single-request SDPA)
+            const size_t batch   = input_ids.get_shape()[0];
+            const size_t seq_len = input_ids.get_shape()[1];
+            attention_mask = ov::Tensor(ov::element::i64, {batch, seq_len});
+            std::fill_n(attention_mask.data<int64_t>(), batch * seq_len, int64_t{1});
+        }
+        ov::Tensor position_ids    = inputs["position_ids"].data.as<ov::Tensor>();
+        ov::Tensor rope_delta      = inputs["rope_delta"].data.as<ov::Tensor>();
+        std::optional<ov::Tensor> visual_embeds = std::nullopt;
+        std::optional<ov::Tensor> visual_pos_mask = std::nullopt;
+        if (exists_input("visual_embeds") && exists_input("visual_pos_mask")) {
+            visual_embeds = inputs["visual_embeds"].data.as<ov::Tensor>();
+            visual_pos_mask = inputs["visual_pos_mask"].data.as<ov::Tensor>();
+        }
+        std::optional<ov::Tensor> audio_embeds = std::nullopt;
+        std::optional<ov::Tensor> audio_pos_mask = std::nullopt;
+        if (exists_input("audio_embeds") && exists_input("audio_pos_mask")) {
+            audio_embeds = inputs["audio_embeds"].data.as<ov::Tensor>();
+            audio_pos_mask = inputs["audio_pos_mask"].data.as<ov::Tensor>();
+        }
+        std::optional<std::vector<ov::Tensor>> deepstack_embeds = std::nullopt;
+        if (exists_input("deepstack_embeds")) {
+            deepstack_embeds = inputs["deepstack_embeds"].data.as<std::vector<ov::Tensor>>();
+        }
+        std::string generated_text = run_qwen3_omni_decode(input_ids, attention_mask, position_ids, rope_delta,
+                                                        visual_embeds, visual_pos_mask,
+                                                        deepstack_embeds, audio_embeds, audio_pos_mask);
+        GENAI_INFO("LLM output: " + generated_text);
+        this->outputs["generated_text"].data = generated_text;
+        return;
+    }
+
 
     ov::Tensor input_ids = inputs["input_ids"].data.as<ov::Tensor>();
 

@@ -76,13 +76,8 @@ protected:
 
         // Define outputs
         YAML::Node outputs;
-        if (is_single_audio()) {
-            outputs.push_back(output_node("input_features", "OVTensor"));
-            outputs.push_back(output_node("feature_attention_mask", "OVTensor"));
-        } else {
-            outputs.push_back(output_node("input_features_vec", "VecOVTensor"));
-            outputs.push_back(output_node("feature_attention_mask_vec", "VecOVTensor"));
-        }
+        outputs.push_back(output_node("input_features", "VecOVTensor"));
+        outputs.push_back(output_node("feature_attention_mask", "VecOVTensor"));
         audio_preprocessor["outputs"] = outputs;
 
         // Define parameters
@@ -116,11 +111,11 @@ protected:
     }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto input_features = pipe.get_output("input_features").as<ov::Tensor>();
-        check_output_tensor(input_features, _expected_output.input_features.first, _expected_output.input_features.second, "input_features");
+        auto input_features = pipe.get_output("input_features").as<std::vector<ov::Tensor>>();
+        check_output_tensor(input_features[0], _expected_output.input_features.first, _expected_output.input_features.second, "input_features");
         
-        auto feature_attention_mask = pipe.get_output("feature_attention_mask").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(feature_attention_mask.get_shape(), _expected_output.feature_attention_mask.second)) << "feature_attention_mask shape does not match expected shape.";
+        auto feature_attention_mask = pipe.get_output("feature_attention_mask").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(feature_attention_mask[0].get_shape(), _expected_output.feature_attention_mask.second)) << "feature_attention_mask shape does not match expected shape.";
     }
 };
 

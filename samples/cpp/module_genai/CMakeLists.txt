@@ -22,6 +22,7 @@ function(add_sample_executable target_name)
         ${target_name}.cpp
         utils/utils.cpp
         utils/vision_utils.cpp
+        utils/audio_utils.cpp
     )
     target_link_libraries(${target_name} PRIVATE openvino::genai ${OpenCV_LIBS} ${YAML_CPP_TARGET})
     set_target_properties(${target_name} PROPERTIES
@@ -36,7 +37,8 @@ endfunction()
 set (SAMPLE_LIST
     md_image_generation
     md_video_generation
-    md_visual_language_chat)
+    md_visual_language_chat
+    md_omni)
 
 foreach(sample IN LISTS SAMPLE_LIST)
     add_sample_executable(${sample})
