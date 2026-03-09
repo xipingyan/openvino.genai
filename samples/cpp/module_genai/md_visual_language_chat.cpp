@@ -5,6 +5,7 @@
 #include <openvino/genai/module_genai/pipeline.hpp>
 
 #include <stdexcept>
+#include <chrono>
 
 #include "utils/vision_utils.hpp"
 #include "yaml-cpp/yaml.h"
