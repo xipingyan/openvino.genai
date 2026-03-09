@@ -157,7 +157,10 @@ void AutoencoderKLWan::warmup(size_t num_frames) {
 
     // Run inference to trigger JIT compilation
     m_decoder_request.set_input_tensor(dummy);
-    m_decoder_request.infer();
+    {
+        PROFILE(pm, "AutoencoderKLWan::Warmup infer");
+        m_decoder_request.infer();
+    }
 
     auto warmup_end = std::chrono::high_resolution_clock::now();
     double warmup_time_ms = std::chrono::duration<double, std::milli>(warmup_end - warmup_start).count();
@@ -245,7 +248,7 @@ ov::Tensor AutoencoderKLWan::decode(ov::Tensor latents) {
 ov::Tensor AutoencoderKLWan::decode_single(ov::Tensor latents) {
     m_decoder_request.set_input_tensor(latents);
     {
-        PROFILE(pm, "vae_decoder infer");
+        PROFILE(pm, "AutoencoderKLWan::decode_single infer");
         m_decoder_request.infer();
     }
     ov::Tensor output = m_decoder_request.get_output_tensor();

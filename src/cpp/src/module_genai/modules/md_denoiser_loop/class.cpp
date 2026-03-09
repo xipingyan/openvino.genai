@@ -287,16 +287,17 @@ ov::Tensor DenoiserLoopModule::run(
         }
 
         if (m_splitted_model) {
-            PROFILE(pm, "splitted_model_infer");
             ov::AnyMap splitted_model_inputs = {{"hidden_states", input_hidden_states},
                                                 {"timestep", input_timestep},
                                                 {"encoder_hidden_states", input_encoder_hidden_states}};
+            PROFILE(pm, "DenoiserLoopModule::run m_splitted_model_infer infer");
             m_splitted_model_infer->infer(splitted_model_inputs);
         } else {
             m_request.set_tensor("hidden_states", input_hidden_states);
             m_request.set_tensor("timestep", input_timestep);
             m_request.set_tensor("encoder_hidden_states", input_encoder_hidden_states);
-            PROFILE(pm, "infer");
+
+            PROFILE(pm, "DenoiserLoopModule::run infer");
             m_request.infer();
         }
 
@@ -367,27 +368,31 @@ ov::Tensor DenoiserLoopModule::run(
         }
 
         if (m_splitted_model) {
-            PROFILE(pm, "splitted_model_infer");
             ov::AnyMap splitted_model_inputs = {{"hidden_states", latents},
                                                 {"timestep", timestep},
                                                 {"encoder_hidden_states", prompt_tensor}};
             m_splitted_model_infer->set_output_tensor(0, noise_pred);
+
+            PROFILE(pm, "DenoiserLoopModule::run m_splitted_model_infer infer");
             m_splitted_model_infer->infer(splitted_model_inputs);
         } else {
             m_request.set_tensor("hidden_states", latents);
             m_request.set_tensor("timestep", timestep);
             m_request.set_tensor("encoder_hidden_states", prompt_tensor);
             m_request.set_output_tensor(0, noise_pred);
+
+            PROFILE(pm, "DenoiserLoopModule::run m_request infer");
             m_request.infer();
         }
 
         if (guidance_scale > 1.0f && negative_prompt_tensor.has_value()) {
             if (m_splitted_model) {
-                PROFILE(pm, "splitted_model_infer_uncond");
                 ov::AnyMap splitted_model_inputs = {{"hidden_states", latents},
                                                     {"timestep", timestep},
                                                     {"encoder_hidden_states", negative_prompt_tensor.value()}};
                 m_splitted_model_infer->set_output_tensor(0, noise_uncond);
+
+                PROFILE(pm, "DenoiserLoopModule::run m_splitted_model_infer infer");
                 m_splitted_model_infer->infer(splitted_model_inputs);
             }
             else {
@@ -395,6 +400,8 @@ ov::Tensor DenoiserLoopModule::run(
                 m_request.set_tensor("timestep", timestep);
                 m_request.set_tensor("encoder_hidden_states", negative_prompt_tensor.value());
                 m_request.set_output_tensor(0, noise_uncond);
+
+                PROFILE(pm, "DenoiserLoopModule::run m_request infer_uncond");
                 m_request.infer();
             }
 

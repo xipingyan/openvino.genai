@@ -24,6 +24,7 @@
 #include "openvino/op/strided_slice.hpp"
 #include "utils.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
+#include "module_genai/utils/profiler.hpp"
 
 
 namespace ov::genai::module {
@@ -1085,7 +1086,10 @@ ov::Tensor UniPCMultistepScheduler::multistep_uni_c_bh_update(
     } else {
         m_c_solver.set_input_tensor(0, R);
         m_c_solver.set_input_tensor(1, b);
-        m_c_solver.infer();
+        {
+            PROFILE(pm, "UniPCMultistepScheduler::multistep_uni_p_bh_update m_c_solver infer");
+            m_c_solver.infer();
+        }
         rhos_c = m_c_solver.get_output_tensor(0);
     }
 
@@ -1226,7 +1230,10 @@ ov::Tensor UniPCMultistepScheduler::multistep_uni_p_bh_update(
         } else {
             m_p_solver.set_input_tensor(0, R);
             m_p_solver.set_input_tensor(1, b);
-            m_p_solver.infer();
+            {
+                PROFILE(pm, "UniPCMultistepScheduler::multistep_uni_p_bh_update m_p_solver infer");
+                m_p_solver.infer();
+            }
             rhos_p = m_p_solver.get_output_tensor(0);
         }
     }

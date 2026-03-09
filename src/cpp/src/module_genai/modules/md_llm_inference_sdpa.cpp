@@ -27,6 +27,7 @@
 #include "module_genai/utils/com_utils.hpp"
 #include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
 #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
+#include "module_genai/utils/profiler.hpp"
 
 namespace ov {
 namespace genai {
@@ -357,7 +358,10 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
     }
 
     const auto t_prefill0 = std::chrono::steady_clock::now();
-    text_req.infer();
+    {
+        PROFILE(pm, "LLMInferenceSDPAModule::run_text_decode prefill infer");
+        text_req.infer();
+    }
     const auto t_prefill1 = std::chrono::steady_clock::now();
     int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
 
@@ -396,7 +400,11 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
             text_req.set_tensor(TIO::kVisualPosMask, dec_vis_mask);
         }
 
-        text_req.infer();
+        {
+            PROFILE(pm, "LLMInferenceSDPAModule::run_text_decode step infer");
+            text_req.infer();
+        }
+
         next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
         generated.push_back(next_id);
         ++decode_steps;
@@ -481,7 +489,10 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     }
 
     const auto t_prefill0 = std::chrono::steady_clock::now();
-    text_req.infer();
+    {
+        PROFILE(pm, "LLMInferenceSDPAModule::run_vl_decode prefill infer");
+        text_req.infer();
+    }
     const auto t_prefill1 = std::chrono::steady_clock::now();
     int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
 
@@ -540,7 +551,10 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
         text_req.set_tensor(TIO::kVisualEmbeds,  dec_vis);
         text_req.set_tensor(TIO::kVisualPosMask, dec_vis_mask);
 
-        text_req.infer();
+        {
+            PROFILE(pm, "LLMInferenceSDPAModule::run_vl_decode step infer");
+            text_req.infer();
+        }
         next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
         generated.push_back(next_id);
         ++decode_steps;
@@ -629,7 +643,10 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     }
 
     const auto t_prefill0 = std::chrono::steady_clock::now();
-    text_req.infer();
+    {
+        PROFILE(pm, "LLMInferenceSDPAModule::run_text_decode prefill infer");
+        text_req.infer();
+    }
     const auto t_prefill1 = std::chrono::steady_clock::now();
     int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
 
@@ -682,7 +699,11 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
             text_req.set_tensor(name, decode_deepstack[i]);
         }
 
-        text_req.infer();
+        {
+            PROFILE(pm, "LLMInferenceSDPAModule::run_qwen3_omni_decode step infer");
+            text_req.infer();
+        }
+
         next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
         generated.push_back(next_id);
         ++decode_steps;

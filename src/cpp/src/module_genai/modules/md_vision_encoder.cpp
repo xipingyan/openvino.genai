@@ -23,6 +23,7 @@
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/vl_sdpa_transformations.hpp"
 #include "models/qwen3_omni/qwen3_omni_config.hpp"
+#include "module_genai/utils/profiler.hpp"
 
 
 namespace ov {
@@ -377,7 +378,11 @@ std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage 
     }
     vision_embeddings_merger.set_tensor("rotary_pos_emb", rotary_pos_emb);
     vision_embeddings_merger.set_tensor("window_index", window_index);
-    vision_embeddings_merger.infer();
+    {
+        PROFILE(pm, "VisionEncoderModule::embed vision_embeddings_merger infer");
+        vision_embeddings_merger.infer();
+    }
+
     ov::Tensor processed_vision_embeds = vision_embeddings_merger.get_output_tensor();
 
     auto out_vision_shape = processed_vision_embeds.get_shape();
@@ -440,8 +445,12 @@ Qwen3_5VisionEmbeddingResult VisionEncoderModule::embed(
     if (model_type == VLMModelType::QWEN3_OMNI) {
         vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(grid_thw));
     }
-    
-    vision_embed_request.infer();
+
+    {
+        PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
+        vision_embed_request.infer();
+    }
+
     ov::Tensor vision_embeds = vision_embed_request.get_tensor("visual_embeds");
 
     const auto &ids_shape = input_ids.get_shape();
@@ -651,7 +660,11 @@ Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
         vision_embed_request.set_tensor("rotary_sin", vision_input.value().rotary_sin);
         vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(vision_input.value().grid_thw));
 
-        vision_embed_request.infer();
+        {
+            PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
+            vision_embed_request.infer();
+        }
+
         vision_embeds = vision_embed_request.get_tensor("visual_embeds");
         grid_thw = vision_input.value().grid_thw;
 
