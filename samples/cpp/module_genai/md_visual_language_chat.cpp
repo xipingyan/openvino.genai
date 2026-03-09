@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
                                      "  -img: [Optional] image path\n"
                                      "  -video: [Optional] video path\n"
                                      "  -warmup: [Optional] number of warmup runs, default 0\n"
-                                     "  -perf: [Optional] set to 1 to print performance metrics, default 0");
+                                     "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
