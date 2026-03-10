@@ -156,7 +156,10 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
         m_full_infer_request.set_tensor(input.first, input.second.as<ov::Tensor>());
     }
 
-    m_full_infer_request.infer();
+    {
+        PROFILE(pm, "CSplittedModelInfer::infer m_full_infer_request");
+        m_full_infer_request.infer();
+    }
 #else
     int num_splitted_models = static_cast<int>(m_compiled_models.size());
     OPENVINO_ASSERT(num_splitted_models > 1,
@@ -180,7 +183,11 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     for (const auto& input : inputs) {
         m_preprocess_infer_request.set_tensor(input.first, input.second.as<ov::Tensor>());
     }
-    m_preprocess_infer_request.infer();
+
+    {
+        PROFILE(pm, "CSplittedModelInfer::infer m_preprocess_infer_request");
+        m_preprocess_infer_request.infer();
+    }
 
     // The "tokens" tensor produced by the preprocess stage is used as the initial hidden_states.
     ov::Tensor hidden_states_tensor = m_preprocess_infer_request.get_tensor("tokens");
@@ -233,7 +240,7 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
         curInferRequest.set_tensor("rotary_cos", rotary_cos_tensor);
         curInferRequest.set_tensor("rotary_sin", rotary_sin_tensor);
         {
-            PROFILE(pmi, "infer");
+            PROFILE(pmi, "CSplittedModelInfer::infer curInferRequest");
             curInferRequest.infer();
         }
 
@@ -268,7 +275,10 @@ void CSplittedModelInfer::infer(const ov::AnyMap& inputs) {
     m_postprocess_infer_request.set_tensor("ppf", ppf_tensor);
     m_postprocess_infer_request.set_tensor("pph", pph_tensor);
     m_postprocess_infer_request.set_tensor("ppw", ppw_tensor);
-    m_postprocess_infer_request.infer();
+    {
+        PROFILE(pm, "CSplittedModelInfer::infer m_postprocess_infer_request");
+        m_postprocess_infer_request.infer();
+    }
 #endif
 }
 

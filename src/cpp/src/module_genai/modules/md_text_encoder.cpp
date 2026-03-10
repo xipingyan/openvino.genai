@@ -7,6 +7,7 @@
 #include "openvino/genai/tokenizer.hpp"
 #include "tokenizer/tokenizer_impl.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5config.hpp"
+#include "models/qwen3_omni/qwen3_omni_processor.hpp"
 
 #include <chrono>
 #include <thread>
@@ -45,7 +46,10 @@ void TextEncoderModule::print_static_config() {
       - name: "source_sizes"      # Used by Qwen 2.5-VL
         type: "VecVecInt"         # [Optional] Support DataType: [VecVecInt]
         source: "ParentModuleName.OutputPortName"
-      - name: "grid_thw"           # Used by Qwen 3.5
+      - name: "grid_thw"          # Used by Qwen 3.5
+        type: "OVTensor"          # [Optional] Support DataType: [OVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "audio_features"    # Used by Qwen 3-Omni
         type: "OVTensor"          # [Optional] Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
     outputs:
@@ -89,6 +93,7 @@ bool TextEncoderModule::initialize() {
     } else if (model_type == VLMModelType::QWEN3_5 || model_type == VLMModelType::QWEN3_OMNI) {
         Qwen3_5VisionConfig vision_config = Qwen3_5VisionConfig::from_json_file(tokenizer_path / "config.json");
         m_merge_length = std::pow(vision_config.spatial_merge_size, 2);
+        m_spatial_merge_size = vision_config.spatial_merge_size;
     } else {
         GENAI_ERR("TextEncoderModule[" + module_desc->name + "]: Unsupported model type: " + module_desc->model_type);
         return false;
@@ -148,13 +153,26 @@ void TextEncoderModule::run() {
         if (images_sequence.size() > 0) {
             this->outputs["images_sequence"].data = images_sequence;
         }
-    } else if (model_type == VLMModelType::QWEN3_5 || model_type == VLMModelType::QWEN3_OMNI) {
+    } else if (model_type == VLMModelType::QWEN3_5) {
         std::optional<ov::Tensor> grid_thw = std::nullopt;
         if (exists_input("grid_thw")) {
             grid_thw = get_input("grid_thw").as<ov::Tensor>();
         }
 
         auto encoded = run(m_prompts, grid_thw);
+        this->outputs["input_ids"].data = encoded.input_ids;
+        this->outputs["mask"].data = encoded.attention_mask;
+    } else if (model_type == VLMModelType::QWEN3_OMNI) {
+        std::optional<ov::Tensor> grid_thw = std::nullopt;
+        if (exists_input("grid_thw")) {
+            grid_thw = get_input("grid_thw").as<ov::Tensor>();
+        }
+        std::optional<ov::Tensor> audio_features = std::nullopt;
+        if (exists_input("audio_features")) {
+            audio_features = get_input("audio_features").as<ov::Tensor>();
+        }
+
+        auto encoded = run(m_prompts, grid_thw, audio_features);
         this->outputs["input_ids"].data = encoded.input_ids;
         this->outputs["mask"].data = encoded.attention_mask;
     } else {
@@ -205,6 +223,17 @@ TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts, 
     } else {
         return m_tokenizer_impl->encode(prompts, m_tokenization_params);
     }
+}
+
+TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts,
+                    std::optional<ov::Tensor>& grid_thw,
+                    std::optional<ov::Tensor>& audio_features) {
+    auto model_type = to_vlm_model_type(module_desc->model_type);
+    if (model_type != VLMModelType::QWEN3_OMNI) {
+        OPENVINO_THROW("Only Omni model supports audio");
+    }
+    std::vector<std::string> full_prompts = build_prompts(prompts, grid_thw, audio_features, static_cast<int64_t>(m_spatial_merge_size));
+    return m_tokenizer_impl->encode(full_prompts, m_tokenization_params);
 }
 
 NormalizedPrompt TextEncoderModule::normalize_prompt(const std::string& prompt,

@@ -24,6 +24,7 @@ private:
     VLMConfig m_vlm_config;
     ProcessorConfig m_processor_config;
     size_t m_merge_length;
+    size_t m_spatial_merge_size;
 
     bool initialize();
     std::pair<TokenizedInputs, std::vector<int>> run(const std::vector<std::string>& prompts, 
@@ -31,6 +32,7 @@ private:
                         const std::vector<std::vector<int>>& source_sizes,
                         bool has_encoded_image = false);
     TokenizedInputs run(const std::vector<std::string>& prompts, std::optional<ov::Tensor>& grid_thw);
+    TokenizedInputs run(const std::vector<std::string>& prompts, std::optional<ov::Tensor>& grid_thw, std::optional<ov::Tensor>& audio_features);
     NormalizedPrompt normalize_prompt(const std::string& prompt,
                                       size_t base_image_id,
                                       size_t base_video_id,

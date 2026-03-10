@@ -34,6 +34,7 @@ namespace module {
         X(TextEmbeddingModule, 21) \
         X(EmbeddingMergerModule, 22) \
         X(ClipTextEncoderModule, 23) \
+        X(AudioEncoderModule, 24) \
         X(FeaturePrunerModule, 30) \
         X(FeatureFusionModule, 31) \
         X(VAEDecoderTilingModule, 32) \

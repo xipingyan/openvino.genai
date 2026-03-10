@@ -5,6 +5,7 @@
 #include <openvino/genai/module_genai/pipeline.hpp>
 
 #include <stdexcept>
+#include <chrono>
 
 #include "utils/vision_utils.hpp"
 #include "yaml-cpp/yaml.h"
@@ -62,7 +63,9 @@ int main(int argc, char* argv[]) {
                                      "  -cache_dir: [Optional] string path, default empty\n"
                                      "  -prompt: input prompt\n"
                                      "  -img: [Optional] image path\n"
-                                     "  -video: [Optional] video path\n");
+                                     "  -video: [Optional] video path\n"
+                                     "  -warmup: [Optional] number of warmup runs, default 0\n"
+                                     "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
@@ -70,6 +73,8 @@ int main(int argc, char* argv[]) {
         std::string prompt = utils::get_input_arg(argc, argv, "-prompt", std::string{});
         std::string img_path = utils::get_input_arg(argc, argv, "-img", std::string{});
         std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
+        int warmup = std::stoi(utils::get_input_arg(argc, argv, "-warmup", std::string("0")));
+        bool perf = std::stoi(utils::get_input_arg(argc, argv, "-perf", std::string("0")));
 
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path);
 
@@ -84,7 +89,25 @@ int main(int argc, char* argv[]) {
 
         ov::genai::module::ModulePipeline pipe(config_path, properties);
 
+        for (int i = 0; i < warmup; ++i) {
+            std::cout << "[Warmup] Run " << (i + 1) << "/" << warmup << std::endl;
+            auto t1 = std::chrono::high_resolution_clock::now();
+            pipe.generate(inputs);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            if (perf) {
+                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+                std::cout << "[Warmup] Duration: " << diff << " ms" << std::endl;
+            }
+        }
+
+        std::cout << "[Generation] Running main generation..." << std::endl;
+        auto t1 = std::chrono::high_resolution_clock::now();
         pipe.generate(inputs);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        if (perf) {
+            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+            std::cout << "[Generation] Duration: " << diff << " ms" << std::endl;
+        }
 
         std::cout << "Generation Result: " << pipe.get_output("generated_text").as<std::string>() << std::endl;
     } catch (const std::exception& ex) {

@@ -10,6 +10,7 @@
 #include "utils/vision_utils.hpp"
 #include "yaml-cpp/yaml.h"
 #include "utils/utils.hpp"
+#include "utils/audio_utils.hpp"
 
 inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path& cfg_yaml_path,
                                                      const std::string& prompt = std::string{},
@@ -52,11 +53,11 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path
             continue;
         }
 
-        if (param_type == "String" && utils::contains_key(param_name, {"audio"})) {
+        if (param_type == "OVTensor" && utils::contains_key(param_name, {"audio"})) {
             if (audio_path.empty()) {
                 throw std::runtime_error("Audio path is empty.");
             }
-            inputs[param_name] = audio_utils::read_wav(audio_path);
+            inputs[param_name] = audio_utils::load_audio(audio_path);
             continue;
         }
     }
@@ -73,7 +74,9 @@ int main(int argc, char* argv[]) {
                                      "  -prompt: input prompt\n"
                                      "  -img: [Optional] image path\n"
                                      "  -video: [Optional] video path\n"
-                                     "  -audio: [Optional] audio path\n");
+                                     "  -audio: [Optional] audio path\n"
+                                     "  -warmup: [Optional] number of warmup runs, default 0\n"
+                                     "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
@@ -82,6 +85,8 @@ int main(int argc, char* argv[]) {
         std::string img_path = utils::get_input_arg(argc, argv, "-img", std::string{});
         std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
         std::string audio_path = utils::get_input_arg(argc, argv, "-audio", std::string{});
+        int warmup = std::stoi(utils::get_input_arg(argc, argv, "-warmup", std::string("0")));
+        bool perf = std::stoi(utils::get_input_arg(argc, argv, "-perf", std::string("0")));
 
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path, audio_path);
 
@@ -105,7 +110,27 @@ int main(int argc, char* argv[]) {
 
         ov::genai::module::ModulePipeline pipe(config_path, properties);
 
+        for (int i = 0; i < warmup; ++i) {
+            std::cout << "[Warmup] Run " << (i + 1) << "/" << warmup << std::endl;
+            auto t1 = std::chrono::high_resolution_clock::now();
+            pipe.generate(inputs);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            if (perf) {
+                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+                std::cout << "[Warmup] Duration: " << diff << " ms" << std::endl;
+            }
+        }
+
+        std::cout << "[Generation] Running main generation..." << std::endl;
+        auto t1 = std::chrono::high_resolution_clock::now();
+
         pipe.generate(inputs);
+
+        auto t2 = std::chrono::high_resolution_clock::now();
+        if (perf) {
+            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+            std::cout << "[Generation] Duration: " << diff << " ms" << std::endl;
+        }
 
         std::cout << "Generation Result: " << pipe.get_output("generated_text").as<std::string>() << std::endl;
     } catch (const std::exception& ex) {

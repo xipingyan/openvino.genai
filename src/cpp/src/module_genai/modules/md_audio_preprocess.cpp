@@ -29,14 +29,10 @@ void AudioPreprocessModule::print_static_config() {
         type: "VecOVTensor"     # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
     outputs:
-      - name: "input_features"  # Output port name.
-        type: "OVTensor"        # Support DataType: [OVTensor]
+      - name: "input_features"          # Output port name.
+        type: "VecOVTensor"             # Support DataType: [VecOVTensor]
       - name: "feature_attention_mask"  # Output port name
-        type: "OVTensor"                # Support DataType: [OVTensor]   
-      - name: "vec_input_features"  # Output port name.
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-      - name: "vec_feature_attention_mask"  # Output port name
-        type: "VecOVTensor"                # Support DataType: [VecOVTensor]     
+        type: "VecOVTensor"             # Support DataType: [VecOVTensor]   
     params:
       model_path: "models_path"
     )" << std::endl;
@@ -70,20 +66,8 @@ void AudioPreprocessModule::preprocess_audio(const bool& has_audios_input) {
         }
     }
 
-    if (has_audios_input) {
-        this->outputs["input_features"].dt_type = DataType::VecOVTensor;
-        this->outputs["input_features"].data = vec_input_features;
-        this->outputs["feature_attention_mask"].dt_type = DataType::VecOVTensor;
-        this->outputs["feature_attention_mask"].data = vec_attention_masks;
-    } else {
-        this->outputs["input_features"].dt_type = DataType::OVTensor;
-        this->outputs["input_features"].data = vec_input_features[0];
-        OPENVINO_ASSERT(!vec_attention_masks.empty(),
-                        "AudioPreprocessModule: attention mask generation failed or was disabled, "
-                        "but a single-audio attention mask output is required.");
-        this->outputs["feature_attention_mask"].dt_type = DataType::OVTensor;
-        this->outputs["feature_attention_mask"].data = vec_attention_masks[0];
-    }
+    this->outputs["input_features"].data = vec_input_features;
+    this->outputs["feature_attention_mask"].data = vec_attention_masks;
 }
 
 void AudioPreprocessModule::run() {
