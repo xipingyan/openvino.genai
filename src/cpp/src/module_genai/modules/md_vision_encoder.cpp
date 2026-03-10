@@ -330,6 +330,7 @@ void VisionEncoderModule::run() {
         }
         return;
 #else
+        }
         OPENVINO_THROW("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
 #endif
     } else {
