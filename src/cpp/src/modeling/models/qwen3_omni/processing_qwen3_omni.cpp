@@ -14,6 +14,7 @@
 #include <openvino/core/type/float16.hpp>
 
 #include "json_utils.hpp"
+#include "module_genai/utils/profiler.hpp"
 
 namespace {
 
@@ -387,6 +388,7 @@ Qwen3OmniInputPlan Qwen3OmniInputPlanner::build_plan(
     const ov::Tensor* audio_seqlens,
     const std::vector<float>* second_per_grids,
     bool use_audio_in_video) const {
+    PROFILE(pm, "Qwen3OmniInputPlanner::build_plan");
     if (input_ids.get_element_type() != ov::element::i64) {
         OPENVINO_THROW("input_ids must be i64 for Qwen3OmniInputPlanner");
     }

@@ -44,6 +44,14 @@ private:
     Qwen3_5VisionConfig m_vision_config;
     ov::Tensor m_pos_embed_weight;
 
+    // Optimized preprocess based on OV.
+    bool preprocess_ov(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output);
+    void create_preprocess_image_ireq();
+    ov::InferRequest m_preprocess_image_ireq;
+
+    // Fallback preprocess implemented in pure C++ if OV-based preprocess fails for some reason.
+    bool preprocess_cpp(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output);
+
     void load_pos_embed_weight(const std::filesystem::path& model_path);
 
     static ov::element::Type parse_ov_dtype(const std::string& s);

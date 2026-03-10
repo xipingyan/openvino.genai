@@ -3,12 +3,17 @@
 
 #include "qwen3_5preprocessor.hpp"
 
-#include "openvino/core/except.hpp"
-#include "nlohmann/json.hpp"
-#include <fstream>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <fstream>
+
+#include "module_genai/modules/models/qwen3_omni/qwen3_utils.hpp"
 #include "module_genai/modules/models/qwen3_vl/vision_preprocess.hpp"
+#include "module_genai/utils/profiler.hpp"
+#include "nlohmann/json.hpp"
+#include "openvino/core/except.hpp"
+#include "openvino/op/tile.hpp"
+#include "openvino/runtime/core.hpp"
 
 namespace ov::genai::module {
 
@@ -26,9 +31,57 @@ Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path
     : m_preprocess_config(Qwen3_5VisionPreprocessConfig::from_json_file(model_path / "preprocessor_config.json")),
       m_vision_config(Qwen3_5VisionConfig::from_json_file(model_path / "config.json")) {
     load_pos_embed_weight(model_path);
+
+    create_preprocess_image_ireq();
 }
 
-Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
+void Qwen3_5Preprocessor::create_preprocess_image_ireq() {
+    std::vector<float> a_image_mean(m_preprocess_config.image_mean.begin(), m_preprocess_config.image_mean.end());
+    std::vector<float> a_image_scale(m_preprocess_config.image_std.begin(), m_preprocess_config.image_std.end());
+    for (auto& v : a_image_mean)
+        v *= 255.0f;
+    for (auto& v : a_image_scale)
+        v = 1.0f / (v * 255.0f);
+
+    auto image_mean =
+        ov::op::v0::Constant(ov::element::f32, ov::Shape{1, a_image_mean.size(), 1, 1}, a_image_mean.data());
+    auto image_scale =
+        ov::op::v0::Constant(ov::element::f32, ov::Shape{1, a_image_scale.size(), 1, 1}, a_image_scale.data());
+
+    auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
+
+    auto resize_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{2});
+    auto tile_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{4});
+
+    auto image_mean_node = std::make_shared<ov::op::v0::Constant>(image_mean);
+    auto image_scale_node = std::make_shared<ov::op::v0::Constant>(image_scale);
+
+    auto raw_images_f32 = qwen3_utils::create_f32_nchw_input(input);
+    auto resized_images = qwen3_utils::create_bicubic_resize(raw_images_f32, resize_shape);
+    auto img_normalized = qwen3_utils::create_normalization(resized_images, image_mean_node, image_scale_node);
+    auto temporal_images = std::make_shared<ov::op::v0::Tile>(img_normalized, tile_shape);
+
+    auto results = std::make_shared<ov::op::v0::Result>(temporal_images);
+    auto model = std::make_shared<ov::Model>(results, ov::ParameterVector{input, resize_shape, tile_shape}, "preprocess_image");
+
+    ov::Core core;
+    auto compiled = core.compile_model(model, "GPU");
+    m_preprocess_image_ireq = compiled.create_infer_request();
+}
+
+bool Qwen3_5Preprocessor::preprocess_ov(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output) {
+    if (m_preprocess_config.temporal_patch_size != 2) {
+        return false;
+    }
+
+    // smart resize
+    // resize with mean, std.
+    // pad image.
+    // reshape.
+}
+
+// Fallback preprocess implemented in pure C++ if OV-based preprocess fails for some reason.
+bool Qwen3_5Preprocessor::preprocess_cpp(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output) {
     const auto img_shape = images.get_shape();
     if (img_shape.size() != 3 && img_shape.size() != 4) {
         OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C], get shape: ", img_shape);
@@ -176,7 +229,17 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &imag
     auto pos_embeds = build_pos_embeds(grid_thw);
     auto rotary = build_rotary_cos_sin(grid_thw);
 
-    return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
+    output = Qwen3_5PreprocessorOutput{pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
+    return true;
+}
+
+Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess(const ov::Tensor &images) {
+    Qwen3_5PreprocessorOutput output;
+    if (!preprocess_ov(images, output)) {
+        // Fallback to C++ implementation if OV-based preprocess fails for some reason.
+        preprocess_cpp(images, output);
+    }
+    return output;
 }
 
 Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor &video) {
