@@ -21,6 +21,7 @@ if(NOT TARGET gtest)
   endforeach()
 endif()
 
+if(ENABLE_NEW_ARCH_OPS)
 file(GLOB modeling_tests_src "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
 
 set(TEST_MODELING_TARGET "test_modeling_api")
@@ -42,7 +43,8 @@ install(TARGETS ${TEST_MODELING_TARGET}
         RUNTIME DESTINATION tests/
         COMPONENT tests
         EXCLUDE_FROM_ALL)
+endif() # ENABLE_NEW_ARCH_OPS
 
-if(ENABLE_SAMPLES)
+if(ENABLE_SAMPLES AND ENABLE_NEW_ARCH_OPS)
   add_subdirectory(samples)
 endif()

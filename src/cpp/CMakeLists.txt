@@ -149,6 +149,18 @@ if(NOT ENABLE_GGUF OR NOT ENABLE_SAFETENSORS)
     list(REMOVE_ITEM SOURCE_FILES ${SAFETENSORS_LOADER_SOURCES})
 endif()
 
+# Exclude sources requiring new-arch OpenVINO operations (LinearAttention, MOE, FusedMLP, PlaceholderExtension)
+if(NOT ENABLE_NEW_ARCH_OPS)
+    file(GLOB_RECURSE NEW_ARCH_MODEL_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/models/*.cpp")
+    list(REMOVE_ITEM SOURCE_FILES ${NEW_ARCH_MODEL_SOURCES})
+    list(REMOVE_ITEM SOURCE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/building_blocks.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_modeling.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_weight_finalizer.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/safetensors_utils/safetensors_modeling.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/gguf/gguf_loader.cpp")
+endif()
+
 set(TARGET_NAME openvino_genai)
 set(TARGET_NAME_OBJ ${TARGET_NAME}_obj)
 
@@ -170,6 +182,10 @@ endif()
 
 if(ENABLE_GGUF AND ENABLE_SAFETENSORS)
     target_compile_definitions(${TARGET_NAME_OBJ} PRIVATE ENABLE_SAFETENSORS)
+endif()
+
+if(ENABLE_NEW_ARCH_OPS)
+    target_compile_definitions(${TARGET_NAME_OBJ} PRIVATE ENABLE_NEW_ARCH_OPS)
 endif()
 
 target_include_directories(${TARGET_NAME_OBJ} SYSTEM PRIVATE "${safetensors.h_SOURCE_DIR}")

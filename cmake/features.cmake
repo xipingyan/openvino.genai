@@ -10,6 +10,7 @@ option(ENABLE_TESTS "Enable tests build" ON)
 option(ENABLE_TOOLS "Enable tools build" ON)
 option(ENABLE_GGUF "Enable support for GGUF format" ON)
 option(ENABLE_SAFETENSORS "Enable support for Safetensors format" ON)
+option(ENABLE_NEW_ARCH_OPS "Enable new-arch specific OpenVINO operations (LinearAttention, MOE, FusedMLP)" ON)
 option(ENABLE_XGRAMMAR "Enable support for structured output generation with xgrammar backend" ON)
 
 # Disable building samples for NPM package
