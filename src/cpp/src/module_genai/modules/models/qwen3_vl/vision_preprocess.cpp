@@ -15,7 +15,6 @@ namespace ov::genai::module {
 Qwen3VisionPreprocess::Qwen3VisionPreprocess(const std::filesystem::path& model_path, const std::string& device, VLMModelType model_type)
     : VisionPreprocess(model_type, device) {
     (void)model_path;
-    (void)device;
 }
 
 PreprocessOutput Qwen3VisionPreprocess::preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) {

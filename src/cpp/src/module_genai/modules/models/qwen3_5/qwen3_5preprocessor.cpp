@@ -166,7 +166,6 @@ bool Qwen3_5Preprocessor::preprocess_ov(const ov::Tensor& images, Qwen3_5Preproc
     }
 
     output.pixel_values = std::move(m_preprocess_image_ireq.get_output_tensor());
-    std::cout << " OV Preprocess output shape: " << output.pixel_values.get_shape() << std::endl;
 
     ov::Tensor grid_thw(ov::element::i64, {batch, 3});
     auto* grid = grid_thw.data<int64_t>();
