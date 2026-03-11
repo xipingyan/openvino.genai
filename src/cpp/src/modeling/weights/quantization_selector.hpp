@@ -59,7 +59,7 @@ public:
      */
     bool should_quantize(const std::string& name, 
                         const ov::Shape& shape,
-                        ov::element::Type dtype = ov::element::undefined) const;
+                        ov::element::Type dtype = ov::element::dynamic) const;
     
     /**
      * @brief Get the quantization mode for a specific weight (NNCF-style)
@@ -76,7 +76,7 @@ public:
      */
     QuantizationConfig::Mode get_quantization_mode(const std::string& name,
                                                    const ov::Shape& shape,
-                                                   ov::element::Type dtype = ov::element::undefined) const;
+                                                   ov::element::Type dtype = ov::element::dynamic) const;
     
     /**
      * @brief Get group size for a weight (may vary by layer type in future)
