@@ -31,10 +31,7 @@ ov::Tensor utils::load_image(const std::filesystem::path& image_path) {
             }
             throw std::runtime_error{"Unexpected number of bytes was requested to allocate."};
         }
-        void deallocate(void*, size_t bytes, size_t) {
-            if (channels * height * width != bytes) {
-                throw std::runtime_error{"Unexpected number of bytes was requested to deallocate."};
-            }
+        void deallocate(void*, size_t bytes, size_t) noexcept {
             stbi_image_free(image);
             image = nullptr;
         }
@@ -43,6 +40,6 @@ ov::Tensor utils::load_image(const std::filesystem::path& image_path) {
     return ov::Tensor(
         ov::element::u8,
         ov::Shape{1, size_t(y), size_t(x), size_t(desired_channels)},
-        SharedImageAllocator{image, desired_channels, y, x}
+        ov::Allocator(SharedImageAllocator{image, desired_channels, y, x})
     );
 }
