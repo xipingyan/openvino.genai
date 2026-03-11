@@ -17,13 +17,17 @@
 #include "openvino/op/tanh.hpp"
 #include "openvino/op/transpose.hpp"
 #include "openvino/genai/text_streamer.hpp"
+#ifdef ENABLE_NEW_ARCH_OPS
 #include "gguf_utils/gguf_modeling.hpp"
+#endif
 
 // New unified loader system
 #include "loaders/loaders.hpp"
 
 #ifdef ENABLE_SAFETENSORS
+#ifdef ENABLE_NEW_ARCH_OPS
 #include "safetensors_utils/safetensors_modeling.hpp"
+#endif
 #include "safetensors_utils/safetensors_loader.hpp"
 #endif
 
@@ -494,7 +498,11 @@ std::shared_ptr<ov::Model> read_model(const std::filesystem::path& model_dir,  c
     // =========================================================================
     if (is_gguf_model(model_dir)) {
 #ifdef ENABLE_GGUF
+#ifdef ENABLE_NEW_ARCH_OPS
         return create_from_gguf(model_dir.string(), enable_save_ov_model);
+#else
+        OPENVINO_THROW("GGUF model creation requires new-arch OpenVINO build. Please use pre-compiled OpenVINO IR models.");
+#endif
 #else
         OPENVINO_ASSERT("GGUF support is switched off. Please, recompile with 'cmake -DENABLE_GGUF=ON'");
 #endif
@@ -505,11 +513,15 @@ std::shared_ptr<ov::Model> read_model(const std::filesystem::path& model_dir,  c
     if (std::filesystem::is_directory(model_dir) && is_safetensors_model_dir(model_dir)) {
         // If OpenVINO model already exists, use it; otherwise create from safetensors
         if (!std::filesystem::exists(model_dir / "openvino_model.xml")) {
+#ifdef ENABLE_NEW_ARCH_OPS
              ov::genai::modeling::weights::QuantizationConfig q_conf;
              if (quant_config.has_value()) {
                  q_conf = *quant_config;
              }
             return ov::genai::safetensors::create_from_safetensors(model_dir, enable_save_ov_model, q_conf);
+#else
+            OPENVINO_THROW("Safetensors model creation requires new-arch OpenVINO build. Please use pre-compiled OpenVINO IR models.");
+#endif
         }
     }
 #endif

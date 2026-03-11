@@ -4,10 +4,18 @@
 #include "modeling/ops/ops.hpp"
 
 #include <openvino/core/except.hpp>
+#if __has_include(<openvino/op/linear_attn.hpp>)
 #include <openvino/op/linear_attn.hpp>
+#define HAS_LINEAR_ATTN
+#endif
 #include <openvino/opsets/opset13.hpp>
+#if __has_include(<openvino/op/placeholder_extension.hpp>)
 #include <openvino/op/placeholder_extension.hpp>
+#endif
+#if __has_include(<openvino/op/moe_3gemm_fused_compressed.hpp>)
 #include <openvino/op/moe_3gemm_fused_compressed.hpp>
+#define HAS_MOE3GEMM
+#endif
 #include <ov_ops/fully_connected.hpp>
 
 namespace {
@@ -95,6 +103,7 @@ Tensor linear(const Tensor& x, const Tensor& weight) {
     return Tensor(node, ctx);
 }
 
+#ifdef HAS_LINEAR_ATTN
 std::pair<Tensor, Tensor> linear_attention(const Tensor& q,
                                            const Tensor& k,
                                            const Tensor& v,
@@ -119,7 +128,14 @@ std::pair<Tensor, Tensor> linear_attention(const Tensor& q,
     auto node = std::make_shared<ov::op::LinearAttention>(args);
     return {Tensor(node->output(0), ctx), Tensor(node->output(1), ctx)};
 }
+#else // !HAS_LINEAR_ATTN
+std::pair<Tensor, Tensor> linear_attention(const Tensor&, const Tensor&, const Tensor&,
+                                           const Tensor&, const Tensor&, const Tensor&) {
+    OPENVINO_THROW("linear_attention requires new-arch OpenVINO build");
+}
+#endif // HAS_LINEAR_ATTN
 
+#ifdef HAS_MOE3GEMM
 Tensor moe3gemm_fused_compressed(const Tensor& input,
                                  const Tensor& gate_inp_weight,
                                  const Tensor& gate_exps_weight,
@@ -166,6 +182,16 @@ Tensor moe3gemm_fused_compressed(const Tensor& input,
     auto moe_f32 = std::make_shared<ov::op::v0::Convert>(moe, ov::element::f32);
     return Tensor(moe_f32, ctx);
 }
+#else // !HAS_MOE3GEMM
+Tensor moe3gemm_fused_compressed(const Tensor&, const Tensor&, const Tensor&,
+                                 const Tensor&, const Tensor&, const Tensor&,
+                                 const Tensor&, const Tensor&, const Tensor&,
+                                 const Tensor&, const Tensor&,
+                                 int32_t, int32_t, int32_t, int32_t, size_t,
+                                 const ov::element::Type&) {
+    OPENVINO_THROW("moe3gemm_fused_compressed requires new-arch OpenVINO build");
+}
+#endif // HAS_MOE3GEMM
 
 Tensor silu(const Tensor& x) {
     auto node = std::make_shared<ov::op::v4::Swish>(x.output());
