@@ -237,7 +237,7 @@ public:
             m_position_ids_list.push_back(position_ids);
             return;
         }
-        int64_t* position_ids_data = position_ids.data<int64_t>();
+        const int64_t* position_ids_data = position_ids.data<int64_t>();
         ov::Shape position_ids_elem_shape = position_ids.get_shape();
         position_ids_elem_shape[seq_len_shape_idx] = 1;
 
