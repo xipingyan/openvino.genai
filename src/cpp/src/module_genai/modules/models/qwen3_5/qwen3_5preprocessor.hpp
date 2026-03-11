@@ -29,7 +29,7 @@ struct Qwen3_5PreprocessorOutput {
 
 class Qwen3_5Preprocessor {
 public:
-    explicit Qwen3_5Preprocessor(const std::filesystem::path& model_path);
+    explicit Qwen3_5Preprocessor(const std::filesystem::path& model_path, const std::string& device);
 
     Qwen3_5PreprocessorOutput preprocess(const ov::Tensor &images);
 
@@ -40,9 +40,20 @@ public:
     // include support for batching multiple videos together.
     Qwen3_5PreprocessorOutput preprocess_video(const ov::Tensor &video);
 private:
+    std::string m_device;
     Qwen3_5VisionPreprocessConfig m_preprocess_config;
     Qwen3_5VisionConfig m_vision_config;
     ov::Tensor m_pos_embed_weight;
+
+    size_t m_factor = 1;
+
+    // Optimized preprocess based on OV.
+    bool preprocess_ov(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output);
+    void create_preprocess_image_ireq();
+    ov::InferRequest m_preprocess_image_ireq;
+
+    // Fallback preprocess implemented in pure C++ if OV-based preprocess fails for some reason.
+    bool preprocess_cpp(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output);
 
     void load_pos_embed_weight(const std::filesystem::path& model_path);
 

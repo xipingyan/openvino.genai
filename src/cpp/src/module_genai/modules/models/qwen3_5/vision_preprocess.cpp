@@ -10,10 +10,10 @@
 
 namespace ov::genai::module {
 
-Qwen3_5VisionPreprocess::Qwen3_5VisionPreprocess(const std::filesystem::path& model_path, VLMModelType model_type)
-    : VisionPreprocess(model_type) {
+Qwen3_5VisionPreprocess::Qwen3_5VisionPreprocess(const std::filesystem::path& model_path, const std::string& device, VLMModelType model_type)
+    : VisionPreprocess(model_type, device) {
     //   m_video_processor(std::make_unique<Qwen3_5VLVideoProcessor>(model_path)) {}
-    m_preprocessor = std::make_shared<Qwen3_5Preprocessor>(model_path);
+    m_preprocessor = std::make_shared<Qwen3_5Preprocessor>(model_path, device);
 }
 
 PreprocessOutput Qwen3_5VisionPreprocess::preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
+#include <cstdint>
 #include <string>
 #include <vector>
 namespace ov {
@@ -30,8 +31,15 @@ private:
  * ==========================================
  * Profile(var, "fun_name")
  *
- * Usage 2: specific scope
- * {
+#define PROFILE(VAR, NAME) \
+	auto VAR = ::ov::genai::module::Profile::enabled() \
+				   ? ::ov::genai::module::Profile(std::string(NAME) + std::string(":") + std::to_string(__LINE__)) \
+				   : ::ov::genai::module::Profile()
+
+#define PROFILE_ARGS(VAR, NAME, ...) \
+	auto VAR = ::ov::genai::module::Profile::enabled() \
+				   ? ::ov::genai::module::Profile(std::string(NAME) + std::string(":") + std::to_string(__LINE__), __VA_ARGS__) \
+				   : ::ov::genai::module::Profile()
  *    Profile(p, "fun_name")
  *    func()
  * }
@@ -42,8 +50,8 @@ private:
  *    func()
  * }
  */
-#define PROFILE(VAR, NAME) auto VAR = Profile::enabled() ? Profile(NAME + std::string(":") + std::to_string(__LINE__)) : Profile()
-#define PROFILE_ARGS(VAR, NAME, ...) auto VAR = Profile::enabled() ? Profile(NAME + std::string(":") + std::to_string(__LINE__), __VA_ARGS__) : Profile()
+#define PROFILE(VAR, NAME) auto VAR = ov::genai::module::Profile::enabled() ? ov::genai::module::Profile(NAME + std::string(":") + std::to_string(__LINE__)) : ov::genai::module::Profile()
+#define PROFILE_ARGS(VAR, NAME, ...) auto VAR = ov::genai::module::Profile::enabled() ? ov::genai::module::Profile(NAME + std::string(":") + std::to_string(__LINE__), __VA_ARGS__) : ov::genai::module::Profile()
 
 }  // namespace module
 }  // namespace genai

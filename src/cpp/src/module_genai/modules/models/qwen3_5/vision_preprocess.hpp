@@ -16,7 +16,7 @@ namespace ov::genai::module {
 class Qwen3_5VisionPreprocess final : public VisionPreprocess {
 public:
     Qwen3_5VisionPreprocess() = delete;
-    Qwen3_5VisionPreprocess(const std::filesystem::path& model_path, VLMModelType model_type);
+    Qwen3_5VisionPreprocess(const std::filesystem::path& model_path, const std::string& device, VLMModelType model_type);
 
     PreprocessOutput preprocess(const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos) override;
 
