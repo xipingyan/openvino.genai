@@ -7,12 +7,15 @@
 #include <cmath>
 #include <fstream>
 
+#include "logger.hpp"
 #include "module_genai/modules/models/qwen3_omni/qwen3_utils.hpp"
 #include "module_genai/modules/models/qwen3_vl/vision_preprocess.hpp"
 #include "module_genai/utils/profiler.hpp"
 #include "nlohmann/json.hpp"
 #include "openvino/core/except.hpp"
+#include "openvino/op/reshape.hpp"
 #include "openvino/op/tile.hpp"
+#include "openvino/op/unsqueeze.hpp"
 #include "openvino/runtime/core.hpp"
 
 namespace ov::genai::module {
@@ -27,10 +30,13 @@ struct PreparedImage {
     int64_t grid_w = 0;
 };
 
-Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path)
+Qwen3_5Preprocessor::Qwen3_5Preprocessor(const std::filesystem::path &model_path, const std::string& device)
     : m_preprocess_config(Qwen3_5VisionPreprocessConfig::from_json_file(model_path / "preprocessor_config.json")),
-      m_vision_config(Qwen3_5VisionConfig::from_json_file(model_path / "config.json")) {
+      m_vision_config(Qwen3_5VisionConfig::from_json_file(model_path / "config.json")),
+      m_device(device) {
     load_pos_embed_weight(model_path);
+
+    m_factor = static_cast<size_t>(m_preprocess_config.patch_size * m_preprocess_config.merge_size);
 
     create_preprocess_image_ireq();
 }
@@ -49,9 +55,23 @@ void Qwen3_5Preprocessor::create_preprocess_image_ireq() {
         ov::op::v0::Constant(ov::element::f32, ov::Shape{1, a_image_scale.size(), 1, 1}, a_image_scale.data());
 
     auto input = std::make_shared<ov::op::v0::Parameter>(ov::element::u8, ov::PartialShape{-1, -1, -1, -1});
-
+    input->set_friendly_name("input");
+    input->output(0).get_tensor().set_names({"input"});
     auto resize_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{2});
-    auto tile_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{4});
+    resize_shape->set_friendly_name("resize_shape");
+    resize_shape->output(0).get_tensor().set_names({"resize_shape"});
+    auto tile_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{5});
+    tile_shape->set_friendly_name("tile_shape");
+    tile_shape->output(0).get_tensor().set_names({"tile_shape"});
+    auto dst_tile_shape = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{4});
+    dst_tile_shape->set_friendly_name("dst_tile_shape");
+    dst_tile_shape->output(0).get_tensor().set_names({"dst_tile_shape"});
+    auto reshape_shape8d = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{8});
+    reshape_shape8d->set_friendly_name("reshape_shape8d");
+    reshape_shape8d->output(0).get_tensor().set_names({"reshape_shape8d"});
+    auto reshape_shape5d = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{5});
+    reshape_shape5d->set_friendly_name("reshape_shape5d");
+    reshape_shape5d->output(0).get_tensor().set_names({"reshape_shape5d"});
 
     auto image_mean_node = std::make_shared<ov::op::v0::Constant>(image_mean);
     auto image_scale_node = std::make_shared<ov::op::v0::Constant>(image_scale);
@@ -59,25 +79,107 @@ void Qwen3_5Preprocessor::create_preprocess_image_ireq() {
     auto raw_images_f32 = qwen3_utils::create_f32_nchw_input(input);
     auto resized_images = qwen3_utils::create_bicubic_resize(raw_images_f32, resize_shape);
     auto img_normalized = qwen3_utils::create_normalization(resized_images, image_mean_node, image_scale_node);
-    auto temporal_images = std::make_shared<ov::op::v0::Tile>(img_normalized, tile_shape);
+    // unsqueeze: from [N, C, H, W] to [N, 1, C, H, W] for tile.
+    auto unsqueeze_axes = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{1}, {1});
+    auto unsqueezed = std::make_shared<ov::op::v0::Unsqueeze>(img_normalized, unsqueeze_axes);
+    auto temporal_images = std::make_shared<ov::op::v0::Tile>(unsqueezed, tile_shape);
+    // squeeze: from [N, M, C, H, W] back to [N*M, C, H, W] after tile.
+    auto squeezed = std::make_shared<ov::op::v1::Reshape>(temporal_images, dst_tile_shape, false);
 
-    auto results = std::make_shared<ov::op::v0::Result>(temporal_images);
-    auto model = std::make_shared<ov::Model>(results, ov::ParameterVector{input, resize_shape, tile_shape}, "preprocess_image");
+    auto img_8d = qwen3_utils::create_transpose_patches(
+        squeezed,
+        reshape_shape8d,
+        std::make_shared<ov::op::v0::Constant>(ov::element::i32,
+                                               Shape{8},
+                                               std::vector<int32_t>{0, 2, 5, 3, 6, 1, 4, 7}));
+    auto img_5d = qwen3_utils::create_transpose_patches(
+        std::move(img_8d),
+        reshape_shape5d,
+        std::make_shared<ov::op::v0::Constant>(ov::element::i32, Shape{5}, std::vector<int32_t>{0, 2, 1, 3, 4}));
+
+    auto results = std::make_shared<ov::op::v0::Result>(img_5d);
+    auto model = std::make_shared<ov::Model>(
+        results,
+        ov::ParameterVector{input, resize_shape, tile_shape, dst_tile_shape, reshape_shape8d, reshape_shape5d},
+        "preprocess_image");
 
     ov::Core core;
-    auto compiled = core.compile_model(model, "GPU");
+    auto compiled = core.compile_model(model, m_device);
     m_preprocess_image_ireq = compiled.create_infer_request();
 }
 
 bool Qwen3_5Preprocessor::preprocess_ov(const ov::Tensor& images, Qwen3_5PreprocessorOutput& output) {
-    if (m_preprocess_config.temporal_patch_size != 2) {
+    if (m_preprocess_config.temporal_patch_size != 2 || !m_preprocess_config.do_resize) {
         return false;
     }
 
-    // smart resize
-    // resize with mean, std.
-    // pad image.
-    // reshape.
+    ov::Shape image_shape = images.get_shape();
+    if (image_shape.size() != 3 && image_shape.size() != 4) {
+        OPENVINO_THROW("images must have shape [H, W, C] or [B, H, W, C], get shape: ", image_shape);
+    }
+    OPENVINO_ASSERT(images.get_element_type() == ov::element::u8, "images must be u8 for preprocessing");
+    bool has_batch = image_shape.size() == 4;
+
+    size_t batch = has_batch ? image_shape.at(0) : 1;
+    size_t original_height = has_batch ? image_shape.at(1) : image_shape.at(0);
+    size_t original_width = has_batch ? image_shape.at(2) : image_shape.at(1);
+    size_t channel = has_batch ? image_shape.at(3) : image_shape.at(2);
+
+    auto [resized_height, resized_width] = smart_resize(original_height, original_width, m_factor);
+    auto repeats = m_preprocess_config.temporal_patch_size;
+
+    auto grid_t = 1;
+    auto grid_h = static_cast<int64_t>(resized_height / static_cast<size_t>(m_preprocess_config.patch_size));
+    auto grid_w = static_cast<int64_t>(resized_width / static_cast<size_t>(m_preprocess_config.patch_size));
+
+    uint64_t a_resized_shape[2] = {resized_height, resized_width};
+    uint64_t a_tile_shape[5] = {1, static_cast<size_t>(repeats), 1, 1, 1};
+    uint64_t a_dst_tile_shape[4] = {batch * repeats, channel, resized_height, resized_width};
+    
+    uint64_t a_temp_shape8d[8] = {batch * grid_t,
+                                  m_preprocess_config.temporal_patch_size * channel,
+                                  grid_h / m_preprocess_config.merge_size,
+                                  m_preprocess_config.merge_size,
+                                  m_preprocess_config.patch_size,
+                                  grid_w / m_preprocess_config.merge_size,
+                                  m_preprocess_config.merge_size,
+                                  m_preprocess_config.patch_size};
+
+    uint64_t a_temp_shape5d[5] = {batch * grid_t * (grid_h / m_preprocess_config.merge_size) *
+                                      (grid_w / m_preprocess_config.merge_size) *
+                                      (m_preprocess_config.merge_size * m_preprocess_config.merge_size),
+                                  m_preprocess_config.temporal_patch_size,
+                                  channel,
+                                  m_preprocess_config.patch_size,
+                                  m_preprocess_config.patch_size};
+
+    m_preprocess_image_ireq.set_tensor("input", images);
+    m_preprocess_image_ireq.set_tensor("resize_shape", ov::Tensor(ov::element::i64, ov::Shape{2}, a_resized_shape));
+    m_preprocess_image_ireq.set_tensor("tile_shape", ov::Tensor(ov::element::i64, ov::Shape{5}, a_tile_shape));
+    m_preprocess_image_ireq.set_tensor("dst_tile_shape", ov::Tensor(ov::element::i64, ov::Shape{4}, a_dst_tile_shape));
+    m_preprocess_image_ireq.set_tensor("reshape_shape8d", ov::Tensor(ov::element::i64, ov::Shape{8}, a_temp_shape8d));
+    m_preprocess_image_ireq.set_tensor("reshape_shape5d", ov::Tensor(ov::element::i64, ov::Shape{5}, a_temp_shape5d));
+
+    {
+        PROFILE(pm, "Qwen3_5Preprocessor::preprocess_ov - infer");
+        m_preprocess_image_ireq.infer();
+    }
+
+    output.pixel_values = std::move(m_preprocess_image_ireq.get_output_tensor());
+    std::cout << " OV Preprocess output shape: " << output.pixel_values.get_shape() << std::endl;
+
+    ov::Tensor grid_thw(ov::element::i64, {batch, 3});
+    auto* grid = grid_thw.data<int64_t>();
+    for (size_t b = 0; b < batch; ++b) {
+        grid[b * 3 + 0] = grid_t;
+        grid[b * 3 + 1] = grid_h;
+        grid[b * 3 + 2] = grid_w;
+    }
+    output.grid_thw = std::move(grid_thw);
+
+    output.pos_embeds = build_pos_embeds(output.grid_thw);
+    std::tie(output.rotary_cos, output.rotary_sin) = build_rotary_cos_sin(output.grid_thw);
+    return true;
 }
 
 // Fallback preprocess implemented in pure C++ if OV-based preprocess fails for some reason.
@@ -99,7 +201,6 @@ bool Qwen3_5Preprocessor::preprocess_cpp(const ov::Tensor& images, Qwen3_5Prepro
         OPENVINO_THROW("images must have 3 channels");
     }
 
-    const size_t factor = static_cast<size_t>(m_preprocess_config.patch_size * m_preprocess_config.merge_size);
     const uint8_t* src = images.data<const uint8_t>();
     const bool nchw = false;
 
@@ -113,7 +214,7 @@ bool Qwen3_5Preprocessor::preprocess_cpp(const ov::Tensor& images, Qwen3_5Prepro
         if (m_preprocess_config.do_resize) {
             auto resized = smart_resize(in_h,
                                         in_w,
-                                        factor);
+                                        m_factor);
             out_h = resized.first;
             out_w = resized.second;
         }
@@ -256,15 +357,13 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
     const size_t channels = video.get_shape()[3];
     OPENVINO_ASSERT(channels == 3U, "video must have 3 channels");
 
-    const size_t factor = static_cast<size_t>(m_preprocess_config.patch_size * m_preprocess_config.merge_size);
-
     ov::Tensor resized_video;
     if (m_preprocess_config.do_resize) {
         auto resized_size = qwen3vl_utils::smart_resize(frame_num,
                                                         in_h,
                                                         in_w,
                                                         m_preprocess_config.temporal_patch_size,
-                                                        factor,
+                                                        m_factor,
                                                         65536,
                                                         234881024);
         if (resized_size.height % m_preprocess_config.patch_size != 0 || resized_size.width % m_preprocess_config.patch_size != 0) {

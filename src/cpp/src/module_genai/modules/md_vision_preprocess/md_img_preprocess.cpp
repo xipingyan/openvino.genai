@@ -57,13 +57,10 @@ ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, c
     : IBaseModule(desc, pipeline_desc) {
     std::string model_path = desc->get_full_path(desc->params["model_path"]);
     std::string device = desc->device;
-    if (device.empty()) {
-        device = "CPU";
-    }
 
     _model_type = to_vlm_model_type(desc->model_type);
 
-    _vision_preprocess_ptr = VisionPreprocess::create(model_path, _model_type);
+    _vision_preprocess_ptr = VisionPreprocess::create(model_path, device, _model_type);
     if (_vision_preprocess_ptr == nullptr) {
         _encoder_ptr = VisionEncoder::create(model_path, _model_type, device);
         OPENVINO_ASSERT(_encoder_ptr != nullptr,

@@ -8,14 +8,14 @@
 
 namespace ov::genai::module {
 
-VisionPreprocess::PTR VisionPreprocess::create(const std::filesystem::path& model_path, VLMModelType model_type) {
+VisionPreprocess::PTR VisionPreprocess::create(const std::filesystem::path& model_path, const std::string& device, VLMModelType model_type) {
 	switch (model_type) {
 	case VLMModelType::QWEN3_VL:
 		return nullptr;
 	case VLMModelType::QWEN3_5:
 	case VLMModelType::QWEN3_5_MOE:
 	case VLMModelType::QWEN3_OMNI:
-		return std::make_shared<Qwen3_5VisionPreprocess>(model_path, model_type);
+		return std::make_shared<Qwen3_5VisionPreprocess>(model_path, device, model_type);
 	default:
 		return nullptr;
 	}

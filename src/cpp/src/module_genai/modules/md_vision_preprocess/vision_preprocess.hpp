@@ -38,7 +38,7 @@ class VisionPreprocess {
 public:
     using PTR = std::shared_ptr<VisionPreprocess>;
 
-    static PTR create(const std::filesystem::path& model_path, VLMModelType model_type = VLMModelType::QWEN3_VL);
+    static PTR create(const std::filesystem::path& model_path, const std::string& device, VLMModelType model_type = VLMModelType::QWEN3_VL);
 
     VisionPreprocess(const VisionPreprocess&) = delete;
     VisionPreprocess& operator=(const VisionPreprocess&) = delete;
@@ -52,8 +52,9 @@ private:
     VisionPreprocess() = delete;
 
 protected:
-    explicit VisionPreprocess(VLMModelType model_type) : _model_type(model_type) {}
+    explicit VisionPreprocess(VLMModelType model_type, const std::string& device) : _model_type(model_type), m_device(device) {}
     VLMModelType _model_type;
+    std::string m_device;
 };
 
 }  // namespace ov::genai::module
