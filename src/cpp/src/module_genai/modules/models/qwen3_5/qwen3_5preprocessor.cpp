@@ -434,6 +434,7 @@ Qwen3_5PreprocessorOutput Qwen3_5Preprocessor::preprocess_video(const ov::Tensor
     output.pos_embeds = pos_embeds;
     output.rotary_cos = rotary.first;
     output.rotary_sin = rotary.second;
+    output.video_second_per_grid = m_preprocess_config.temporal_patch_size;
 
     return output;
 }

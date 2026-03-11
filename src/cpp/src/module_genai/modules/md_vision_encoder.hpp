@@ -12,6 +12,7 @@
 #ifdef ENABLE_OPENVINO_NEW_ARCH
 #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 #include "models/qwen3_omni/qwen3_omni_config.hpp"
+#include "modeling/models/qwen3_5/processing_qwen3_5.hpp"
 #endif
 namespace ov {
 namespace genai {
@@ -24,11 +25,11 @@ private:
     bool initialize();
     std::pair<ov::Tensor, ov::Tensor> embed(const EncodedImage &image, const std::vector<int>& images_sequence, const ov::Tensor& input_ids);
     Qwen3_5VisionEmbeddingResult embed(
-        const ov::Tensor &pixel_values,
-        const ov::Tensor &grid_thw,
-        const ov::Tensor &pos_embeds,
-        const ov::Tensor &rotary_cos,
-        const ov::Tensor &rotary_sin,
+        const std::vector<ov::Tensor> &pixel_values,
+        const std::vector<ov::Tensor> &grid_thw,
+        const std::vector<ov::Tensor> &pos_embeds,
+        const std::vector<ov::Tensor> &rotary_cos,
+        const std::vector<ov::Tensor> &rotary_sin,
         const ov::Tensor &input_ids,
         const ov::Tensor &attention_mask);
 #ifdef ENABLE_OPENVINO_NEW_ARCH
@@ -36,7 +37,8 @@ private:
     Qwen3OmniVisionEmbeddingResult embed(
         const ov::Tensor &input_ids,
         const ov::Tensor &attention_mask,
-        std::optional<Qwen3OmniVisionInput> &vision_input,
+        std::optional<Qwen3OmniVisionInput> &vision_image_input,
+        std::optional<Qwen3OmniVisionInput> &vision_video_input,
         std::optional<Qwen3OmniAudioInput> &audio_input);
 #endif
     ov::Tensor get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw);
@@ -65,8 +67,8 @@ private:
     int64_t m_image_pad_token_id = 0;
     int64_t m_video_pad_token_id = 0;
 #ifdef ENABLE_OPENVINO_NEW_ARCH
-    std::variant<modeling::models::Qwen3OmniConfig> m_omni_config;
-    std::optional<std::variant<modeling::models::Qwen3OmniInputPlanner>> m_omni_input_planner;
+    std::variant<modeling::models::Qwen3OmniConfig, modeling::models::Qwen3_5Config> m_config;
+    std::optional<std::variant<modeling::models::Qwen3OmniInputPlanner, modeling::models::Qwen3_5InputPlanner>> m_input_planner;
 #endif
 };
 

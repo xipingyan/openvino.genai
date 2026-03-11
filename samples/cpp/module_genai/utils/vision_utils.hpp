@@ -23,6 +23,31 @@
 namespace image_utils {
 
 // ============================================================================
+// Video Loading Structures
+// ============================================================================
+
+/**
+ * @brief Options for video frame sampling (mirrors Python smart_nframes logic)
+ */
+struct VideoLoadOptions {
+    float fps        = 2.0f;   ///< Target frames per second to sample
+    int   min_frames = 4;      ///< Minimum number of frames to extract
+    int   max_frames = 768;    ///< Maximum number of frames to extract
+};
+
+/**
+ * @brief Result from load_video_with_audio
+ *   - frames: [N, H, W, 3] u8, RGB, frames sampled at target fps
+ *   - audio:  [1, num_samples] f32, 16 kHz mono (empty Tensor if use_audio_in_video=false)
+ *   - sample_fps: actual sampling fps used
+ */
+struct VideoLoadResult {
+    ov::Tensor frames;
+    ov::Tensor audio;
+    float      sample_fps = 0.0f;
+};
+
+// ============================================================================
 // Image Loading Functions
 // ============================================================================
 
@@ -41,11 +66,28 @@ ov::Tensor load_image(const std::filesystem::path& image_path);
 std::vector<ov::Tensor> load_images(const std::filesystem::path& input_path);
 
 /**
- * @brief Load images as a video tensor
- * @param input_path Path to directory containing video frames
+ * @brief Load images from a directory as a video tensor (legacy)
+ * @param input_path Path to directory containing image frames
  * @return ov::Tensor with shape [num_frames, H, W, 3]
  */
 ov::Tensor load_video(const std::filesystem::path& input_path);
+
+/**
+ * @brief Load a video file: sample frames and optionally extract audio
+ *
+ * Frames are uniformly sampled at `opts.fps` (mirrors Python smart_nframes).
+ * Each frame is resized via smart_resize (factor=28, pixel budget aware).
+ * When use_audio_in_video=true the audio stream is decoded, resampled to
+ * 16 kHz mono float32, and returned as ov::Tensor [1, num_samples].
+ *
+ * @param video_path         Path to the video file (mp4, avi, mkv, …)
+ * @param use_audio_in_video Extract audio in addition to frames
+ * @param opts               Frame sampling options
+ * @return VideoLoadResult with frames, audio (may be empty), sample_fps
+ */
+VideoLoadResult load_video_with_audio(const std::filesystem::path& video_path,
+                                      bool                         use_audio_in_video = false,
+                                      const VideoLoadOptions&      opts               = {});
 
 /**
  * @brief Create countdown frames for testing

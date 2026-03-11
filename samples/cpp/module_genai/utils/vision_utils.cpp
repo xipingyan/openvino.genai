@@ -6,11 +6,24 @@
 #include <sstream>
 #include <set>
 #include <cstring>
+#include <cmath>
+#include <algorithm>
+#include <stdexcept>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include <opencv2/opencv.hpp>
+
+#ifdef HAVE_FFMPEG
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libswresample/swresample.h>
+#include <libavutil/opt.h>
+#include <libavutil/channel_layout.h>
+}
+#endif  // HAVE_FFMPEG
 
 namespace fs = std::filesystem;
 
@@ -86,6 +99,238 @@ ov::Tensor load_video(const std::filesystem::path& input_path) {
         b++;
     }
     return video;
+}
+
+// ============================================================================
+// Video Loading (with OpenCV + optional FFmpeg audio)
+// ============================================================================
+
+namespace {
+
+/// Mirrors Python smart_resize (factor=28 grid, maintains aspect ratio)
+std::pair<int, int> smart_resize_video(int height, int width,
+                                       int factor     = 28,
+                                       int min_pixels = 128 * 28 * 28,
+                                       int max_pixels = 768 * 28 * 28) {
+    auto round_f = [factor](double v) { return std::max(factor, (int)(std::round(v / factor) * factor)); };
+    auto floor_f = [factor](double v) { return std::max(factor, (int)(std::floor(v / factor) * factor)); };
+    auto ceil_f  = [factor](double v) { return std::max(factor, (int)(std::ceil(v  / factor) * factor)); };
+
+    int h_bar = round_f(height);
+    int w_bar = round_f(width);
+    if ((long long)h_bar * w_bar > max_pixels) {
+        double beta = std::sqrt((double)(height * width) / max_pixels);
+        h_bar = floor_f(height / beta);
+        w_bar = floor_f(width  / beta);
+    } else if ((long long)h_bar * w_bar < min_pixels) {
+        double beta = std::sqrt((double)min_pixels / (height * width));
+        h_bar = ceil_f(height * beta);
+        w_bar = ceil_f(width  * beta);
+    }
+    return {h_bar, w_bar};
+}
+
+/// Mirrors Python smart_nframes
+int smart_nframes(int total_frames, double video_fps,
+                  float target_fps = 2.0f, int min_frames = 4, int max_frames = 768) {
+    constexpr int FRAME_FACTOR = 2;
+    auto floor2 = [](double v) { return (int)(std::floor(v / FRAME_FACTOR) * FRAME_FACTOR); };
+    auto ceil2  = [](double v) { return (int)(std::ceil(v  / FRAME_FACTOR) * FRAME_FACTOR); };
+
+    int min_f   = std::max(FRAME_FACTOR, ceil2(min_frames));
+    int max_f   = std::max(FRAME_FACTOR, floor2(std::min(max_frames, total_frames)));
+    double nf   = total_frames / video_fps * target_fps;
+    int nframes = floor2(std::min(std::max(nf, (double)min_f), (double)max_f));
+    return std::max(nframes, FRAME_FACTOR);
+}
+
+#ifdef HAVE_FFMPEG
+/// Decode all audio from a video file and resample to 16 kHz mono f32.
+/// Returns empty ov::Tensor if the file has no audio stream.
+ov::Tensor extract_audio_from_video(const std::filesystem::path& video_path) {
+    AVFormatContext* fmt_ctx = nullptr;
+    if (avformat_open_input(&fmt_ctx, video_path.string().c_str(), nullptr, nullptr) < 0)
+        throw std::runtime_error("extract_audio_from_video: cannot open: " + video_path.string());
+
+    if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) {
+        avformat_close_input(&fmt_ctx);
+        throw std::runtime_error("extract_audio_from_video: cannot find stream info");
+    }
+
+    // Find first audio stream
+    int audio_idx = -1;
+    for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
+        if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            audio_idx = (int)i;
+            break;
+        }
+    }
+    if (audio_idx < 0) {
+        avformat_close_input(&fmt_ctx);
+        return ov::Tensor{};  // no audio stream
+    }
+
+    AVCodecParameters* par   = fmt_ctx->streams[audio_idx]->codecpar;
+    const AVCodec*     codec = avcodec_find_decoder(par->codec_id);
+    if (!codec) {
+        avformat_close_input(&fmt_ctx);
+        throw std::runtime_error("extract_audio_from_video: no decoder for audio codec");
+    }
+    AVCodecContext* dec_ctx = avcodec_alloc_context3(codec);
+    avcodec_parameters_to_context(dec_ctx, par);
+    avcodec_open2(dec_ctx, codec, nullptr);
+
+    // Build SwrContext: source format → 16 kHz mono f32
+    SwrContext* swr = swr_alloc();
+    int64_t in_ch_layout = dec_ctx->channel_layout
+                         ? (int64_t)dec_ctx->channel_layout
+                         : av_get_default_channel_layout(dec_ctx->channels);
+    av_opt_set_int       (swr, "in_channel_layout",  in_ch_layout,            0);
+    av_opt_set_int       (swr, "out_channel_layout", AV_CH_LAYOUT_MONO,       0);
+    av_opt_set_int       (swr, "in_sample_rate",     dec_ctx->sample_rate,    0);
+    av_opt_set_int       (swr, "out_sample_rate",    16000,                   0);
+    av_opt_set_sample_fmt(swr, "in_sample_fmt",      dec_ctx->sample_fmt,     0);
+    av_opt_set_sample_fmt(swr, "out_sample_fmt",     AV_SAMPLE_FMT_FLT,       0);
+    swr_init(swr);
+
+    std::vector<float> samples;
+    AVPacket* pkt   = av_packet_alloc();
+    AVFrame*  frame = av_frame_alloc();
+
+    auto do_convert = [&](int nb_input_samples, const uint8_t** input_data) {
+        int out_count = (int)av_rescale_rnd(
+            swr_get_delay(swr, dec_ctx->sample_rate) + nb_input_samples,
+            16000, dec_ctx->sample_rate, AV_ROUND_UP);
+        std::vector<float> buf(out_count);
+        uint8_t* out_ptr = reinterpret_cast<uint8_t*>(buf.data());
+        int converted = swr_convert(swr, &out_ptr, out_count, input_data, nb_input_samples);
+        if (converted > 0) {
+            samples.insert(samples.end(), buf.begin(), buf.begin() + converted);
+        }
+    };
+
+    while (av_read_frame(fmt_ctx, pkt) >= 0) {
+        if (pkt->stream_index == audio_idx) {
+            if (avcodec_send_packet(dec_ctx, pkt) == 0) {
+                while (avcodec_receive_frame(dec_ctx, frame) == 0) {
+                    do_convert(frame->nb_samples,
+                               const_cast<const uint8_t**>(frame->data));
+                    av_frame_unref(frame);
+                }
+            }
+        }
+        av_packet_unref(pkt);
+    }
+    // Flush resampler
+    do_convert(0, nullptr);
+
+    av_frame_free(&frame);
+    av_packet_free(&pkt);
+    swr_free(&swr);
+    avcodec_free_context(&dec_ctx);
+    avformat_close_input(&fmt_ctx);
+
+    if (samples.empty())
+        return ov::Tensor{};
+
+    ov::Tensor audio(ov::element::f32, {1, samples.size()});
+    std::memcpy(audio.data<float>(), samples.data(), samples.size() * sizeof(float));
+    return audio;
+}
+#endif  // HAVE_FFMPEG
+
+}  // anonymous namespace
+
+VideoLoadResult load_video_with_audio(const std::filesystem::path& video_path,
+                                      bool                         use_audio_in_video,
+                                      const VideoLoadOptions&      opts) {
+    // ── Open video with OpenCV ──────────────────────────────────────────────
+    cv::VideoCapture cap(video_path.string());
+    if (!cap.isOpened())
+        throw std::runtime_error("load_video_with_audio: cannot open: " + video_path.string());
+
+    int    total_frames = (int)cap.get(cv::CAP_PROP_FRAME_COUNT);
+    double video_fps    = cap.get(cv::CAP_PROP_FPS);
+    int    height_orig  = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+    int    width_orig   = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
+
+    if (total_frames <= 0 || video_fps <= 0.0)
+        throw std::runtime_error("load_video_with_audio: invalid video metadata");
+
+    // ── Compute how many / which frames to sample ───────────────────────────
+    // Budget-aware max_pixels per frame (mirrors Python VIDEO_TOTAL_PIXELS logic)
+    constexpr long long VIDEO_TOTAL_PIXELS = (long long)(128000 * 28 * 28 * 0.9);
+    constexpr int       VIDEO_MAX_PIXELS   = 768 * 28 * 28;
+    constexpr int       VIDEO_MIN_PIXELS   = 128 * 28 * 28;
+    constexpr int       FRAME_FACTOR       = 2;
+
+    int nframes = smart_nframes(total_frames, video_fps,
+                                opts.fps, opts.min_frames, opts.max_frames);
+    float sample_fps = (float)(nframes) / (float)(total_frames) * (float)video_fps;
+
+    // Per-frame pixel budget
+    long long max_pixels_per_frame = std::max(
+        (long long)std::min((long long)VIDEO_MAX_PIXELS,
+                            VIDEO_TOTAL_PIXELS / nframes * FRAME_FACTOR),
+        (long long)(VIDEO_MIN_PIXELS * 1.05));
+
+    auto [res_h, res_w] = smart_resize_video(height_orig, width_orig,
+                                              28,
+                                              VIDEO_MIN_PIXELS,
+                                              (int)max_pixels_per_frame);
+
+    // Uniformly-spaced frame indices (linspace, clamped)
+    std::vector<int> frame_indices(nframes);
+    for (int i = 0; i < nframes; ++i) {
+        double t = (nframes == 1) ? 0.0
+                                  : (double)i / (nframes - 1) * (total_frames - 1);
+        frame_indices[i] = std::min((int)std::round(t), total_frames - 1);
+    }
+
+    // ── Read and resize selected frames ────────────────────────────────────
+    ov::Tensor frames_tensor(ov::element::u8,
+                             {(size_t)nframes, (size_t)res_h, (size_t)res_w, 3});
+    uint8_t* dst = frames_tensor.data<uint8_t>();
+    size_t frame_bytes = (size_t)res_h * res_w * 3;
+
+    cv::Mat bgr, rgb, resized;
+    int prev_idx = -1;
+    for (int i = 0; i < nframes; ++i) {
+        int idx = frame_indices[i];
+        if (idx != prev_idx) {
+            cap.set(cv::CAP_PROP_POS_FRAMES, (double)idx);
+            if (!cap.read(bgr) || bgr.empty())
+                throw std::runtime_error("load_video_with_audio: failed to decode frame " +
+                                         std::to_string(idx));
+            cv::cvtColor(bgr, rgb, cv::COLOR_BGR2RGB);
+            cv::resize(rgb, resized, cv::Size(res_w, res_h),
+                       0, 0, cv::INTER_CUBIC);
+            prev_idx = idx;
+        }
+        std::memcpy(dst + i * frame_bytes, resized.data, frame_bytes);
+    }
+    cap.release();
+
+    // ── Optionally extract audio ────────────────────────────────────────────
+    ov::Tensor audio_tensor;
+#ifdef HAVE_FFMPEG
+    if (use_audio_in_video) {
+        audio_tensor = extract_audio_from_video(video_path);
+        if (!audio_tensor.get_size()) {
+            throw std::runtime_error(
+                "load_video_with_audio: use_audio_in_video=true but '" +
+                video_path.string() + "' has no audio stream");
+        }
+    }
+#else
+    if (use_audio_in_video) {
+        throw std::runtime_error(
+            "load_video_with_audio: audio extraction requires FFmpeg. "
+            "Rebuild with -DHAVE_FFMPEG=ON.");
+    }
+#endif
+
+    return VideoLoadResult{std::move(frames_tensor), std::move(audio_tensor), sample_fps};
 }
 
 ov::Tensor create_countdown_frames() {

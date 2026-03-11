@@ -39,15 +39,17 @@ void VideoPreprocessModule::print_static_config() {
       - name: "source_sizes"    # Output port name, used by Qwen 2.5-VL
         type: "VecVecInt"       # Support DataType: [VecVecInt]
       - name: "pos_embeds"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
       - name: "rotary_cos"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
       - name: "rotary_sin"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
-      - name: "video_grid_thw"    # Output port name, used by Qwen 3.5 for video input
-        type: "OVTensor"        # Support DataType: [OVTensor]
-      - name: "pixel_values_videos"    # Output port name, used by Qwen 3.5 for video input
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
+      - name: "grid_thw"    # Output port name, used by Qwen 3.5 for video input
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
+      - name: "pixel_values"    # Output port name, used by Qwen 3.5 for video input
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
+      - name: "video_second_per_grid"
+        type: "VecInt"
     params:
       model_path: "models/openvino_vision_embeddings_model.xml"
     )" << std::endl;
@@ -89,11 +91,12 @@ void VideoPreprocessModule::run_video(const bool& has_videos_input) {
                         "VideoPreprocessModule: only a single video input is supported");
 
         auto output = _vision_preprocess_ptr->preprocess({}, videos_data);
-        this->outputs["pixel_values_videos"].data = output.pixel_values_videos;
-        this->outputs["video_grid_thw"].data = output.video_grid_thw;
-        this->outputs["pos_embeds"].data = output.pos_embeds;
-        this->outputs["rotary_cos"].data = output.rotary_cos;
-        this->outputs["rotary_sin"].data = output.rotary_sin;
+        this->outputs["pixel_values"].data = output.pixel_values_videos;
+        this->outputs["grid_thw"].data = output.video_grid_thw;
+        this->outputs["pos_embeds"].data = output.video_pos_embeds;
+        this->outputs["rotary_cos"].data = output.video_rotary_cos;
+        this->outputs["rotary_sin"].data = output.video_rotary_sin;
+        this->outputs["video_second_per_grid"].data = output.video_second_per_grid;
         return;
     }
 

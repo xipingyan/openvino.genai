@@ -89,7 +89,7 @@ protected:
 
         // Define outputs
         YAML::Node outputs;
-        outputs.push_back(output_node("audio_features", "OVTensor"));
+        outputs.push_back(output_node("audio_features", "VecOVTensor"));
         outputs.push_back(output_node("audio_feature_lengths", "OVTensor"));
         audio_encoder["outputs"] = outputs;
 
@@ -112,11 +112,11 @@ protected:
     }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto audio_features = pipe.get_output("audio_features").as<ov::Tensor>();
+        auto audio_features = pipe.get_output("audio_features").as<std::vector<ov::Tensor>>();
         auto audio_feature_lengths = pipe.get_output("audio_feature_lengths").as<ov::Tensor>();
 
-        EXPECT_TRUE(compare_shape(audio_features.get_shape(), m_test_data.expected_audio_features_shape)) << "audio_features shape does not match expected shape.";
-        EXPECT_TRUE(compare_big_tensor(audio_features, m_test_data.expected_audio_features, m_threshold)) << "audio_features values do not match expected values.";
+        EXPECT_TRUE(compare_shape(audio_features[0].get_shape(), m_test_data.expected_audio_features_shape)) << "audio_features shape does not match expected shape.";
+        EXPECT_TRUE(compare_big_tensor(audio_features[0], m_test_data.expected_audio_features, m_threshold)) << "audio_features values do not match expected values.";
 
         EXPECT_TRUE(compare_shape(audio_feature_lengths.get_shape(), m_test_data.expected_audio_feature_lengths_shape)) << "audio_feature_lengths shape does not match expected shape.";
         EXPECT_TRUE(compare_big_tensor<int64_t>(audio_feature_lengths, m_test_data.expected_audio_feature_lengths, 0)) << "audio_feature_lengths values do not match expected values.";

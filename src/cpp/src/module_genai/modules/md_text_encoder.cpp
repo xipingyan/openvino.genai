@@ -46,11 +46,20 @@ void TextEncoderModule::print_static_config() {
       - name: "source_sizes"      # Used by Qwen 2.5-VL
         type: "VecVecInt"         # [Optional] Support DataType: [VecVecInt]
         source: "ParentModuleName.OutputPortName"
-      - name: "grid_thw"          # Used by Qwen 3.5
-        type: "OVTensor"          # [Optional] Support DataType: [OVTensor]
+      - name: "image_grid_thw"    # Used by Qwen 3.5
+        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "audio_features"    # Used by Qwen 3-Omni
-        type: "OVTensor"          # [Optional] Support DataType: [OVTensor]
+        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_grid_thw"    # Used by Qwen 3.5
+        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "use_audio_in_video"
+        type: "VecInt"
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_second_per_grid"
+        type: "VecInt"
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "input_ids"
@@ -94,6 +103,7 @@ bool TextEncoderModule::initialize() {
         Qwen3_5VisionConfig vision_config = Qwen3_5VisionConfig::from_json_file(tokenizer_path / "config.json");
         m_merge_length = std::pow(vision_config.spatial_merge_size, 2);
         m_spatial_merge_size = vision_config.spatial_merge_size;
+        m_position_id_per_seconds = 13;
     } else {
         GENAI_ERR("TextEncoderModule[" + module_desc->name + "]: Unsupported model type: " + module_desc->model_type);
         return false;
@@ -154,25 +164,37 @@ void TextEncoderModule::run() {
             this->outputs["images_sequence"].data = images_sequence;
         }
     } else if (model_type == VLMModelType::QWEN3_5) {
-        std::optional<ov::Tensor> grid_thw = std::nullopt;
-        if (exists_input("grid_thw")) {
-            grid_thw = get_input("grid_thw").as<ov::Tensor>();
+        std::optional<std::vector<ov::Tensor>> image_grid_thw = std::nullopt;
+        if (exists_input("image_grid_thw")) {
+            image_grid_thw = get_input("image_grid_thw").as<std::vector<ov::Tensor>>();
         }
 
-        auto encoded = run(m_prompts, grid_thw);
+        auto encoded = run(m_prompts, image_grid_thw);
         this->outputs["input_ids"].data = encoded.input_ids;
         this->outputs["mask"].data = encoded.attention_mask;
     } else if (model_type == VLMModelType::QWEN3_OMNI) {
-        std::optional<ov::Tensor> grid_thw = std::nullopt;
-        if (exists_input("grid_thw")) {
-            grid_thw = get_input("grid_thw").as<ov::Tensor>();
+        std::optional<std::vector<ov::Tensor>> image_grid_thw = std::nullopt;
+        if (exists_input("image_grid_thw")) {
+            image_grid_thw = get_input("image_grid_thw").as<std::vector<ov::Tensor>>();
         }
-        std::optional<ov::Tensor> audio_features = std::nullopt;
+        std::optional<std::vector<ov::Tensor>> audio_features = std::nullopt;
         if (exists_input("audio_features")) {
-            audio_features = get_input("audio_features").as<ov::Tensor>();
+            audio_features = get_input("audio_features").as<std::vector<ov::Tensor>>();
+        }
+        std::optional<std::vector<ov::Tensor>> video_grid_thw = std::nullopt;
+        if (exists_input("video_grid_thw")) {
+            video_grid_thw = get_input("video_grid_thw").as<std::vector<ov::Tensor>>();
+        }
+        std::optional<std::vector<int>> use_audio_in_video = std::nullopt;
+        if (exists_input("use_audio_in_video")) {
+            use_audio_in_video = get_input("use_audio_in_video").as<std::vector<int>>();
+        }
+        std::optional<std::vector<int>> video_second_per_grid = std::nullopt;
+        if (exists_input("video_second_per_grid")) {
+            video_second_per_grid = get_input("video_second_per_grid").as<std::vector<int>>();
         }
 
-        auto encoded = run(m_prompts, grid_thw, audio_features);
+        auto encoded = run(m_prompts, image_grid_thw, audio_features, video_grid_thw, use_audio_in_video, video_second_per_grid);
         this->outputs["input_ids"].data = encoded.input_ids;
         this->outputs["mask"].data = encoded.attention_mask;
     } else {
@@ -207,7 +229,7 @@ std::pair<TokenizedInputs, std::vector<int>> TextEncoderModule::run(const std::v
     }
 }
 
-TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts, std::optional<ov::Tensor>& grid_thw) {
+TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts, std::optional<std::vector<ov::Tensor>>& grid_thw) {
     if (grid_thw.has_value()) {
         std::vector<std::string> unified_prompts = {};
         for (const auto &prompt : prompts) {
@@ -226,13 +248,17 @@ TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts, 
 }
 
 TokenizedInputs TextEncoderModule::run(const std::vector<std::string>& prompts,
-                    std::optional<ov::Tensor>& grid_thw,
-                    std::optional<ov::Tensor>& audio_features) {
+                    std::optional<std::vector<ov::Tensor>>& image_grid_thw,
+                    std::optional<std::vector<ov::Tensor>>& audio_features,
+                    std::optional<std::vector<ov::Tensor>>& video_grid_thw,
+                    std::optional<std::vector<int>>& use_audio_in_video,
+                    std::optional<std::vector<int>>& video_second_per_grid) {
     auto model_type = to_vlm_model_type(module_desc->model_type);
     if (model_type != VLMModelType::QWEN3_OMNI) {
         OPENVINO_THROW("Only Omni model supports audio");
     }
-    std::vector<std::string> full_prompts = build_prompts(prompts, grid_thw, audio_features, static_cast<int64_t>(m_spatial_merge_size));
+    std::vector<std::string> full_prompts = build_prompts(
+        prompts, image_grid_thw, audio_features, video_grid_thw, use_audio_in_video, video_second_per_grid, static_cast<int64_t>(m_spatial_merge_size), m_position_id_per_seconds);
     return m_tokenizer_impl->encode(full_prompts, m_tokenization_params);
 }
 
@@ -243,15 +269,17 @@ NormalizedPrompt TextEncoderModule::normalize_prompt(const std::string& prompt,
                                       const std::vector<ov::Tensor>& encoded_videos,
                                       const std::vector<std::vector<int>>& source_sizes) {
     auto thw = calc_thw(source_sizes);
-    return normalize_prompt(prompt, base_image_id, base_video_id, thw);
+    return normalize_prompt(prompt, base_image_id, base_video_id, {thw});
 }
 
 NormalizedPrompt TextEncoderModule::normalize_prompt(const std::string& prompt,
                                   size_t base_image_id,
                                   size_t base_video_id,
-                                  const ov::Tensor& grid_thw) {
-    const ov::Shape& thw_shape = grid_thw.get_shape();
-    auto thw_data = grid_thw.data<const int64_t>();
+                                  const std::vector<ov::Tensor>& grid_thw) {
+    // TODO: support multiple images/videos in one prompt
+    ov::Tensor grid_thw_tensor = grid_thw[0];
+    const ov::Shape& thw_shape = grid_thw_tensor.get_shape();
+    auto thw_data = grid_thw_tensor.data<const int64_t>();
     auto [unified_prompt, images_sequence] = normalize(prompt, NATIVE_TAG, NATIVE_TAG, base_image_id, thw_shape[0]);
     for (size_t new_image_id : images_sequence) {
         size_t grid_t = thw_data[(new_image_id - base_image_id) * 3 + 0];

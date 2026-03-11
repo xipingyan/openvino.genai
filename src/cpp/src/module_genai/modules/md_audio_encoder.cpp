@@ -25,7 +25,7 @@ void AudioEncoderModule::print_static_config() {
         source: "ParentModuleName.OutputPortName"
     outputs:
       - name: "audio_features"
-        type: "OVTensor"
+        type: "VecOVTensor"
       - name: "audio_feature_lengths"
         type: "OVTensor"
     params:
@@ -134,7 +134,7 @@ void AudioEncoderModule::run() {
     
     }
     
-    this->outputs["audio_features"].data = tensor_utils::concat_tensors(audio_features_vec);
+    this->outputs["audio_features"].data = audio_features_vec;
     this->outputs["audio_feature_lengths"].data = audio_feature_lengths_final;
 }
 
