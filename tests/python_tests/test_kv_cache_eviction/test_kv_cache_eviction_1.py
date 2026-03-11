@@ -1,11 +1,10 @@
-# Copyright (C) 2023-2025 Intel Corporation
+# Copyright (C) 2023-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 import sys
 import pytest
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 import datasets
 from tqdm import tqdm
 
@@ -33,16 +32,15 @@ class CacheOptTestStruct:
     max_new_tokens: int
     num_kv_blocks: int
     use_cache_eviction: bool
-    cache_eviction_config: Optional[CacheEvictionConfig]
+    cache_eviction_config: CacheEvictionConfig | None
     similarity_threshold: float
-    avg_cache_usage_optimization_ratio: float  # expecting no less than these optimization ratios
+    avg_cache_usage_optimization_ratio: float # expecting no less than these optimization ratios
     max_cache_usage_optimization_ratio: float
 
 
 SHORT_CACHE_EVICTION_CONFIG = CacheEvictionConfig(start_size=32, recent_size=32, max_cache_size=96, aggregation_mode=AggregationMode.NORM_SUM)
 LONGBENCH_CACHE_EVICTION_CONFIG = CacheEvictionConfig(start_size=32, recent_size=128, max_cache_size=672, aggregation_mode=AggregationMode.NORM_SUM)
 
-@pytest.mark.precommit
 @pytest.mark.skipif(
     sys.platform in ("win32", "darwin"),
     reason=(
@@ -99,7 +97,9 @@ def test_cache_optimized_generation_is_similar_to_unoptimized(test_struct, apply
         scheduler_config_opt.sparse_attention_config.num_last_dense_tokens_in_prefill = 10
 
     model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    _, tokenizer, models_path = download_and_convert_model(model_id)
+    model_schema = download_and_convert_model(model_id)
+    tokenizer = model_schema.hf_tokenizer
+    models_path = model_schema.models_path
     model_cb_noopt = ContinuousBatchingPipeline(models_path, scheduler_config, "CPU", {}, get_default_llm_properties())
     model_cb_opt = ContinuousBatchingPipeline(models_path, scheduler_config_opt, "CPU", {}, get_default_llm_properties())
 
@@ -138,7 +138,8 @@ def test_cache_optimized_generation_is_similar_to_unoptimized(test_struct, apply
     assert similarity_metric > test_struct.similarity_threshold
     assert max_optimization_ratio >= test_struct.max_cache_usage_optimization_ratio
     assert avg_optimization_ratio >= test_struct.avg_cache_usage_optimization_ratio
-
+    assert pipeline_opt_metrics.kv_cache_size_in_bytes > 0
+    assert pipeline_noopt_metrics.kv_cache_size_in_bytes > 0
 
 
 def get_greedy_seq_len_300() -> GenerationConfig:
@@ -158,41 +159,45 @@ def get_beam_search_seq_len_300() -> GenerationConfig:
 
 
 scheduler_params_list = [
-                         ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": True, "enable_prefix_caching": True}, get_greedy_seq_len_300()),
-                         ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "enable_prefix_caching": True}, get_beam_search_seq_len_300()),
-                         ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": True, "enable_prefix_caching": False}, get_greedy_seq_len_300()),
-                         ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "enable_prefix_caching": False}, get_beam_search_seq_len_300()),
-                         ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "use_cache_eviction": True, "cache_eviction_config": SHORT_CACHE_EVICTION_CONFIG}, get_greedy_seq_len_300())]
+    ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": True, "enable_prefix_caching": True}, get_greedy_seq_len_300()),
+    ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "enable_prefix_caching": True}, get_beam_search_seq_len_300()),
+    ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": True, "enable_prefix_caching": False}, get_greedy_seq_len_300()),
+    ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "enable_prefix_caching": False}, get_beam_search_seq_len_300()),
+    ({"num_kv_blocks": 0, "cache_size": 0, "dynamic_split_fuse": False, "max_num_batched_tokens": 600, "use_cache_eviction": True, "cache_eviction_config": SHORT_CACHE_EVICTION_CONFIG}, get_greedy_seq_len_300()),
+]
 @pytest.mark.parametrize("params", scheduler_params_list)
-@pytest.mark.precommit
 def test_dynamic_memory_allocation(params):
     prompts, _ = get_test_dataset()
-    generate_and_compare(prompts=prompts,
-                         model="facebook/opt-125m",
-                         scheduler_config=params[0],
-                         generation_config=params[1],
-                         pipeline_type=PipelineType.CONTINUOUS_BATCHING)
+    generate_and_compare(
+        model_schema=download_and_convert_model("facebook/opt-125m"),
+        prompts=prompts,
+        scheduler_config=params[0],
+        generation_config=params[1],
+        pipeline_type=PipelineType.CONTINUOUS_BATCHING
+    )
 
 
-@dataclass
+@dataclass(frozen=True)
 class LongBenchTestData:
     subset: str
     threshold: float
     max_cache_usage_optimization_ratio: float
     avg_cache_usage_optimization_ratio: float
 
-
-@pytest.mark.precommit
-@pytest.mark.parametrize("test_struct", [
-    LongBenchTestData("samsum", 4, 1.6, 2.5),
-    LongBenchTestData("trec", 3.2, 2.0, 3.3),
-], ids=["samsum", "trec"])
+@pytest.mark.parametrize(
+    "test_struct",
+    [
+        LongBenchTestData("samsum", 1.0, 1.5, 2.5),
+        LongBenchTestData("trec", 1.0, 2.0, 2.8),
+    ],
+    ids=["samsum", "trec"],
+)
 def test_optimized_generation_longbench(test_struct):
-    seqs_per_request = 32
+    seqs_per_request = 16
     device = "CPU"
     num_kv_blocks = 1000 if device == "CPU" else 500
-    model_id = "Qwen/Qwen2-0.5B-Instruct"
-    _, _, models_path = download_and_convert_model(model_id)
+    model_id = "HuggingFaceTB/SmolLM2-135M-Instruct"
+    models_path = download_and_convert_model(model_id).models_path
     scheduler_config = get_scheduler_config(num_kv_blocks)
 
     scheduler_config_opt = get_scheduler_config(num_kv_blocks)
@@ -212,7 +217,7 @@ def test_optimized_generation_longbench(test_struct):
     generation_config.num_return_sequences = 1
     generation_config.max_new_tokens = max_new_tokens
 
-    data = datasets.load_dataset('THUDM/LongBench', subset, split='test[:32]', trust_remote_code=True)
+    data = datasets.load_dataset("zai-org/LongBench", subset, split="test[:16]", revision="8cbd1")
     with tqdm(total=len(data)) as progress_bar:
         batch = []
         answers = []
@@ -258,4 +263,3 @@ def test_optimized_generation_longbench(test_struct):
     assert ref_score - score <= test_struct.threshold
     assert max_optimization_ratio >= test_struct.max_cache_usage_optimization_ratio
     assert avg_optimization_ratio >= test_struct.avg_cache_usage_optimization_ratio
-

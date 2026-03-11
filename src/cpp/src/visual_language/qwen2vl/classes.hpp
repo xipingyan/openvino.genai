@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -9,6 +9,8 @@
 
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/inputs_embedder.hpp"
+#include "circular_buffer_queue.hpp"
+#include "visual_language/cdpruner/cdpruner.hpp"
 
 namespace ov::genai {
 
@@ -34,7 +36,7 @@ private:
                                         size_t frame_num = 1,
                                         size_t frame_id = 0);
 
-    bool use_ov_image_preprocess = true; // default use ov image preprocess, control by env IMAGE_PREPROCESS=CPP to use cpp image preprocess
+    bool use_ov_vision_preprocess = true; // default use ov vision preprocess, control by env VISION_PREPROCESS=CPP to use cpp vision preprocess
 };
 
 class InputsEmbedderQwen2VL : public InputsEmbedder::IInputsEmbedder {
@@ -72,6 +74,8 @@ public:
     std::pair<ov::Tensor, std::optional<int64_t>> get_generation_phase_position_ids(const size_t inputs_embeds_size, const size_t history_size, int64_t rope_delta) override;
 
     void start_chat(const std::string& system_message) override;
+
+    std::string get_last_pruned_prompt(const std::string& original_prompt) const override;
 
     void finish_chat() override;
 
@@ -147,17 +151,6 @@ ov::Tensor get_attention_mask(const std::vector<std::array<size_t, 3>>& reordere
 ov::Tensor get_cu_seqlens(const std::vector<std::array<size_t, 3>>& reordered_images_grid_thw, const std::vector<std::array<size_t, 3>>& reordered_videos_grid_thw);
 
 ov::Tensor concatenate_video_image_embeds(const std::vector<ov::Tensor>& reordered_video_embeds, const std::vector<ov::Tensor>& reordered_image_embeds);
-
-ov::Tensor merge_text_and_video_image_embeddings(
-    const ov::Tensor& input_ids,
-    const ov::Tensor& text_embeds,
-    const ov::Tensor& processed_image_embeds,
-    const ov::Tensor& processed_video_embeds,
-    const int64_t image_pad_token_id,
-    const int64_t video_pad_token_id
-);
-
-ImageSize smart_resize(size_t height, size_t width, size_t factor, size_t min_pixels, size_t max_pixels);
 
 } // namespace qwen2vl_utils
 

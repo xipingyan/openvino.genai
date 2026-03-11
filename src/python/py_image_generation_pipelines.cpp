@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include <filesystem>
@@ -180,10 +180,12 @@ public:
     }
 
     float next() override {
+        py::gil_scoped_acquire acquire;
         return m_torch.attr("randn")(1, "generator"_a=m_torch_generator, "dtype"_a=m_float32).attr("item")().cast<float>();
     }
 
     ov::Tensor randn_tensor(const ov::Shape& shape) override {
+        py::gil_scoped_acquire acquire;
         py::object torch_tensor = m_torch.attr("randn")(to_py_list(shape), "generator"_a=m_torch_generator, "dtype"_a=m_float32);
         py::object numpy_tensor = torch_tensor.attr("numpy")();
         py::array numpy_array = py::cast<py::array>(numpy_tensor);
@@ -201,6 +203,38 @@ public:
             TorchTensorAllocator(size_t total_size, void * mutable_data, py::object torch_tensor) :
                 m_total_size(total_size), m_mutable_data(mutable_data), m_torch_tensor(torch_tensor) { }
 
+            ~TorchTensorAllocator() {
+                if (m_torch_tensor && Py_IsInitialized()) {
+                    try {
+                        py::gil_scoped_acquire acquire;
+                        m_torch_tensor = py::object();
+                    } catch (...) {
+                        // Best-effort cleanup during interpreter shutdown: exceptions here
+                        // cannot be propagated (destructors must not throw) and are therefore
+                        // intentionally ignored.
+                    }
+                }
+            }
+
+            TorchTensorAllocator(const TorchTensorAllocator& other)
+                : m_total_size(other.m_total_size), m_mutable_data(other.m_mutable_data) {
+                py::gil_scoped_acquire acquire;
+                m_torch_tensor = other.m_torch_tensor;
+            }
+
+            TorchTensorAllocator& operator=(const TorchTensorAllocator& other) {
+                if (this != &other) {
+                    m_total_size = other.m_total_size;
+                    m_mutable_data = other.m_mutable_data;
+                    py::gil_scoped_acquire acquire;
+                    m_torch_tensor = other.m_torch_tensor;
+                }
+                return *this;
+            }
+
+            TorchTensorAllocator(TorchTensorAllocator&&) = default;
+            TorchTensorAllocator& operator=(TorchTensorAllocator&&) = default;
+
             void* allocate(size_t bytes, size_t) const {
                 if (m_total_size == bytes) {
                     return m_mutable_data;
@@ -208,10 +242,7 @@ public:
                 throw std::runtime_error{"Unexpected number of bytes was requested to allocate."};
             }
 
-            void deallocate(void*, size_t bytes, size_t) {
-                if (m_total_size != bytes) {
-                    throw std::runtime_error{"Unexpected number of bytes was requested to deallocate."};
-                }
+            void deallocate(void*, size_t, size_t) noexcept {
             }
 
             bool is_equal(const TorchTensorAllocator& other) const noexcept {
@@ -224,6 +255,7 @@ public:
     }
 
     void seed(size_t new_seed) override {
+        py::gil_scoped_acquire acquire;
         create_torch_generator(new_seed);
     }
 };
@@ -295,6 +327,25 @@ void init_image_generation_pipelines(py::module_& m) {
         py::arg("scheduler_config_path"),
         py::arg_v("scheduler_type", ov::genai::Scheduler::Type::AUTO, "Scheduler.Type.AUTO"));
 
+    py::class_<ov::genai::TaylorSeerCacheConfig>(
+        m, "TaylorSeerCacheConfig",
+        "Configuration for TaylorSeer cache mechanism in diffusion transformers.\n\n"
+        "See paper: https://arxiv.org/pdf/2503.06923\n\n"
+        "Attributes:\n"
+        "  cache_interval: Interval between full computation steps (default: 3, must be >= 2)\n"
+        "  disable_cache_before_step: Step before which caching is disabled for warmup (default: 6)\n"
+        "  disable_cache_after_step: Step after which caching is disabled. If negative, "
+        "calculated as num_inference_steps + disable_cache_after_step (default: -2)")
+        .def(py::init<>())
+        .def_readwrite("cache_interval", &ov::genai::TaylorSeerCacheConfig::cache_interval,
+                      "Interval between full computation steps (must be >= 2)")
+        .def_readwrite("disable_cache_before_step", &ov::genai::TaylorSeerCacheConfig::disable_cache_before_step,
+                      "Step before which caching is disabled for warmup")
+        .def_readwrite("disable_cache_after_step", &ov::genai::TaylorSeerCacheConfig::disable_cache_after_step,
+                      "Step after which caching is disabled (negative values are relative to num_inference_steps)")
+        .def("to_string", &ov::genai::TaylorSeerCacheConfig::to_string)
+        .def("__repr__", &ov::genai::TaylorSeerCacheConfig::to_string);
+
     py::class_<ov::genai::ImageGenerationConfig>(m, "ImageGenerationConfig", "This class is used for storing generation config for image generation pipeline.")
         .def(py::init<>())
         .def_readwrite("prompt_2", &ov::genai::ImageGenerationConfig::prompt_2)
@@ -312,6 +363,7 @@ void init_image_generation_pipelines(py::module_& m) {
         .def_readwrite("adapters", &ov::genai::ImageGenerationConfig::adapters)
         .def_readwrite("strength", &ov::genai::ImageGenerationConfig::strength)
         .def_readwrite("max_sequence_length", &ov::genai::ImageGenerationConfig::max_sequence_length)
+        .def_readwrite("taylorseer_config", &ov::genai::ImageGenerationConfig::taylorseer_config)
         .def("validate", &ov::genai::ImageGenerationConfig::validate)
         .def("update_generation_config", [](
             ov::genai::ImageGenerationConfig& config,
@@ -451,12 +503,7 @@ void init_image_generation_pipelines(py::module_& m) {
             ) -> py::typing::Union<ov::Tensor> {
                 ov::AnyMap params = pyutils::kwargs_to_any_map(kwargs);
                 ov::Tensor res;
-                if (params_have_torch_generator(params)) {
-                    // TorchGenerator stores python object which causes segfault after gil_scoped_release
-                    // so if it was passed, we don't release GIL
-                    res = pipe.generate(prompt, params);
-                }
-                else {
+                {
                     py::gil_scoped_release rel;
                     res = pipe.generate(prompt, params);
                 }
@@ -568,12 +615,7 @@ void init_image_generation_pipelines(py::module_& m) {
             ) -> py::typing::Union<ov::Tensor> {
                 ov::AnyMap params = pyutils::kwargs_to_any_map(kwargs);
                 ov::Tensor res;
-                if (params_have_torch_generator(params)) {
-                    // TorchGenerator stores python object which causes segfault after gil_scoped_release
-                    // so if it was passed, we don't release GIL
-                    res = pipe.generate(prompt, image, params);
-                }
-                else {
+                {
                     py::gil_scoped_release rel;
                     res = pipe.generate(prompt, image, params);
                 }
@@ -679,12 +721,7 @@ void init_image_generation_pipelines(py::module_& m) {
             ) -> py::typing::Union<ov::Tensor> {
                 ov::AnyMap params = pyutils::kwargs_to_any_map(kwargs);
                 ov::Tensor res;
-                if (params_have_torch_generator(params)) {
-                    // TorchGenerator stores python object which causes segfault after gil_scoped_release
-                    // so if it was passed, we don't release GIL
-                    res = pipe.generate(prompt, image, mask_image, params);
-                }
-                else {
+                {
                     py::gil_scoped_release rel;
                     res = pipe.generate(prompt, image, mask_image, params);
                 }

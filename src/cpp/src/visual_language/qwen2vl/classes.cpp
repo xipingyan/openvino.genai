@@ -1,5 +1,5 @@
 
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "visual_language/qwen2vl/classes.hpp"
@@ -583,7 +583,7 @@ ov::Tensor concatenate_video_image_embeds(const std::vector<ov::Tensor>& reorder
 
 ov::Tensor merge_text_and_video_image_embeddings(
     const ov::Tensor& input_ids,
-    const ov::Tensor& text_embeds,
+    const ov::Tensor& text_embeds, 
     const ov::Tensor& processed_image_embeds,
     const ov::Tensor& processed_video_embeds,
     const int64_t image_pad_token_id,
@@ -652,8 +652,8 @@ std::unique_ptr<CircularBufferQueue<ov::InferRequest>> create_vision_encoder_ire
         });
 }
 
-bool check_image_preprocess_env() {
-    const char* env = std::getenv("IMAGE_PREPROCESS");
+bool check_vision_preprocess_env() {
+    const char* env = std::getenv("VISION_PREPROCESS");
     return !(env && std::string(env) == "CPP");
 }
 
@@ -661,8 +661,8 @@ VisionEncoderQwen2VL::VisionEncoderQwen2VL(const std::filesystem::path& model_di
                                            const std::string& device,
                                            const ov::AnyMap properties)
     : VisionEncoder(model_dir, device, properties),
-      use_ov_image_preprocess(check_image_preprocess_env()) {
-    if (use_ov_image_preprocess) {
+      use_ov_vision_preprocess(check_vision_preprocess_env()) {
+    if (use_ov_vision_preprocess) {
         auto model_org = utils::singleton_core().read_model(model_dir / "openvino_vision_embeddings_model.xml");
         m_ireq_queue_vision_encoder = create_vision_encoder_ireq(model_org, m_processor_config, device, properties);
     }
@@ -673,8 +673,8 @@ VisionEncoderQwen2VL::VisionEncoderQwen2VL(const ModelsMap& models_map,
                                            const std::string& device,
                                            const ov::AnyMap properties)
     : VisionEncoder(models_map, config_dir_path, device, properties),
-      use_ov_image_preprocess(check_image_preprocess_env()) {
-    if (use_ov_image_preprocess) {
+      use_ov_vision_preprocess(check_vision_preprocess_env()) {
+    if (use_ov_vision_preprocess) {
         const auto& [vision_encoder_model, vision_encoder_weights] =
             utils::get_model_weights_pair(models_map, "vision_embeddings");
         auto model_org = utils::singleton_core().read_model(vision_encoder_model, vision_encoder_weights);
@@ -811,10 +811,17 @@ void VisionEncoderQwen2VL::encode_with_imagepreprocess_ov(const std::vector<ov::
     const float IMAGE_BRANCH_CONDITION = 1.f;
     std::vector<float> cond_img_vid_data{images.size() == 2u ? VIDEO_BRANCH_CONDITION : IMAGE_BRANCH_CONDITION};
     ov::Tensor cond_img_vid(ov::element::f32, ov::Shape{1}, cond_img_vid_data.data());
-    ov::Tensor input_image_1(ov::element::u8, image_shape, images[0].data<uint8_t>());
-    ov::Tensor input_image_2(ov::element::u8,
-                             image_shape,
-                             images.size() == 2 ? images[1].data<uint8_t>() : images[0].data<uint8_t>());
+    // const_cast is safe as ov::Tensor only views the data and doesn't modify it.
+    ov::Tensor input_image_1(
+        ov::element::u8, 
+        image_shape, 
+        const_cast<uint8_t*>(images[0].data<uint8_t>())
+    );
+    ov::Tensor input_image_2(
+        ov::element::u8,
+        image_shape,
+        const_cast<uint8_t*>(images.size() == 2 ? images[1].data<uint8_t>() : images[0].data<uint8_t>())
+    );
 
     uint64_t a_target_shape[2] = {target_image_size.height, target_image_size.width};
     ov::Tensor target_shape(ov::element::i64, ov::Shape{2}, a_target_shape);
@@ -876,14 +883,10 @@ void VisionEncoderQwen2VL::encode_with_imagepreprocess_ov(const std::vector<ov::
 
 EncodedImage VisionEncoderQwen2VL::encode(const ov::Tensor& image, const ov::AnyMap& config_map) {
     EncodedImage encoded_img;
-    if (use_ov_image_preprocess == false) {
+    if (use_ov_vision_preprocess == false) {
         encode_with_imagepreprocess_cpp({image}, config_map, encoded_img.resized_source, encoded_img.resized_source_size);
         return encoded_img;
-    }
-    encode_with_imagepreprocess_ov({image}, config_map, encoded_img.resized_source, encoded_img.resized_source_size);
-    return encoded_img;
 }
-
 EncodedVideo VisionEncoderQwen2VL::encode_frames(const std::vector<ov::Tensor>& frames, const ov::AnyMap& config_map) {
     ProcessorConfig config = utils::from_any_map(config_map, m_processor_config);
     EncodedVideo encoded_video;
@@ -895,7 +898,7 @@ EncodedVideo VisionEncoderQwen2VL::encode_frames(const std::vector<ov::Tensor>& 
 
     using EncodeFunc = std::function<void(const std::vector<ov::Tensor>&, const ov::AnyMap&, ov::genai::EncodedVideo&, size_t, size_t)>;
     EncodeFunc encode_func;
-    if (use_ov_image_preprocess == false) {
+    if (use_ov_vision_preprocess == false) {
         encode_func = [this](const std::vector<ov::Tensor>& image, const ov::AnyMap& config_map, ov::genai::EncodedVideo& encoded_video, size_t frm_num, size_t frm_id) {
             this->encode_with_imagepreprocess_cpp(image, config_map, encoded_video.video_features, encoded_video.resized_source_size, frm_num, frm_id);
         };
@@ -982,12 +985,13 @@ InputsEmbedderQwen2VL::InputsEmbedderQwen2VL(
 }
 
 void InputsEmbedderQwen2VL::encode_vision_placeholder_tokens() {
-    auto encoded_vision_tokens = m_tokenizer.encode(
-        m_vlm_config.vision_start_token + m_vlm_config.image_pad_token + m_vlm_config.video_pad_token,
-        ov::genai::add_special_tokens(false));
+    auto encoded_vision_tokens = m_tokenizer.encode(m_vlm_config.vision_start_token + m_vlm_config.vision_end_token +
+                                                    m_vlm_config.image_pad_token + m_vlm_config.video_pad_token,
+                                                    ov::genai::add_special_tokens(false));
     m_vision_token_ids["vision_start"] = encoded_vision_tokens.input_ids.data<int64_t>()[0];
-    m_vision_token_ids["image_pad"] = encoded_vision_tokens.input_ids.data<int64_t>()[1];
-    m_vision_token_ids["video_pad"] = encoded_vision_tokens.input_ids.data<int64_t>()[2];
+    m_vision_token_ids["vision_end"] = encoded_vision_tokens.input_ids.data<int64_t>()[1];
+    m_vision_token_ids["image_pad"] = encoded_vision_tokens.input_ids.data<int64_t>()[2];
+    m_vision_token_ids["video_pad"] = encoded_vision_tokens.input_ids.data<int64_t>()[3];
 }
 
 size_t InputsEmbedderQwen2VL::calc_tokens_num(size_t grid_t, size_t grid_h, size_t grid_w) const {
@@ -1008,7 +1012,7 @@ NormalizedPrompt InputsEmbedderQwen2VL::normalize_prompt(const std::string& prom
                                                          const std::vector<EncodedImage>& images,
                                                          const std::vector<EncodedVideo>& videos) const {
     // Images
-    auto [unified_prompt, images_sequence] = normalize(prompt, NATIVE_TAG, NATIVE_TAG, image_base_id, images.size());
+    auto [unified_prompt, images_sequence] = normalize(prompt, NATIVE_TAG, NATIVE_TAG, image_base_id, images.size(), VisionType::IMAGE);
     std::vector<std::array<size_t, 3>> images_grid_thw;
     images_grid_thw.reserve(images.size());
 
@@ -1017,11 +1021,7 @@ NormalizedPrompt InputsEmbedderQwen2VL::normalize_prompt(const std::string& prom
         size_t grid_h = encoded_image.resized_source_size.height;
         size_t grid_w = encoded_image.resized_source_size.width;
         images_grid_thw.push_back({grid_t, grid_h, grid_w});
-    }
-
-    for (size_t new_image_id : images_sequence) {
         auto [grid_t, grid_h, grid_w] = images_grid_thw.at(new_image_id - image_base_id);
-        const size_t num_image_pad_tokens = calc_tokens_num(grid_t, grid_h, grid_w);
 
         std::string expanded_tag;
         expanded_tag.reserve(m_vlm_config.vision_start_token.length() +
@@ -1108,6 +1108,7 @@ ov::Tensor InputsEmbedderQwen2VL::get_inputs_embeds(const std::string& unified_p
     ov::Tensor text_embeds = m_embedding->infer(req, input_ids);
 
     int64_t vision_start_token_id = m_vision_token_ids["vision_start"];
+    int64_t vision_end_token_id = m_vision_token_ids["vision_end"];
     int64_t image_pad_token_id = m_vision_token_ids["image_pad"];
     int64_t video_pad_token_id = m_vision_token_ids["video_pad"];
 
@@ -1128,6 +1129,55 @@ ov::Tensor InputsEmbedderQwen2VL::get_inputs_embeds(const std::string& unified_p
     }
     merged_video_embeddings_tensor = m_merged_video_embeddings;
     merged_image_embeddings_tensor = m_merged_image_embeddings;
+
+    // [CDPruner] Lambda to apply pruning (reusable for both images and videos)
+    auto apply_pruning = [&](size_t vision_count,
+                             const std::vector<std::array<size_t, 3>>& grid_thw,
+                             const std::vector<size_t>& sequence,
+                             ov::Tensor& merged_embeddings,
+                             int64_t vision_pad_token_id) {
+        // Calculate tokens per vision input
+        std::vector<size_t> tokens_per_vision;
+        tokens_per_vision.reserve(grid_thw.size());
+        for (const auto& [grid_t, grid_h, grid_w] : grid_thw) {
+            tokens_per_vision.push_back(calc_tokens_num(grid_t, grid_h, grid_w));
+        }
+
+        const size_t spatial_merge_size = std::max<size_t>(1, m_vision_encoder->get_processor_config().merge_size);
+
+        PruningContext pruning_context{input_ids,
+                                       text_embeds,
+                                       merged_embeddings,
+                                       vision_count,
+                                       grid_thw,
+                                       sequence,
+                                       tokens_per_vision,
+                                       vision_pad_token_id,
+                                       vision_start_token_id,
+                                       vision_end_token_id,
+                                       spatial_merge_size};
+
+        if (auto pruning_result = execute_pruning_pipeline(pruning_context)) {
+            merged_embeddings = pruning_result->pruned_embeddings;
+            input_ids = pruning_result->pruned_input_ids;
+            text_embeds = pruning_result->pruned_text_embeds;
+
+            if (pruning_result->updated_rope_delta.has_value()) {
+                m_rope_delta = pruning_result->updated_rope_delta.value();
+            }
+        }
+    };
+
+    // Apply pruning to images
+    if (!images.empty() && is_cdpruner_active()) {
+        apply_pruning(images.size(),
+                      images_grid_thw,
+                      images_sequence,
+                      merged_image_embeddings_tensor,
+                      image_pad_token_id);
+    }
+
+    // TODO: Apply pruning to videos when video pruning is supported
 
     return qwen2_vl_utils::merge_text_and_video_image_embeddings(input_ids,
                                                                  text_embeds,
@@ -1208,6 +1258,21 @@ std::pair<ov::Tensor, std::optional<int64_t>> InputsEmbedderQwen2VL::get_generat
         std::iota(pos_data, pos_data + inputs_embeds_size, new_pos_id);
     }
     return {position_ids, rope_delta};
+}
+
+std::string InputsEmbedderQwen2VL::get_last_pruned_prompt(const std::string& original_prompt) const {
+    std::string pruned_prompt = original_prompt;
+
+    // Remove pruned vision pad tokens from the last prompt if CDPruner is active
+    if (is_cdpruner_active()) {
+        pruned_prompt = m_pruning_processor->get_last_pruned_prompt(pruned_prompt,
+                                                                    m_vlm_config.vision_start_token,
+                                                                    m_vlm_config.vision_end_token,
+                                                                    m_vlm_config.image_pad_token,
+                                                                    m_vlm_config.video_pad_token);
+    }
+
+    return pruned_prompt;
 }
 
 void InputsEmbedderQwen2VL::start_chat(const std::string& system_message) {

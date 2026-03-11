@@ -3,7 +3,7 @@
 
 import readline from 'readline';
 import { z } from 'zod';
-import { LLMPipeline, StructuredOutputConfig } from 'openvino-genai-node';
+import { LLMPipeline, StructuredOutputConfig, ChatHistory } from 'openvino-genai-node';
 
 const PersonSchema = z.object({
     name: z.string().regex(/^[A-Z][a-z]{1,20}$/),
@@ -36,14 +36,14 @@ const itemsMap = {
     transaction: TransactionSchema,
 };
 
-const sysMessage = `You generate JSON objects based on the user's request. You can generate JSON objects with different types of objects: person, car, transaction. 
-If the user requested a different type, the JSON fields should remain zero. 
-Please note that the words 'individual', 'person', 'people', 'man', 'human', 'woman', 'inhabitant', 'citizen' are synonyms and can be used interchangeably. 
-E.g. if the user wants 5 houses, then the JSON must be {"person": 0, "car": 0, "transaction": 0}. 
-If the user wants 3 people and 1 house, then the JSON must be {"person": 3, "car": 0, "transaction": 0}. 
-Make sure that the JSON contains the numbers that the user requested. If the user asks for specific attributes, like 'surname', 'model', etc., 
-ignore this information and generate JSON objects with the same fields as in the schema. 
-Please use double quotes for JSON keys and values.`;
+const sysMessage = "You generate JSON objects based on the user's request. You can generate JSON objects with different types of objects: person, car, transaction. " +
+    "If the user requested a different type, the JSON fields should remain zero. " +
+    "Please note that the words 'individual', 'person', 'people', 'man', 'human', 'woman', 'inhabitant', 'citizen' are synonyms and can be used interchangeably. " +
+    `E.g. if the user wants 5 houses, then the JSON must be {"person": 0, "car": 0, "transaction": 0}. ` +
+    `If the user wants 3 people and 1 house, then the JSON must be {"person": 3, "car": 0, "transaction": 0}. ` +
+    "Make sure that the JSON contains the numbers that the user requested. If the user asks for specific attributes, like 'surname', 'model', etc., " +
+    "ignore this information and generate JSON objects with the same fields as in the schema. " +
+    "Please use double quotes for JSON keys and values. ";
 
 const sysMessageForItems = `Please try to avoid generating the same JSON objects multiple times.`;
 
@@ -51,7 +51,10 @@ async function main() {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
+        prompt: '> '
     });
+    // Queue for waiting for all requests to be processed before exiting
+    const promptQueue = [];
 
     const modelDir = process.argv[2];
     if (!modelDir) {
@@ -60,7 +63,8 @@ async function main() {
     }
 
     const device = 'CPU'; // GPU can be used as well
-    const pipe = await LLMPipeline(modelDir, device);
+    // We keep the promise here to avoid missing prompts while the model is loading
+    const pipeline = LLMPipeline(modelDir, device);
 
     const config = {};
     config.return_decoded_results = true;
@@ -72,21 +76,27 @@ async function main() {
 
     async function handleInput(prompt) {
         try {
-            await pipe.startChat(sysMessage);
+            const pipe = await pipeline;
+            const chatHistory = new ChatHistory();
+            chatHistory.push({ role: "system", content: sysMessage });
+
             config.structured_output_config = new StructuredOutputConfig({
                 json_schema: JSON.stringify(z.toJSONSchema(ItemQuantitiesSchema))
             });
             config.do_sample = false;
 
-            const json_response = await pipe.generate(prompt, config);
-            const res = JSON.parse(json_response);
-            await pipe.finishChat();
-            console.log(`Generated JSON with item quantities: ${JSON.stringify(res)}`);
+            chatHistory.push({ role: "user", content: prompt });
+            const decodedResults = await pipe.generate(chatHistory, config);
+            const res = JSON.parse(decodedResults.toString());
+            console.log(`Generated JSON with item quantities: ${decodedResults.toString()}`);
 
             config.do_sample = true;
             config.temperature = 0.8;
 
-            await pipe.startChat(sysMessageForItems);
+            chatHistory.clear();
+            chatHistory.push({ role: "system", content: sysMessageForItems });
+            chatHistory.push({ role: "user", content: prompt });
+
             let generateHasRun = false;
 
             for (const [item, quantity] of Object.entries(res)) {
@@ -97,12 +107,12 @@ async function main() {
                 });
                 for (let i = 0; i < quantity; i++) {
                     generateHasRun = true;
-                    const jsonStr = await pipe.generate(prompt, config);
-                    console.log(JSON.parse(jsonStr));
+                    const decodedResults = await pipe.generate(chatHistory, config);
+                    // validate JSON
+                    JSON.parse(decodedResults.toString());
+                    console.log(decodedResults.toString());
                 }
             }
-
-            await pipe.finishChat();
 
             if (!generateHasRun) {
                 console.log("No items generated. Please try again with a different request.");
@@ -111,9 +121,18 @@ async function main() {
             console.error("An error occurred:", error);
         }
 
+        rl.prompt();
     }
 
-    rl.on('line', handleInput);
+    rl.on('line', input => {
+        promptQueue.push(handleInput(input));
+    });
+    rl.on('close', async () => {
+        await Promise.all(promptQueue);
+        return;
+    });
+
+    rl.prompt();
 }
 
 main();

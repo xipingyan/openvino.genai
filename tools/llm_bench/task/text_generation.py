@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2023-2025 Intel Corporation
+# Copyright (C) 2023-2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 import os
 import time
@@ -121,7 +121,7 @@ def run_text_generation(input_text, num, model, tokenizer, args, iter_data_list,
             )
     end = time.perf_counter()
     if (args['mem_consumption'] == 1 and num == 0) or args['mem_consumption'] == 2:
-        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}_{proc_id}")
+        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}")
         max_rss_mem_consumption, max_rss_mem_increase, max_sys_mem_consumption, max_sys_mem_increase = mem_consumption.get_data()
 
     generation_time = end - start
@@ -359,7 +359,7 @@ def run_text_generation_genai(input_text, num, model, tokenizer, args, iter_data
         tokenization_time.append((detokenization_end - detokenization_start) * 1000)
 
     if (args['mem_consumption'] == 1 and num == 0) or args['mem_consumption'] == 2:
-        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}_{proc_id}")
+        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}")
         max_rss_mem_consumption, max_rss_mem_increase, max_sys_mem_consumption, max_sys_mem_increase = mem_consumption.get_data()
     # Only text_gen need to minus length of input_data, because generated_text may include input_text
     num_tokens = 0
@@ -383,11 +383,7 @@ def run_text_generation_genai(input_text, num, model, tokenizer, args, iter_data
     else:
         log.warning("No generated tokens")
     first_token_time = (perf_metrics.get_ttft().mean)
-    second_tokens_durations = (
-        np.array(perf_metrics.raw_metrics.m_new_token_times[1:])
-        - np.array(perf_metrics.raw_metrics.m_new_token_times[:-1])
-    ).tolist()
-
+    second_tokens_durations = (np.array(perf_metrics.raw_metrics.m_durations) / 1000).tolist()
     tm_list = (np.array([first_token_time] + second_tokens_durations) / 1000).tolist()
     inference_durations = (np.array(perf_metrics.raw_metrics.token_infer_durations) / 1000 / 1000).tolist()
     log.debug('latency of all tokens:')
@@ -516,7 +512,7 @@ def run_text_generation_genai_with_stream(input_text, num, model, tokenizer, arg
     generated_tokens = model.generate(input_data, gen_config, streamer=streamer).tokens
     end = time.perf_counter()
     if (args['mem_consumption'] == 1 and num == 0) or args['mem_consumption'] == 2:
-        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}_{proc_id}")
+        mem_consumption.stop_and_collect_data(f"{'P' + str(num) if num > 0 else 'warm-up'}")
         max_rss_mem_consumption, max_rss_mem_increase, max_sys_mem_consumption, max_sys_mem_increase = mem_consumption.get_data()
     generation_time = end - start
     tok_decode_start = time.perf_counter()
