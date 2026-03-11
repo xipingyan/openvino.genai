@@ -19,15 +19,19 @@ std::shared_ptr<ov::Node> create_bicubic_resize(std::shared_ptr<ov::Node> input,
                                                 const std::shared_ptr<ov::Node>& target_size);
 
 /**
- * Creates a normalization operation using OpenVINO nodes
- * @param input The input tensor node to normalize (uint8 format)
- * @param mean Node containing the mean values for each channel
- * @param std Node containing the standard deviation values for each channel
- * @return Node representing the normalized tensor
+ * Creates a normalization operation using OpenVINO nodes.
+ * @param input The input tensor node to normalize. Expected to be float32
+ *              (e.g. converted from uint8 image data in [0, 255] range).
+ * @param mean  Node containing the mean values for each channel (float32),
+ *              broadcastable to the input tensor.
+ * @param scale Node containing the per-channel multiplicative scale
+ *              (e.g. 1 / (std * 255)) applied after mean subtraction,
+ *              broadcastable to the input tensor.
+ * @return Node representing the normalized tensor.
  */
 std::shared_ptr<ov::Node> create_normalization(std::shared_ptr<ov::Node> input,
                                                const std::shared_ptr<ov::Node>& mean,
-                                               const std::shared_ptr<ov::Node>& std);
+                                               const std::shared_ptr<ov::Node>& scale);
 
 /**
  * @brief Creates a node that reshapes and transposes the input tensor to match the
