@@ -17,6 +17,7 @@
 #include "openvino/op/tile.hpp"
 #include "openvino/op/unsqueeze.hpp"
 #include "openvino/runtime/core.hpp"
+#include "utils.hpp"
 
 namespace ov::genai::module {
 
@@ -103,8 +104,7 @@ void Qwen3_5Preprocessor::create_preprocess_image_ireq() {
         ov::ParameterVector{input, resize_shape, tile_shape, dst_tile_shape, reshape_shape8d, reshape_shape5d},
         "preprocess_image");
 
-    ov::Core core;
-    auto compiled = core.compile_model(model, m_device);
+    auto compiled = ov::genai::utils::singleton_core().compile_model(model, m_device);
     m_preprocess_image_ireq = compiled.create_infer_request();
 }
 
