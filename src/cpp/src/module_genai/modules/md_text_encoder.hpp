@@ -25,14 +25,21 @@ private:
     ProcessorConfig m_processor_config;
     size_t m_merge_length;
     size_t m_spatial_merge_size;
+    int64_t m_position_id_per_seconds = 0;
 
     bool initialize();
     std::pair<TokenizedInputs, std::vector<int>> run(const std::vector<std::string>& prompts, 
                         const std::vector<ov::Tensor>& encoded_images,
                         const std::vector<std::vector<int>>& source_sizes,
                         bool has_encoded_image = false);
-    TokenizedInputs run(const std::vector<std::string>& prompts, std::optional<ov::Tensor>& grid_thw);
-    TokenizedInputs run(const std::vector<std::string>& prompts, std::optional<ov::Tensor>& grid_thw, std::optional<ov::Tensor>& audio_features);
+    TokenizedInputs run(const std::vector<std::string>& prompts,
+                        std::optional<std::vector<ov::Tensor>>& grid_thw);
+    TokenizedInputs run(const std::vector<std::string>& prompts,
+                        std::optional<std::vector<ov::Tensor>>& image_grid_thw, 
+                        std::optional<std::vector<ov::Tensor>>& audio_features,
+                        std::optional<std::vector<ov::Tensor>>& video_grid_thw,
+                        std::optional<std::vector<int>>& use_audio_in_video,
+                        std::optional<std::vector<int>>& video_second_per_grid);
     NormalizedPrompt normalize_prompt(const std::string& prompt,
                                       size_t base_image_id,
                                       size_t base_video_id,
@@ -42,7 +49,7 @@ private:
     NormalizedPrompt normalize_prompt(const std::string& prompt,
                                       size_t base_image_id,
                                       size_t base_video_id,
-                                      const ov::Tensor& grid_thw);
+                                      const std::vector<ov::Tensor>& grid_thw);
     std::pair<std::string, std::vector<size_t>> normalize(
             const std::string& prompt,
             const std::string& native_tag,

@@ -183,11 +183,11 @@ protected:
             cur_node["inputs"].push_back(
                 input_node("image", to_string(DataType::OVTensor), pipeline_params_name + ".image"));
             cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
-            cur_node["outputs"].push_back(output_node("pixel_values", to_string(DataType::OVTensor)));
-            cur_node["outputs"].push_back(output_node("grid_thw", to_string(DataType::OVTensor)));
-            cur_node["outputs"].push_back(output_node("pos_embeds", to_string(DataType::OVTensor)));
-            cur_node["outputs"].push_back(output_node("rotary_cos", to_string(DataType::OVTensor)));
-            cur_node["outputs"].push_back(output_node("rotary_sin", to_string(DataType::OVTensor)));
+            cur_node["outputs"].push_back(output_node("pixel_values", to_string(DataType::VecOVTensor)));
+            cur_node["outputs"].push_back(output_node("grid_thw", to_string(DataType::VecOVTensor)));
+            cur_node["outputs"].push_back(output_node("pos_embeds", to_string(DataType::VecOVTensor)));
+            cur_node["outputs"].push_back(output_node("rotary_cos", to_string(DataType::VecOVTensor)));
+            cur_node["outputs"].push_back(output_node("rotary_sin", to_string(DataType::VecOVTensor)));
             cur_node["params"] = YAML::Node();
             cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5_0_8B();
             pipeline_modules[image_preprocessor_name] = cur_node;
@@ -200,9 +200,9 @@ protected:
             cur_node["device"] = _device;
             cur_node["inputs"] = YAML::Node(YAML::NodeType::Sequence);
             cur_node["inputs"].push_back(
-                input_node("prompts", to_string(DataType::String), pipeline_params_name + ".prompts_data"));
+                input_node("prompt", to_string(DataType::String), pipeline_params_name + ".prompts_data"));
             cur_node["inputs"].push_back(
-                input_node("grid_thw", to_string(DataType::OVTensor), image_preprocessor_name + ".grid_thw"));
+                input_node("image_grid_thw", to_string(DataType::VecOVTensor), image_preprocessor_name + ".grid_thw"));
             cur_node["outputs"] = YAML::Node(YAML::NodeType::Sequence);
             cur_node["outputs"].push_back(output_node("input_ids", to_string(DataType::OVTensor)));
             cur_node["outputs"].push_back(output_node("mask", to_string(DataType::OVTensor)));

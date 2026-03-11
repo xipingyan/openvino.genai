@@ -68,7 +68,7 @@ protected:
         if (_mode == "vl") {
             inputs.push_back(input_node("visual_embeds",   "OVTensor"));
             inputs.push_back(input_node("visual_pos_mask", "OVTensor"));
-            inputs.push_back(input_node("grid_thw",        "OVTensor"));
+            inputs.push_back(input_node("grid_thw",        "VecOVTensor"));
             inputs.push_back(input_node("position_ids", "OVTensor"));
             inputs.push_back(input_node("rope_delta", "OVTensor"));
         }
@@ -160,7 +160,7 @@ protected:
             thw[0] = 1;  // T
             thw[1] = 4;  // H
             thw[2] = 4;  // W
-            inputs["grid_thw"] = grid_thw;
+            inputs["grid_thw"] = std::vector<ov::Tensor>{grid_thw};
 
             ov::genai::modeling::models::Qwen3_5InputPlanner planner(model_cfg);
             auto plan = planner.build_plan(input_ids, nullptr, &grid_thw, nullptr);

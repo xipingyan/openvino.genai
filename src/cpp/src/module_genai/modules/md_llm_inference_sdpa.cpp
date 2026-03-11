@@ -835,11 +835,11 @@ void LLMInferenceSDPAModule::run() {
 
     if (is_vl) {
         // ---- VL mode ----
-        ov::Tensor visual_embeds   = inputs["visual_embeds"].data.as<ov::Tensor>();
-        ov::Tensor visual_pos_mask = inputs["visual_pos_mask"].data.as<ov::Tensor>();
-        ov::Tensor grid_thw        = inputs["grid_thw"].data.as<ov::Tensor>();
-        ov::Tensor position_ids    = inputs["position_ids"].data.as<ov::Tensor>();
-        ov::Tensor rope_delta      = inputs["rope_delta"].data.as<ov::Tensor>();
+        auto visual_embeds   = inputs["visual_embeds"].data.as<ov::Tensor>();
+        auto visual_pos_mask = inputs["visual_pos_mask"].data.as<ov::Tensor>();
+        auto grid_thw = inputs["grid_thw"].data.as<std::vector<ov::Tensor>>();
+        auto position_ids    = inputs["position_ids"].data.as<ov::Tensor>();
+        auto rope_delta      = inputs["rope_delta"].data.as<ov::Tensor>();
         std::optional<std::vector<ov::Tensor>> deepstack_embeds = std::nullopt;
         if (exists_input("deepstack_embeds")) {
             deepstack_embeds = inputs["deepstack_embeds"].data.as<std::vector<ov::Tensor>>();

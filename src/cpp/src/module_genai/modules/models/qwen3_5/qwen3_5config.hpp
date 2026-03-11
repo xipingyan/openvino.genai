@@ -47,9 +47,9 @@ struct Qwen3_5VisionPreprocessConfig {
 
 struct Qwen3_5VisionEmbeddingResult {
     ov::Tensor position_ids;
-    ov::Tensor visual_pos_mask;
+    std::optional<ov::Tensor> visual_pos_mask;
     ov::Tensor rope_deltas;
-    ov::Tensor visual_embeds;
+    std::optional<ov::Tensor> visual_embeds;
     std::optional<std::vector<ov::Tensor>> deepstack_embeds;
 };
 

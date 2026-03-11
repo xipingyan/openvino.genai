@@ -18,15 +18,19 @@ namespace ov::genai::module {
 using OutputModule = IBaseModule::OutputModule;
 
 struct PreprocessOutput {
-    ov::Tensor pixel_values;
-    ov::Tensor grid_thw;
-    ov::Tensor pos_embeds;
-    ov::Tensor rotary_cos;
-    ov::Tensor rotary_sin;
+    std::vector<ov::Tensor> pixel_values;
+    std::vector<ov::Tensor> grid_thw;
+    std::vector<ov::Tensor> pos_embeds;
+    std::vector<ov::Tensor> rotary_cos;
+    std::vector<ov::Tensor> rotary_sin;
 
     // Video-specific outputs:
-    ov::Tensor pixel_values_videos;
-    ov::Tensor video_grid_thw;
+    std::vector<ov::Tensor> pixel_values_videos;
+    std::vector<ov::Tensor> video_grid_thw;
+    std::vector<ov::Tensor> video_pos_embeds;
+    std::vector<ov::Tensor> video_rotary_cos;
+    std::vector<ov::Tensor> video_rotary_sin;
+    std::vector<int> video_second_per_grid;
 };
 
 // Vision preprocessing facade.

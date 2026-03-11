@@ -24,6 +24,7 @@
 #include "visual_language/vl_sdpa_transformations.hpp"
 #include "models/qwen3_omni/qwen3_omni_config.hpp"
 #include "module_genai/utils/profiler.hpp"
+#include "module_genai/utils/tensor_utils.hpp"
 
 
 namespace ov {
@@ -39,7 +40,7 @@ void VisionEncoderModule::print_static_config() {
     device: "GPU"
     inputs:
       - name: "preprocessed_image"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+        type: "OVTensor | VecOVTensor"                     # Support DataType: [OVTensor | VecOVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "source_size"                                # Used by Qwen 2.5-VL
         type: "VecInt"                                     # Support DataType: [VecInt]
@@ -50,23 +51,38 @@ void VisionEncoderModule::print_static_config() {
       - name: "input_ids"                                  # Required for Qwen 3.5. Optional for other models when position-related outputs are needed.
         type: "OVTensor"                                   # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "grid_thw"                                   # Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "preprocessed_video"
+        type: "OVTensor | VecOVTensor"                     # Support DataType: [OVTensor | VecOVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "pos_embeds"                                 # Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "image_grid_thw"                             # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "rotary_cos"                                 # Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "image_pos_embeds"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
-      - name: "rotary_sin"                                 # Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+      - name: "image_rotary_cos"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "image_rotary_sin"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_grid_thw"                             # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_pos_embeds"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_rotary_cos"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
+        source: "ParentModuleName.OutputPortName"
+      - name: "video_rotary_sin"                           # Used by Qwen 3.5
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "attention_mask"                             # Used by Qwen 3.5
         type: "OVTensor"                                   # Support DataType: [OVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "audio_features"                             # Used by Qwen 3-Omni
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
+        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
         source: "ParentModuleName.OutputPortName"
       - name: "audio_feature_lengths"                      # Used by Qwen 3-Omni
         type: "OVTensor"                                   # Support DataType: [OVTensor]
@@ -157,7 +173,7 @@ bool VisionEncoderModule::initialize() {
         model, 
         module_desc->device.empty() ? "CPU" : module_desc->device, {});
 
-    if (model_type == VLMModelType::QWEN2_5_VL || model_type == VLMModelType::QWEN3_5) {
+    if (model_type == VLMModelType::QWEN2_VL || model_type == VLMModelType::QWEN2_5_VL) {
         m_with_cu_seqlens_input = utils::check_vl_sdpa_transformations(compiled_model);
         ov::genai::utils::print_compiled_model_properties(compiled_model,
             m_with_cu_seqlens_input ? "VLM vision embeddings merger model with VLSDPA optimization ENABLED" :
@@ -195,10 +211,20 @@ bool VisionEncoderModule::initialize() {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
         modeling::models::Qwen3OmniConfig omni_config = modeling::models::Qwen3OmniConfig::from_json_file(model_path / "config.json");
         // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
-        m_omni_config = omni_config;
-        m_omni_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
+        m_config = omni_config;
+        m_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
 #else
         GENAI_ERR("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
+        return false;
+#endif
+    } else if (model_type == VLMModelType::QWEN3_5) {
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+        modeling::models::Qwen3_5Config qwen3_5config = modeling::models::Qwen3_5Config::from_json_file(model_path / "config.json");
+        // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
+        m_config = qwen3_5config;
+        m_input_planner = modeling::models::Qwen3_5InputPlanner(qwen3_5config);
+#else
+        GENAI_ERR("Qwen 3-5 vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
         return false;
 #endif
     }
@@ -252,34 +278,72 @@ void VisionEncoderModule::run() {
             this->outputs["rope_delta"].data = position_ids_max_element + 1 - static_cast<int>(input_ids.get_shape().at(1));
         }
     } else if (model_type == VLMModelType::QWEN3_5 || model_type == VLMModelType::QWEN3_OMNI) {
-        if (!exists_input("preprocessed_image")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'preprocessed_image' input not found");
-            return;
+        if (!(exists_input("preprocessed_image") &&
+              exists_input("image_grid_thw") &&
+              exists_input("image_pos_embeds") &&
+              exists_input("image_rotary_cos") &&
+              exists_input("image_rotary_sin")) &&
+              (exists_input("preprocessed_image") ||
+              exists_input("image_grid_thw") ||
+              exists_input("image_pos_embeds") ||
+              exists_input("image_rotary_cos") ||
+              exists_input("image_rotary_sin"))) {
+            OPENVINO_THROW("Image input not complete");
         }
-        ov::Tensor preprocessed_image = get_input("preprocessed_image").as<ov::Tensor>();
-        if (!exists_input("grid_thw")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'grid_thw' input not found");
-            return;
+
+        std::vector<ov::Tensor> preprocessed_image = {};
+        if (exists_input("preprocessed_image")) {
+            preprocessed_image = get_input("preprocessed_image").as<std::vector<ov::Tensor>>();
         }
-        ov::Tensor grid_thw = get_input("grid_thw").as<ov::Tensor>();
-        if (!exists_input("pos_embeds")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'pos_embeds' input not found");
-            return;
+        std::vector<ov::Tensor> image_grid_thw = {};
+        if (exists_input("image_grid_thw")) {
+            image_grid_thw = get_input("image_grid_thw").as<std::vector<ov::Tensor>>();
         }
-        ov::Tensor pos_embeds = get_input("pos_embeds").as<ov::Tensor>();
-        if (!exists_input("rotary_cos")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'rotary_cos' input not found");
-            return;
+        std::vector<ov::Tensor> image_pos_embeds = {};
+        if (exists_input("image_pos_embeds")) {
+            image_pos_embeds = get_input("image_pos_embeds").as<std::vector<ov::Tensor>>();
         }
-        ov::Tensor rotary_cos = get_input("rotary_cos").as<ov::Tensor>();
-        if (!exists_input("rotary_sin")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'rotary_sin' input not found");
-            return;
+        std::vector<ov::Tensor> image_rotary_cos = {};
+        if (exists_input("image_rotary_cos")) {
+            image_rotary_cos = get_input("image_rotary_cos").as<std::vector<ov::Tensor>>();
         }
-        ov::Tensor rotary_sin = get_input("rotary_sin").as<ov::Tensor>();
-        if (!exists_input("input_ids")) {
-            GENAI_ERR("VisionEncoderModule[" + module_desc->name + "]: 'input_ids' input not found");
-            return;
+        std::vector<ov::Tensor> image_rotary_sin = {};
+        if (exists_input("image_rotary_sin")) {
+            image_rotary_sin = get_input("image_rotary_sin").as<std::vector<ov::Tensor>>();
+        }
+
+        if (!(exists_input("preprocessed_video") &&
+              exists_input("video_grid_thw") &&
+              exists_input("video_pos_embeds") &&
+              exists_input("video_rotary_cos") &&
+              exists_input("video_rotary_sin")) &&
+              (exists_input("preprocessed_video") ||
+              exists_input("video_grid_thw") ||
+              exists_input("video_pos_embeds") ||
+              exists_input("video_rotary_cos") ||
+              exists_input("video_rotary_sin"))) {
+            OPENVINO_THROW("Video input not complete");
+        }
+
+        std::vector<ov::Tensor> preprocessed_video = {};
+        if (exists_input("preprocessed_video")) {
+            preprocessed_video = get_input("preprocessed_video").as<std::vector<ov::Tensor>>();
+        }
+        std::vector<ov::Tensor> video_grid_thw = {};
+        if (exists_input("video_grid_thw")) {
+            video_grid_thw = get_input("video_grid_thw").as<std::vector<ov::Tensor>>();
+        }
+        std::vector<ov::Tensor> video_pos_embeds = {};
+        if (exists_input("video_pos_embeds")) {
+            video_pos_embeds = get_input("video_pos_embeds").as<std::vector<ov::Tensor>>();
+        }
+        std::vector<ov::Tensor> video_rotary_cos = {};
+        if (exists_input("video_rotary_cos")) {
+            video_rotary_cos = get_input("video_rotary_cos").as<std::vector<ov::Tensor>>();
+        }
+        std::vector<ov::Tensor> video_rotary_sin = {};
+        if (exists_input("video_rotary_sin")) {
+            video_rotary_sin = get_input("video_rotary_sin").as<std::vector<ov::Tensor>>();
         }
         ov::Tensor input_ids = get_input("input_ids").as<ov::Tensor>();
         if (!exists_input("attention_mask")) {
@@ -289,30 +353,52 @@ void VisionEncoderModule::run() {
         ov::Tensor attention_mask = get_input("attention_mask").as<ov::Tensor>();
 
         if (model_type == VLMModelType::QWEN3_5) {
+#ifdef ENABLE_OPENVINO_NEW_ARCH
             Qwen3_5VisionEmbeddingResult result = embed(
-                preprocessed_image, grid_thw, pos_embeds, rotary_cos, rotary_sin, input_ids, attention_mask);
+                preprocessed_image, image_grid_thw, image_pos_embeds, image_rotary_cos, image_rotary_sin, input_ids, attention_mask);
 
-            this->outputs["image_embedding"].data   = result.visual_embeds;
-            this->outputs["visual_pos_mask"].data = result.visual_pos_mask;
             this->outputs["position_ids"].data    = result.position_ids;
             this->outputs["rope_delta"].data     = result.rope_deltas;
+            if (result.visual_embeds.has_value()) {
+                this->outputs["image_embedding"].data = result.visual_embeds.value();
+                this->outputs["visual_pos_mask"].data = result.visual_pos_mask.value();
+            }
         } else {
-#ifdef ENABLE_OPENVINO_NEW_ARCH
             std::optional<Qwen3OmniAudioInput> audio_input = std::nullopt;
             if (exists_input("audio_features")) {
                 Qwen3OmniAudioInput real_audio_input {};
-                real_audio_input.audio_features = get_input("audio_features").as<ov::Tensor>();
+                real_audio_input.audio_features = get_input("audio_features").as<std::vector<ov::Tensor>>();
                 if (exists_input("audio_feature_lengths")) {
                     real_audio_input.audio_feature_lengths = get_input("audio_feature_lengths").as<ov::Tensor>();
                     audio_input = real_audio_input;
+                } else {
+                    GENAI_WARN("Lack of audio_feature_lengths, ignoring audio features in vision embedding");
                 }
             }
-            Qwen3OmniVisionInput vision_input{preprocessed_image, grid_thw, pos_embeds, rotary_cos, rotary_sin};
-            std::optional<Qwen3OmniVisionInput> opt_vision_input = vision_input;
+            std::optional<Qwen3OmniVisionInput> vision_image_input = std::nullopt;
+            if (!preprocessed_image.empty()) {
+                vision_image_input = Qwen3OmniVisionInput{};
+                vision_image_input->pixel_values = preprocessed_image;
+                vision_image_input->grid_thw = image_grid_thw;
+                vision_image_input->pos_embeds = image_pos_embeds;
+                vision_image_input->rotary_cos = image_rotary_cos;
+                vision_image_input->rotary_sin = image_rotary_sin;
+                
+            }
+            std::optional<Qwen3OmniVisionInput> vision_video_input = std::nullopt;
+            if (!preprocessed_video.empty()) {
+                vision_video_input = Qwen3OmniVisionInput{};
+                vision_video_input->pixel_values = preprocessed_video;
+                vision_video_input->grid_thw = video_grid_thw;
+                vision_video_input->pos_embeds = video_pos_embeds;
+                vision_video_input->rotary_cos = video_rotary_cos;
+                vision_video_input->rotary_sin = video_rotary_sin;
+            }
             Qwen3OmniVisionEmbeddingResult result = embed(
                 input_ids,
                 attention_mask,
-                opt_vision_input,
+                vision_image_input,
+                vision_video_input,
                 audio_input);
             this->outputs["position_ids"].data = result.position_ids;
             this->outputs["rope_delta"].data = result.rope_deltas;
@@ -330,8 +416,7 @@ void VisionEncoderModule::run() {
         }
         return;
 #else
-        }
-        OPENVINO_THROW("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
+        OPENVINO_THROW("Qwen 3.5 and Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
 #endif
     } else {
         OPENVINO_THROW("Unsupported model: " + module_desc->model_type);
@@ -427,265 +512,155 @@ std::pair<ov::Tensor, ov::Tensor> VisionEncoderModule::embed(const EncodedImage 
     return {res_video, res_image};
 }
 
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+// TODO: Add video to Qwen 3.5
 Qwen3_5VisionEmbeddingResult VisionEncoderModule::embed(
-        const ov::Tensor &pixel_values,
-        const ov::Tensor &grid_thw,
-        const ov::Tensor &pos_embeds,
-        const ov::Tensor &rotary_cos,
-        const ov::Tensor &rotary_sin,
+        const std::vector<ov::Tensor> &pixel_values,
+        const std::vector<ov::Tensor> &grid_thw,
+        const std::vector<ov::Tensor> &pos_embeds,
+        const std::vector<ov::Tensor> &rotary_cos,
+        const std::vector<ov::Tensor> &rotary_sin,
         const ov::Tensor &input_ids,
         const ov::Tensor &attention_mask) {
-    VLMModelType model_type = to_vlm_model_type(module_desc->model_type); 
-    CircularBufferQueueElementGuard<ov::InferRequest> infer_request_guard(this->m_request_queue.get());
-    ov::InferRequest& vision_embed_request = infer_request_guard.get();
-    vision_embed_request.set_tensor("pixel_values", pixel_values);
-    vision_embed_request.set_tensor("grid_thw", grid_thw);
-    vision_embed_request.set_tensor("pos_embeds", pos_embeds);
-    vision_embed_request.set_tensor("rotary_cos", rotary_cos);
-    vision_embed_request.set_tensor("rotary_sin", rotary_sin);
-    if (model_type == VLMModelType::QWEN3_OMNI) {
-        vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(grid_thw));
+    VLMModelType model_type = to_vlm_model_type(module_desc->model_type);
+    std::optional<ov::Tensor> vision_embeds_opt = std::nullopt;
+    std::optional<ov::Tensor> grid_thw_opt = std::nullopt;
+    if (!pixel_values.empty()) {
+        CircularBufferQueueElementGuard<ov::InferRequest> infer_request_guard(this->m_request_queue.get());
+        ov::InferRequest& vision_embed_request = infer_request_guard.get();
+        std::vector<ov::Tensor> vision_embeds {};
+        vision_embeds.reserve(pixel_values.size());
+        for (size_t i = 0; i < pixel_values.size(); i++) {
+            vision_embed_request.set_tensor("pixel_values", pixel_values[i]);
+            vision_embed_request.set_tensor("grid_thw", grid_thw[i]);
+            vision_embed_request.set_tensor("pos_embeds", pos_embeds[i]);
+            vision_embed_request.set_tensor("rotary_cos", rotary_cos[i]);
+            vision_embed_request.set_tensor("rotary_sin", rotary_sin[i]);
+            if (model_type == VLMModelType::QWEN3_OMNI) {
+                vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(grid_thw[i]));
+            }
+
+            {
+                PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
+                vision_embed_request.infer();
+            }
+            ov::Tensor vision_embed = vision_embed_request.get_tensor("visual_embeds");
+            ov::Tensor embed(vision_embed.get_element_type(), vision_embed.get_shape());
+            std::memcpy(embed.data(), vision_embed.data(), vision_embed.get_byte_size());
+            vision_embeds.push_back(embed);
+        }
+        vision_embeds_opt = tensor_utils::concat_tensors(vision_embeds);
+        grid_thw_opt = tensor_utils::concat_tensors(grid_thw);
     }
 
-    {
-        PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
-        vision_embed_request.infer();
+    auto &planner = std::get<modeling::models::Qwen3_5InputPlanner>(m_input_planner.value());
+    auto plan = planner.build_plan(
+        input_ids,
+        &attention_mask,
+        grid_thw_opt.has_value() ? &grid_thw_opt.value() : nullptr,
+        nullptr);
+    Qwen3_5VisionEmbeddingResult result {};
+    result.position_ids = plan.position_ids;
+    result.rope_deltas = plan.rope_deltas;
+    if (vision_embeds_opt.has_value()) {
+        result.visual_embeds = ov::genai::modeling::models::Qwen3_5InputPlanner::scatter_visual_embeds(vision_embeds_opt.value(), plan.visual_pos_mask);
+        result.visual_pos_mask = plan.visual_pos_mask;
     }
-
-    ov::Tensor vision_embeds = vision_embed_request.get_tensor("visual_embeds");
-
-    const auto &ids_shape = input_ids.get_shape();
-    const size_t batch   = ids_shape[0];
-    const size_t seq_len = ids_shape[1];
-    const int64_t* ids   = input_ids.data<const int64_t>();
-
-    ov::Tensor visual_pos_mask(ov::element::boolean, ids_shape);
-    for (size_t idx = 0; idx < batch * seq_len; ++idx) {
-        bool active = (ids[idx] == m_image_pad_token_id || ids[idx] == m_video_pad_token_id);
-        if (attention_mask && attention_mask.get_size() > 0) {
-            // attention_mask is i64 [B, S]; 0 means masked out
-            active = active && (attention_mask.data<const int64_t>()[idx] != 0);
-        }
-        static_cast<bool*>(visual_pos_mask.data())[idx] = active;
-    }
-
-    const int32_t spatial_merge_size = m_processor_config.merge_size;
-    const int64_t* image_grid = grid_thw.data<const int64_t>();
-    const size_t   image_grid_rows = grid_thw.get_shape().at(0);
-
-    ov::Tensor position_ids(ov::element::i64, {3, batch, seq_len});
-    std::memset(position_ids.data(), 0, position_ids.get_byte_size());
-    ov::Tensor rope_deltas(ov::element::i64, {batch, 1});
-    std::memset(rope_deltas.data(), 0, rope_deltas.get_byte_size());
-
-    int64_t* pos_data   = position_ids.data<int64_t>();
-    int64_t* delta_data = rope_deltas.data<int64_t>();
-
-    size_t image_grid_index = 0;
-
-    for (size_t b = 0; b < batch; ++b) {
-        std::vector<int64_t> tokens;
-        std::vector<size_t>  active_indices;
-        tokens.reserve(seq_len);
-        active_indices.reserve(seq_len);
-        for (size_t s = 0; s < seq_len; ++s) {
-            const size_t idx = b * seq_len + s;
-            if (attention_mask && attention_mask.get_size() > 0 &&
-                attention_mask.data<const int64_t>()[idx] == 0) {
-                continue;
-            }
-            tokens.push_back(ids[idx]);
-            active_indices.push_back(s);
-        }
-
-        if (tokens.empty()) {
-            delta_data[b] = 0;
-            continue;
-        }
-
-        std::vector<int64_t> pos_t, pos_h, pos_w;
-        pos_t.reserve(tokens.size());
-        pos_h.reserve(tokens.size());
-        pos_w.reserve(tokens.size());
-
-        int64_t last_max = -1;
-
-        auto append_text = [&](size_t length) {
-            if (length == 0) return;
-            const int64_t base = last_max + 1;
-            for (size_t i = 0; i < length; ++i) {
-                const int64_t v = base + static_cast<int64_t>(i);
-                pos_t.push_back(v);
-                pos_h.push_back(v);
-                pos_w.push_back(v);
-            }
-            last_max = base + static_cast<int64_t>(length) - 1;
-        };
-
-        auto append_visual = [&](int64_t t, int64_t h, int64_t w) {
-            const int64_t llm_grid_h = h / spatial_merge_size;
-            const int64_t llm_grid_w = w / spatial_merge_size;
-            const int64_t base = last_max + 1;
-            int64_t max_dim = 0;
-            for (int64_t tt = 0; tt < t; ++tt) {
-                for (int64_t hh = 0; hh < llm_grid_h; ++hh) {
-                    for (int64_t ww = 0; ww < llm_grid_w; ++ww) {
-                        pos_t.push_back(base + tt);
-                        pos_h.push_back(base + hh);
-                        pos_w.push_back(base + ww);
-                        max_dim = std::max(max_dim, std::max(tt, std::max(hh, ww)));
-                    }
-                }
-            }
-            last_max = base + max_dim;
-        };
-
-        size_t local_grid_index = image_grid_index;
-        std::vector<std::pair<size_t, bool>> visual_starts;
-        for (size_t i = 0; i + 1 < tokens.size(); ++i) {
-            if (tokens[i] != m_vision_start_token_id) continue;
-            const int64_t next = tokens[i + 1];
-            if (next == m_image_pad_token_id) {
-                visual_starts.emplace_back(i + 1, true);
-            } else if (next == m_video_pad_token_id) {
-                visual_starts.emplace_back(i + 1, false);
-            }
-        }
-
-        size_t st = 0;
-        for (const auto& [ed, is_image] : visual_starts) {
-            if (ed < st) continue;
-            append_text(ed - st);
-
-            int64_t t = 0, h = 0, w = 0;
-            if (is_image) {
-                OPENVINO_ASSERT(local_grid_index < image_grid_rows,
-                    "VisionEncoderModule::embed: image_grid_thw has fewer entries than image placeholders");
-                t = image_grid[local_grid_index * 3 + 0];
-                h = image_grid[local_grid_index * 3 + 1];
-                w = image_grid[local_grid_index * 3 + 2];
-                local_grid_index++;
-            }
-
-            append_visual(t, h, w);
-
-            const int64_t llm_grid_h = h / spatial_merge_size;
-            const int64_t llm_grid_w = w / spatial_merge_size;
-            const int64_t visual_len = t * llm_grid_h * llm_grid_w;
-            st = ed + static_cast<size_t>(visual_len);
-        }
-
-        if (st < tokens.size()) {
-            append_text(tokens.size() - st);
-        }
-
-        int64_t max_pos = pos_t.empty() ? 0 : pos_t[0];
-        for (size_t i = 0; i < pos_t.size(); ++i) {
-            max_pos = std::max({max_pos, pos_t[i], pos_h[i], pos_w[i]});
-        }
-
-        for (size_t i = 0; i < tokens.size(); ++i) {
-            const size_t s    = active_indices[i];
-            const size_t base = b * seq_len + s;
-            pos_data[0 * batch * seq_len + base] = pos_t[i];
-            pos_data[1 * batch * seq_len + base] = pos_h[i];
-            pos_data[2 * batch * seq_len + base] = pos_w[i];
-        }
-
-        if (attention_mask && attention_mask.get_size() > 0) {
-            for (size_t s = 0; s < seq_len; ++s) {
-                const size_t idx = b * seq_len + s;
-                if (attention_mask.data<const int64_t>()[idx] != 0) continue;
-                pos_data[0 * batch * seq_len + idx] = 1;
-                pos_data[1 * batch * seq_len + idx] = 1;
-                pos_data[2 * batch * seq_len + idx] = 1;
-            }
-        }
-
-        delta_data[b] = max_pos + 1 - static_cast<int64_t>(seq_len);
-        image_grid_index = local_grid_index;
-    }
-
-    const auto &embeds_shape = vision_embeds.get_shape();
-    const size_t hidden     = embeds_shape[1];
-    const size_t elem_size  = vision_embeds.get_element_type().size();
-    const size_t row_bytes  = hidden * elem_size;
-
-    ov::Tensor visual_embeds_scattered(vision_embeds.get_element_type(), {batch, seq_len, hidden});
-    std::memset(visual_embeds_scattered.data(), 0, visual_embeds_scattered.get_byte_size());
-
-    const char* src = static_cast<const char*>(vision_embeds.data());
-    char*       dst = static_cast<char*>(visual_embeds_scattered.data());
-    const bool* mask_ptr = static_cast<const bool*>(visual_pos_mask.data());
-
-    size_t visual_idx = 0;
-    const size_t total = batch * seq_len;
-    for (size_t idx = 0; idx < total; ++idx) {
-        if (!mask_ptr[idx]) continue;
-        OPENVINO_ASSERT(visual_idx < embeds_shape[0],
-            "VisionEncoderModule::embed: visual_embeds shorter than visual_pos_mask count");
-        std::memcpy(dst + idx * row_bytes, src + visual_idx * row_bytes, row_bytes);
-        visual_idx++;
-    }
-    OPENVINO_ASSERT(visual_idx == embeds_shape[0],
-        "VisionEncoderModule::embed: visual_embeds length does not match visual_pos_mask count");
-
-    return {position_ids, visual_pos_mask, rope_deltas, visual_embeds_scattered};
+    return result;
 }
 
-#ifdef ENABLE_OPENVINO_NEW_ARCH
 // Qwen 3-Omni
 Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
     const ov::Tensor &input_ids,
     const ov::Tensor &attention_mask,
-    std::optional<Qwen3OmniVisionInput> &vision_input,
+    std::optional<Qwen3OmniVisionInput> &vision_image_input,
+    std::optional<Qwen3OmniVisionInput> &vision_video_input,
     std::optional<Qwen3OmniAudioInput> &audio_input) {
     VLMModelType model_type = to_vlm_model_type(module_desc->model_type);
     if (model_type != VLMModelType::QWEN3_OMNI) {
         OPENVINO_THROW("This embed function is only for Qwen 3-Omni model");
     }
     Qwen3OmniVisionEmbeddingResult result {};
+    const auto& ds_indexes = std::get<modeling::models::Qwen3OmniConfig>(m_config).thinker.vision.deepstack_visual_indexes;
     std::optional<ov::Tensor> vision_embeds = std::nullopt;
-    std::vector<ov::Tensor> deepstack_embeds;
+    std::vector<std::vector<ov::Tensor>> deepstack_embeds_vec {};
+    std::vector<ov::Tensor> deepstack_embeds {};
     std::vector<ov::Tensor> deepstack_padded;
-    std::optional<ov::Tensor> grid_thw = std::nullopt;
+    std::optional<ov::Tensor> image_grid_thw = std::nullopt;
+    std::optional<ov::Tensor> video_grid_thw = std::nullopt;
     std::optional<ov::Tensor> audio_seqlens = std::nullopt;
+    std::vector<ov::Tensor> vision_embed_vec {};
+    std::vector<ov::Tensor> image_grid_thw_vec {};
+    std::vector<ov::Tensor> video_grid_thw_vec {};
 
-    if (vision_input.has_value()) {
-        CircularBufferQueueElementGuard<ov::InferRequest> infer_request_guard(this->m_request_queue.get());
-        ov::InferRequest& vision_embed_request = infer_request_guard.get();
-        vision_embed_request.set_tensor("pixel_values", vision_input.value().pixel_values);
-        vision_embed_request.set_tensor("grid_thw", vision_input.value().grid_thw);
-        vision_embed_request.set_tensor("pos_embeds", vision_input.value().pos_embeds);
-        vision_embed_request.set_tensor("rotary_cos", vision_input.value().rotary_cos);
-        vision_embed_request.set_tensor("rotary_sin", vision_input.value().rotary_sin);
-        vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(vision_input.value().grid_thw));
+    auto embed_vision = [&](std::optional<Qwen3OmniVisionInput> &vision_input, std::vector<ov::Tensor> &grid_thw_vec) {
+        if (vision_input.has_value()) {
+            CircularBufferQueueElementGuard<ov::InferRequest> infer_request_guard(this->m_request_queue.get());
+            ov::InferRequest& vision_embed_request = infer_request_guard.get();
+            vision_embed_vec.reserve(vision_input->pixel_values.size());
+            for (size_t i = 0; i < vision_input->pixel_values.size(); i++) {
+                vision_embed_request.set_tensor("pixel_values", vision_input->pixel_values[i]);
+                vision_embed_request.set_tensor("grid_thw", vision_input->grid_thw[i]);
+                vision_embed_request.set_tensor("pos_embeds", vision_input->pos_embeds[i]);
+                vision_embed_request.set_tensor("rotary_cos", vision_input->rotary_cos[i]);
+                vision_embed_request.set_tensor("rotary_sin", vision_input->rotary_sin[i]);
+                vision_embed_request.set_tensor("attention_mask", build_vision_attention_mask(vision_input->grid_thw[i]));
 
-        {
-            PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
-            vision_embed_request.infer();
+                {
+                    PROFILE(pm, "VisionEncoderModule::embed vision_embed_request infer");
+                    vision_embed_request.infer();
+                }
+
+                ov::Tensor vision_embed = vision_embed_request.get_tensor("visual_embeds");
+                ov::Tensor embed(vision_embed.get_element_type(), vision_embed.get_shape());
+                std::memcpy(embed.data(), vision_embed.data(), vision_embed.get_byte_size());
+                vision_embed_vec.push_back(embed);
+                grid_thw_vec.push_back(vision_input->grid_thw[i]);
+
+                
+                for (size_t j = 0; j < ds_indexes.size(); j++) {
+                    if (deepstack_embeds_vec.empty()) {
+                        for (size_t k = 0; k < ds_indexes.size(); k++) {
+                            deepstack_embeds_vec.emplace_back();
+                        }
+                    }
+                    deepstack_embeds_vec[j].reserve(ds_indexes.size());
+                    const std::string name =
+                        std::string(ov::genai::modeling::models::Qwen3OmniVisionIO::kDeepstackEmbedsPrefix) + "." +
+                        std::to_string(j);
+                    ov::Tensor deepstack_embed = vision_embed_request.get_tensor(name);
+                    ov::Tensor embed(deepstack_embed.get_element_type(), deepstack_embed.get_shape());
+                    std::memcpy(embed.data(), deepstack_embed.data(), deepstack_embed.get_byte_size());
+                    deepstack_embeds_vec[j].push_back(embed);
+                }
+            }
         }
+    };
 
-        vision_embeds = vision_embed_request.get_tensor("visual_embeds");
-        grid_thw = vision_input.value().grid_thw;
+    embed_vision(vision_image_input, image_grid_thw_vec);
+    embed_vision(vision_video_input, video_grid_thw_vec);
 
-        const auto& ds_indexes = std::get<modeling::models::Qwen3OmniConfig>(m_omni_config).thinker.vision.deepstack_visual_indexes;
-        deepstack_embeds.reserve(ds_indexes.size());
-        deepstack_padded.reserve(ds_indexes.size());
-        for (size_t i = 0; i < ds_indexes.size(); i++) {
-            const std::string name =
-                std::string(ov::genai::modeling::models::Qwen3OmniVisionIO::kDeepstackEmbedsPrefix) + "." +
-                std::to_string(i);
-            deepstack_embeds.push_back(vision_embed_request.get_tensor(name));
+    if (!vision_embed_vec.empty()) {
+        vision_embeds = tensor_utils::concat_tensors(vision_embed_vec);
+    }
+    if (!image_grid_thw_vec.empty()) {
+        image_grid_thw = tensor_utils::concat_tensors(image_grid_thw_vec);
+    }
+    if (!video_grid_thw_vec.empty()) {
+        video_grid_thw = tensor_utils::concat_tensors(video_grid_thw_vec);
+    }
+    if (!deepstack_embeds_vec.empty()) {
+        for (const auto& embeds_vec : deepstack_embeds_vec) {
+            deepstack_embeds.push_back(tensor_utils::concat_tensors(embeds_vec));
         }
     }
 
-    auto& planner = std::get<modeling::models::Qwen3OmniInputPlanner>(m_omni_input_planner.value());
+    auto& planner = std::get<modeling::models::Qwen3OmniInputPlanner>(m_input_planner.value());
     auto plan = planner.build_plan(
         input_ids,
         &attention_mask,
-        grid_thw.has_value() ? &grid_thw.value() : nullptr,
-        nullptr,
+        image_grid_thw.has_value() ? &image_grid_thw.value() : nullptr,
+        video_grid_thw.has_value() ? &video_grid_thw.value() : nullptr,
         audio_input.has_value() ? &audio_input.value().audio_feature_lengths : nullptr);
     result.position_ids = plan.position_ids;
     result.rope_deltas = plan.rope_deltas;
@@ -701,7 +676,8 @@ Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
     }
 
     if (audio_input.has_value()) {
-        ov::Tensor audio_padded = ov::genai::modeling::models::Qwen3OmniInputPlanner::scatter_audio_embeds(audio_input.value().audio_features, plan.audio_pos_mask);
+        ov::Tensor audio_features = tensor_utils::concat_tensors(audio_input->audio_features);
+        ov::Tensor audio_padded = ov::genai::modeling::models::Qwen3OmniInputPlanner::scatter_audio_embeds(audio_features, plan.audio_pos_mask);
         result.audio_embeds = audio_padded;
         result.audio_pos_mask = plan.audio_pos_mask;
     }

@@ -212,23 +212,23 @@ protected:
 
         YAML::Node pixel_values;
         pixel_values["name"] = "pixel_values";
-        pixel_values["type"] = "OVTensor";
+        pixel_values["type"] = "VecOVTensor";
         outputs.push_back(pixel_values);
         YAML::Node grid_thw;
         grid_thw["name"] = "grid_thw";
-        grid_thw["type"] = "OVTensor";
+        grid_thw["type"] = "VecOVTensor";
         outputs.push_back(grid_thw);
         YAML::Node pos_embeds;
         pos_embeds["name"] = "pos_embeds";
-        pos_embeds["type"] = "OVTensor";
+        pos_embeds["type"] = "VecOVTensor";
         outputs.push_back(pos_embeds);
         YAML::Node rotary_cos;
         rotary_cos["name"] = "rotary_cos";
-        rotary_cos["type"] = "OVTensor";
+        rotary_cos["type"] = "VecOVTensor";
         outputs.push_back(rotary_cos);
         YAML::Node rotary_sin;
         rotary_sin["name"] = "rotary_sin";
-        rotary_sin["type"] = "OVTensor";
+        rotary_sin["type"] = "VecOVTensor";
         outputs.push_back(rotary_sin);
 
         image_preprocessor["outputs"] = outputs;
@@ -275,34 +275,34 @@ protected:
     const ov::Shape expected_rotary_sin_shape = {256, 64};
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto pixel_values = pipe.get_output("pixel_values").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(pixel_values.get_shape(), expected_pixel_values_shape))
+        auto pixel_values = pipe.get_output("pixel_values").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(pixel_values[0].get_shape(), expected_pixel_values_shape))
             << "pixel_values's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(pixel_values, expected_pixel_values, _threshold))
+        EXPECT_TRUE(compare_big_tensor(pixel_values[0], expected_pixel_values, _threshold))
             << "pixel_values do not match expected values";
 
-        auto grid_thw = pipe.get_output("grid_thw").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(grid_thw.get_shape(), expected_grid_thw_shape))
+        auto grid_thw = pipe.get_output("grid_thw").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(grid_thw[0].get_shape(), expected_grid_thw_shape))
             << "grid_thw's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor<int64_t>(grid_thw, expected_grid_thw, _threshold))
+        EXPECT_TRUE(compare_big_tensor<int64_t>(grid_thw[0], expected_grid_thw, _threshold))
             << "grid_thw do not match expected values";
 
-        auto pos_embeds = pipe.get_output("pos_embeds").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(pos_embeds.get_shape(), expected_pos_embeds_shape))
+        auto pos_embeds = pipe.get_output("pos_embeds").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(pos_embeds[0].get_shape(), expected_pos_embeds_shape))
             << "pos_embeds's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(pos_embeds, expected_pos_embeds, _threshold))
+        EXPECT_TRUE(compare_big_tensor(pos_embeds[0], expected_pos_embeds, _threshold))
             << "pos_embeds do not match expected values";
 
-        auto rotary_cos = pipe.get_output("rotary_cos").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(rotary_cos.get_shape(), expected_rotary_cos_shape))
+        auto rotary_cos = pipe.get_output("rotary_cos").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(rotary_cos[0].get_shape(), expected_rotary_cos_shape))
             << "rotary_cos's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(rotary_cos, expected_rotary_cos, _threshold))
+        EXPECT_TRUE(compare_big_tensor(rotary_cos[0], expected_rotary_cos, _threshold))
             << "rotary_cos do not match expected values";
 
-        auto rotary_sin = pipe.get_output("rotary_sin").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(rotary_sin.get_shape(), expected_rotary_sin_shape))
+        auto rotary_sin = pipe.get_output("rotary_sin").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(rotary_sin[0].get_shape(), expected_rotary_sin_shape))
             << "rotary_sin's shape not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(rotary_sin, expected_rotary_sin, _threshold))
+        EXPECT_TRUE(compare_big_tensor(rotary_sin[0], expected_rotary_sin, _threshold))
             << "rotary_sin do not match expected values";
     }
 };

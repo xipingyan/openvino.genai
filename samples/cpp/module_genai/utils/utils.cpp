@@ -84,4 +84,43 @@ std::string get_input_arg(int argc, char* argv[], const std::string& key, const 
     return default_value;
 }
 
+OmniInputParams parse_omni_input_params(int argc, char* argv[]) {
+    OmniInputParams params {};
+    int i = 0;
+    while (i < argc) {
+        std::string arg = argv[i];
+        if (arg == "-prompt") {
+            if (i + 1 < argc) {
+                params.prompts.emplace_back(argv[i + 1]);
+            } else {
+                params.prompts.emplace_back("");
+            }
+        } else if (arg == "-img") {
+            if (i + 1 < argc) {
+                params.image_paths.emplace_back(argv[i + 1]);
+            } else {
+                params.image_paths.emplace_back("");
+            }
+        } else if (arg == "-video") {
+            if (i + 1 < argc) {
+                params.video_paths.emplace_back(argv[i + 1]);
+            } else {
+                params.video_paths.emplace_back("");
+            }
+        } else if (arg == "-audio") {
+            if (i + 1 < argc) {
+                params.audio_paths.emplace_back(argv[i + 1]);
+            } else {
+                params.audio_paths.emplace_back("");
+            }
+        } else if (arg == "-use_audio_in_video") {
+            if (i + 1 < argc) {
+                params.use_audio_in_video = std::stoi(argv[i + 1]) != 0;
+            }
+        }
+        i++;
+    }
+    return params;
+}
+
 }  // namespace utils

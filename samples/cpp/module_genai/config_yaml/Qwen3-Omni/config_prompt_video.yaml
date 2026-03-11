@@ -5,21 +5,23 @@ pipeline_modules:
   pipeline_params:
     type: "ParameterModule"
     outputs:
-      - name: "images"
+      - name: "videos"
         type: "VecOVTensor"
       - name: "prompts"
         type: "VecString"
       - name: "audios"
         type: "VecOVTensor"
+      - name: "use_audio_in_video"
+        type: "VecInt"
 
-  image_preprocessor:
-    type: "ImagePreprocessModule"
+  video_preprocessor:
+    type: "VideoPreprocessModule"
     device: "CPU"
-    description: "Image or Video preprocessing."
+    description: "Video preprocessing."
     inputs:
-      - name: "images"
+      - name: "videos"
         type: "VecOVTensor"
-        source: "pipeline_params.images"
+        source: "pipeline_params.videos"
     outputs:
       - name: "pixel_values"
         type: "VecOVTensor"
@@ -31,6 +33,8 @@ pipeline_modules:
         type: "VecOVTensor"
       - name: "rotary_sin"
         type: "VecOVTensor"
+      - name: video_second_per_grid
+        type: "VecInt"
     params:
       model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual/"
 
@@ -76,12 +80,18 @@ pipeline_modules:
       - name: "prompts"
         type: "VecString"
         source: "pipeline_params.prompts"
-      - name: "image_grid_thw"
+      - name: "video_grid_thw"
         type: "VecOVTensor"
-        source: "image_preprocessor.grid_thw"
+        source: "video_preprocessor.grid_thw"
       - name: "audio_features"
         type: "VecOVTensor"
         source: "audio_encoder.audio_features"
+      - name: "video_second_per_grid"
+        type: "VecInt"
+        source: "video_preprocessor.video_second_per_grid"
+      - name: "use_audio_in_video"
+        type: "VecInt"
+        source: "pipeline_params.use_audio_in_video"
     outputs:
       - name: "input_ids"
         type: "OVTensor"
@@ -94,21 +104,21 @@ pipeline_modules:
     type: "VisionEncoderModule"
     device: "GPU"
     inputs:
-      - name: "preprocessed_image"
+      - name: "preprocessed_video"
         type: "VecOVTensor"
-        source: "image_preprocessor.pixel_values"
-      - name: "image_grid_thw"
+        source: "video_preprocessor.pixel_values"
+      - name: "video_grid_thw"
         type: "VecOVTensor"
-        source: "image_preprocessor.grid_thw"
-      - name: "image_pos_embeds"
+        source: "video_preprocessor.grid_thw"
+      - name: "video_pos_embeds"
         type: "VecOVTensor"
-        source: "image_preprocessor.pos_embeds"
-      - name: "image_rotary_cos"
+        source: "video_preprocessor.pos_embeds"
+      - name: "video_rotary_cos"
         type: "VecOVTensor"
-        source: "image_preprocessor.rotary_cos"
-      - name: "image_rotary_sin"
+        source: "video_preprocessor.rotary_cos"
+      - name: "video_rotary_sin"
         type: "VecOVTensor"
-        source: "image_preprocessor.rotary_sin"
+        source: "video_preprocessor.rotary_sin"
       - name: "input_ids"
         type: "OVTensor"
         source: "prompt_encoder.input_ids"
@@ -154,8 +164,8 @@ pipeline_modules:
         type: "OVTensor"
         source: "vision_encoder.visual_pos_mask"
       - name: "grid_thw"
-        type: "OVTensor"
-        source: "image_preprocessor.grid_thw"
+        type: "VecOVTensor"
+        source: "video_preprocessor.grid_thw"
       - name: "position_ids"
         type: "OVTensor"
         source: "vision_encoder.position_ids"
@@ -176,7 +186,7 @@ pipeline_modules:
         type: "String"
     params:
       model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual/qwen3_omni_text_model.xml"
-      max_new_tokens: 512
+      max_new_tokens: 128
 
   pipeline_result:
     type: "ResultModule"

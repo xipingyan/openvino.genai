@@ -11,15 +11,15 @@
 namespace ov::genai::module {
 
 struct Qwen3OmniVisionInput {
-    ov::Tensor pixel_values;
-    ov::Tensor grid_thw;
-    ov::Tensor pos_embeds;
-    ov::Tensor rotary_cos;
-    ov::Tensor rotary_sin;
+    std::vector<ov::Tensor> pixel_values;
+    std::vector<ov::Tensor> grid_thw;
+    std::vector<ov::Tensor> pos_embeds;
+    std::vector<ov::Tensor> rotary_cos;
+    std::vector<ov::Tensor> rotary_sin;
 };
 
 struct Qwen3OmniAudioInput {
-    ov::Tensor audio_features;
+    std::vector<ov::Tensor> audio_features;
     ov::Tensor audio_feature_lengths;
 };
 

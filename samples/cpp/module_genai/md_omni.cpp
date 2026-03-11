@@ -12,55 +12,51 @@
 #include "utils/utils.hpp"
 #include "utils/audio_utils.hpp"
 
-inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path& cfg_yaml_path,
-                                                     const std::string& prompt = std::string{},
-                                                     const std::string& image_path = std::string{},
-                                                     const std::string& video_path = std::string{},
-                                                     const std::string& audio_path = std::string{}) {
+inline ov::AnyMap parse_inputs_for_omni(const utils::OmniInputParams& params) {
     ov::AnyMap inputs;
-    YAML::Node input_params = utils::find_param_module_in_yaml(cfg_yaml_path);
 
-    // Loop input_params to find "prompt", "image", "video", "audio"
-    for (const auto& entry : input_params) {
-        if (!entry["name"] || !entry["type"]) {
-            continue;
+    if (!params.prompts.empty()) {
+        inputs["prompts"] = params.prompts;
+    }
+    if (!params.image_paths.empty()) {
+        std::vector<ov::Tensor> images;
+        for (const auto& image_path : params.image_paths) {
+            images.push_back(image_utils::load_image(image_path));
         }
+        inputs["images"] = images;
+    }
 
-        const std::string param_name = entry["name"].as<std::string>();
-        const std::string param_type = entry["type"].as<std::string>();
+    std::vector<ov::Tensor> audios {};
+    std::vector<int> use_audio_in_video {};
 
-        if (param_type == "String" && utils::contains_key(param_name, {"prompt"})) {
-            if (prompt.empty()) {
-                throw std::runtime_error("Prompt string is empty.");
+    if (!params.video_paths.empty()) {
+        std::vector<ov::Tensor> videos;
+        for (const auto& video_path : params.video_paths) {
+            image_utils::VideoLoadResult video = image_utils::load_video_with_audio(video_path, params.use_audio_in_video);
+            videos.push_back(video.frames);
+            if (params.use_audio_in_video) {
+                audios.push_back(video.audio);
+                use_audio_in_video.push_back(1);
+            } else {
+                use_audio_in_video.push_back(0);
             }
-            inputs[param_name] = prompt;
-            continue;
         }
+        inputs["videos"] = videos;
+    }
 
-        if (param_type == "OVTensor" && utils::contains_key(param_name, {"img", "image"})) {
-            if (image_path.empty()) {
-                throw std::runtime_error("Image path is empty.");
-            }
-            inputs[param_name] = image_utils::load_image(image_path);
-            continue;
-        }
-
-        if (param_type == "OVTensor" && utils::contains_key(param_name, {"video"})) {
-            if (video_path.empty()) {
-                throw std::runtime_error("Video path is empty.");
-            }
-            inputs[param_name] = image_utils::load_video(video_path);
-            continue;
-        }
-
-        if (param_type == "OVTensor" && utils::contains_key(param_name, {"audio"})) {
-            if (audio_path.empty()) {
-                throw std::runtime_error("Audio path is empty.");
-            }
-            inputs[param_name] = audio_utils::load_audio(audio_path);
-            continue;
+    if (!params.audio_paths.empty()) {
+        for (const auto& audio_path : params.audio_paths) {
+            audios.push_back(audio_utils::load_audio(audio_path));
         }
     }
+
+    if (!audios.empty()) {
+        inputs["audios"] = audios;
+    }
+    if (!use_audio_in_video.empty()) {
+        inputs["use_audio_in_video"] = use_audio_in_video;
+    }
+
     return inputs;
 }
 
@@ -75,20 +71,18 @@ int main(int argc, char* argv[]) {
                                      "  -img: [Optional] image path\n"
                                      "  -video: [Optional] video path\n"
                                      "  -audio: [Optional] audio path\n"
+                                     "  -use_audio_in_video: [Optional] set to 1 if the video contains audio and you want to use the audio, default 0\n"
                                      "  -warmup: [Optional] number of warmup runs, default 0\n"
                                      "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});
         std::string cache_dir = utils::get_input_arg(argc, argv, "-cache_dir", std::string{});
-        std::string prompt = utils::get_input_arg(argc, argv, "-prompt", std::string{});
-        std::string img_path = utils::get_input_arg(argc, argv, "-img", std::string{});
-        std::string video_path = utils::get_input_arg(argc, argv, "-video", std::string{});
-        std::string audio_path = utils::get_input_arg(argc, argv, "-audio", std::string{});
         int warmup = std::stoi(utils::get_input_arg(argc, argv, "-warmup", std::string("0")));
         bool perf = std::stoi(utils::get_input_arg(argc, argv, "-perf", std::string("0")));
 
-        ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_vlm(config_path, prompt, img_path, video_path, audio_path);
+        utils::OmniInputParams input_params = utils::parse_omni_input_params(argc, argv);
+        ov::AnyMap inputs = parse_inputs_for_omni(input_params);
 
         for (const auto& [key, value] : inputs) {
             std::cout << "[Input] " << key << ": ";

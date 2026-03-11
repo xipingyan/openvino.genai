@@ -25,6 +25,7 @@ struct Qwen3_5PreprocessorOutput {
     // Video-specific outputs:
     ov::Tensor pixel_values_videos;
     ov::Tensor video_grid_thw;
+    int video_second_per_grid;
 };
 
 class Qwen3_5Preprocessor {

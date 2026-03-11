@@ -39,15 +39,15 @@ void ImagePreprocessModule::print_static_config() {
       - name: "source_sizes"    # Output port name, used by Qwen 2.5-VL
         type: "VecVecInt"       # Support DataType: [VecVecInt]
       - name: "pixel_values"    # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
       - name: "grid_thw"        # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
       - name: "pos_embeds"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
       - name: "rotary_cos"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
       - name: "rotary_sin"      # Output port name, used by Qwen 3.5
-        type: "OVTensor"        # Support DataType: [OVTensor]
+        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
     params:
       model_path: "models/openvino_vision_embeddings_model.xml"
     )" << std::endl;

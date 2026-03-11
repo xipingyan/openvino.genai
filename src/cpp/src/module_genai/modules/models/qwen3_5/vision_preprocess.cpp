@@ -21,30 +21,28 @@ PreprocessOutput Qwen3_5VisionPreprocess::preprocess(const std::vector<ov::Tenso
     OPENVINO_ASSERT(videos.size() == 1u || videos.empty(), "Qwen3_5VisionPreprocess: only a single video input is supported due to the complexity of handling variable-length videos and batching them together");
 
     ov::Tensor stack_images;
-    PreprocessOutput preprocess_output;
+    PreprocessOutput preprocess_output {};
     if (images.size() > 0) {
-        if (images.size() > 1) {
-            stack_images = tensor_utils::stack(images, 0);
-        } else if (images.size() == 1) {
-            stack_images = images[0];
+        for (const auto &image : images) {
+            auto output = m_preprocessor->preprocess(image);
+            preprocess_output.pixel_values.push_back(std::move(output.pixel_values));
+            preprocess_output.grid_thw.push_back(std::move(output.grid_thw));
+            preprocess_output.pos_embeds.push_back(std::move(output.pos_embeds));
+            preprocess_output.rotary_cos.push_back(std::move(output.rotary_cos));
+            preprocess_output.rotary_sin.push_back(std::move(output.rotary_sin));
         }
-
-        auto output = m_preprocessor->preprocess(stack_images);
-        preprocess_output.pixel_values = std::move(output.pixel_values);
-        preprocess_output.grid_thw = std::move(output.grid_thw);
-        preprocess_output.pos_embeds = std::move(output.pos_embeds);
-        preprocess_output.rotary_cos = std::move(output.rotary_cos);
-        preprocess_output.rotary_sin = std::move(output.rotary_sin);
     }
-    else if (videos.size() == 1) {
-        auto output = m_preprocessor->preprocess_video(videos[0]);
-        preprocess_output.pixel_values_videos = std::move(output.pixel_values_videos);
-        preprocess_output.video_grid_thw = std::move(output.video_grid_thw);
-        preprocess_output.pos_embeds = std::move(output.pos_embeds);
-        preprocess_output.rotary_cos = std::move(output.rotary_cos);
-        preprocess_output.rotary_sin = std::move(output.rotary_sin);
-    } else {
-        OPENVINO_THROW("No valid input provided to Qwen3_5VisionPreprocess::preprocess. Please provide either images or a video.");
+
+    if (videos.size() > 0) {
+        for (const auto &video : videos) {
+            auto output = m_preprocessor->preprocess_video(video);
+            preprocess_output.pixel_values_videos.push_back(std::move(output.pixel_values_videos));
+            preprocess_output.video_grid_thw.push_back(std::move(output.video_grid_thw));
+            preprocess_output.video_pos_embeds.push_back(std::move(output.pos_embeds));
+            preprocess_output.video_rotary_cos.push_back(std::move(output.rotary_cos));
+            preprocess_output.video_rotary_sin.push_back(std::move(output.rotary_sin));
+            preprocess_output.video_second_per_grid.push_back(output.video_second_per_grid);
+        }
     }
 
     return preprocess_output;

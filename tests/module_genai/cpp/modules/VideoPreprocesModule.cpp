@@ -84,24 +84,24 @@ protected:
 
         YAML::Node outputs;
         YAML::Node pixel_values_videos;
-        pixel_values_videos["name"] = "pixel_values_videos";
-        pixel_values_videos["type"] = "OVTensor";
+        pixel_values_videos["name"] = "pixel_values";
+        pixel_values_videos["type"] = "VecOVTensor";
         outputs.push_back(pixel_values_videos);
         YAML::Node video_grid_thw;
-        video_grid_thw["name"] = "video_grid_thw";
-        video_grid_thw["type"] = "OVTensor";
+        video_grid_thw["name"] = "grid_thw";
+        video_grid_thw["type"] = "VecOVTensor";
         outputs.push_back(video_grid_thw);
         YAML::Node pos_embeds;
         pos_embeds["name"] = "pos_embeds";
-        pos_embeds["type"] = "OVTensor";
+        pos_embeds["type"] = "VecOVTensor";
         outputs.push_back(pos_embeds);
         YAML::Node rotary_cos;
         rotary_cos["name"] = "rotary_cos";
-        rotary_cos["type"] = "OVTensor";
+        rotary_cos["type"] = "VecOVTensor";
         outputs.push_back(rotary_cos);
         YAML::Node rotary_sin;
         rotary_sin["name"] = "rotary_sin";
-        rotary_sin["type"] = "OVTensor";
+        rotary_sin["type"] = "VecOVTensor";
         outputs.push_back(rotary_sin);
         video_preprocessor["outputs"] = outputs;
     
@@ -132,21 +132,21 @@ protected:
     }
 
     void check_outputs(ov::genai::module::ModulePipeline& pipe) override {
-        auto pixel_values_videos = pipe.get_output("pixel_values_videos").as<ov::Tensor>();
-        check_output_tensor(pixel_values_videos, _expected_output.pixel_values, _expected_output.pixel_values_shape, "pixel_values_videos");
+        auto pixel_values_videos = pipe.get_output("pixel_values").as<std::vector<ov::Tensor>>();
+        check_output_tensor(pixel_values_videos[0], _expected_output.pixel_values, _expected_output.pixel_values_shape, "pixel_values_videos");
         
-        auto video_grid_thw = pipe.get_output("video_grid_thw").as<ov::Tensor>();
-        EXPECT_TRUE(compare_shape(video_grid_thw.get_shape(), _expected_output.video_grid_thw_shape)) << "video_grid_thw shape does not match expected shape.";
-        EXPECT_TRUE(compare_big_tensor<int64_t>(video_grid_thw, _expected_output.video_grid_thw, _threshold)) << "video_grid_thw values do not match expected values.";
+        auto video_grid_thw = pipe.get_output("grid_thw").as<std::vector<ov::Tensor>>();
+        EXPECT_TRUE(compare_shape(video_grid_thw[0].get_shape(), _expected_output.video_grid_thw_shape)) << "video_grid_thw shape does not match expected shape.";
+        EXPECT_TRUE(compare_big_tensor<int64_t>(video_grid_thw[0], _expected_output.video_grid_thw, _threshold)) << "video_grid_thw values do not match expected values.";
 
-        auto pos_embeds = pipe.get_output("pos_embeds").as<ov::Tensor>();
-        check_output_tensor(pos_embeds, _expected_output.pos_embeds, _expected_output.pos_embeds_shape, "pos_embeds");
+        auto pos_embeds = pipe.get_output("pos_embeds").as<std::vector<ov::Tensor>>();
+        check_output_tensor(pos_embeds[0], _expected_output.pos_embeds, _expected_output.pos_embeds_shape, "pos_embeds");
 
-        auto rotary_cos = pipe.get_output("rotary_cos").as<ov::Tensor>();
-        check_output_tensor(rotary_cos, _expected_output.rotary_cos, _expected_output.rotary_cos_shape, "rotary_cos");
+        auto rotary_cos = pipe.get_output("rotary_cos").as<std::vector<ov::Tensor>>();
+        check_output_tensor(rotary_cos[0], _expected_output.rotary_cos, _expected_output.rotary_cos_shape, "rotary_cos");
 
-        auto rotary_sin = pipe.get_output("rotary_sin").as<ov::Tensor>();
-        check_output_tensor(rotary_sin, _expected_output.rotary_sin, _expected_output.rotary_sin_shape, "rotary_sin");
+        auto rotary_sin = pipe.get_output("rotary_sin").as<std::vector<ov::Tensor>>();
+        check_output_tensor(rotary_sin[0], _expected_output.rotary_sin, _expected_output.rotary_sin_shape, "rotary_sin");
     }
 };
 
