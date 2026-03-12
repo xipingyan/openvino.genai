@@ -55,10 +55,12 @@ function(add_sample_executable target_name)
     set_target_properties(${target_name} PROPERTIES
         # Ensure out-of-box LC_RPATH on macOS with SIP
         INSTALL_RPATH_USE_LINK_PATH ON)
+
+    # Install this sample binary as part of the default install target.
     install(TARGETS ${target_name}
-            RUNTIME DESTINATION samples_bin/
-            COMPONENT samples_bin
-            EXCLUDE_FROM_ALL)
+            RUNTIME DESTINATION samples/module_genai/cpp/
+            COMPONENT samples)
+
 endfunction()
 
 set (SAMPLE_LIST
@@ -70,6 +72,12 @@ set (SAMPLE_LIST
 foreach(sample IN LISTS SAMPLE_LIST)
     add_sample_executable(${sample})
 endforeach()
+
+# Install runtime configuration files for module_genai samples
+install(DIRECTORY config_yaml
+        DESTINATION samples/module_genai/cpp
+        COMPONENT samples
+        USE_SOURCE_PERMISSIONS)
 
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
