@@ -2,16 +2,6 @@
 
 OpenVINO™ Modular GenAI is POC. It redefines GenAI application development by decomposing complex workflows into independent, reusable modules. By orchestrating these modules through a Directed Acyclic Graph (DAG), developers can build sophisticated AI pipelines with unprecedented flexibility and efficiency.
 
-#### Key Architectural Pillars
-
-`Extensibility & Reusability:` Designed for developers unfamiliar with underlying GenAI complexities, the framework allows for the rapid integration of new modules while seamlessly reusing existing ones. This "plug-and-play" approach drastically flattens the learning curve.
-
-`Zero-Copy Efficiency:` New framework ensures no new data copies are introduced during inter-module communication via ov::Tensor. This maintains high throughput and minimizes memory pressure.
-
-`Asynchronous Processing:` The DAG structure natively supports asynchronous execution between modules. This allows independent tasks to run in parallel, significantly reducing end-to-end latency for multi-stage inference tasks.
-
-`YAML-Driven Orchestration:` High-level execution graphs are defined via human-readable YAML files. This provides a clear, declarative overview of the logic flow, making it exceptionally beginner-friendly and easy to version control.
-
 ## Getting Started
 
 <details>
@@ -29,10 +19,7 @@ pip install numpy
 <summary>Prepare OpenVINO</summary>
 
 ```
-<!-- Version 25.4 or compiled from source code. The following branches include some advanced features. -->
-https://github.com/xipingyan/openvino.git --branch master_modular_genai
-
-git clone https://github.com/openvinotoolkit/openvino.git --branch 2025.4.0
+git clone https://github.com/openvinotoolkit/openvino.git
 cd openvino && mkdir build && cd build
 git submodule update --init
 cmake -DCMAKE_INSTALL_PREFIX=install ..
@@ -49,7 +36,7 @@ sudo apt-get install libyaml-cpp-dev
 source ./python-env/bin/activate
 source ./openvino/build/install/setupvars.sh
 
-git clone https://github.com/xipingyan/openvino.genai.git --branch master_modular_genai
+git clone https://github.com/xipingyan/openvino.genai.git --branch master_tr_module_genai
 cd openvino.genai
 git submodule update --init
 
@@ -65,7 +52,7 @@ cmake --install ./build/ --config Release --prefix ./install
 **Linux:**
 ```bash
 source ./python-env/bin/activate
-source /opt/intel/openvino_2025/setupvars.sh  # or your OpenVINO installation path
+source /opt/intel/openvino/setupvars.sh  # or your OpenVINO installation path
 
 cd openvino.genai
 
@@ -82,7 +69,7 @@ pip install dist/openvino_genai-*.whl
 **Windows:**
 ```powershell
 .\python-env\Scripts\activate
-"C:\Program Files (x86)\Intel\openvino_2025\setupvars.bat"  # or your OpenVINO installation path
+"C:\Program Files (x86)\Intel\openvino\setupvars.bat"  # or your OpenVINO installation path
 
 cd openvino.genai
 
@@ -102,9 +89,9 @@ pip install (Get-ChildItem dist\openvino_genai-*.whl).FullName
 
 ## Samples
 
-[CPP Samples](samples/cpp/module_genai/README.md)   <br>
-[CPP ComfyUI Sample](samples/cpp/module_genai/comfyui/README.md) <br>
-[Python Sample](samples/python/module_genai/README.md) <br>
+[CPP Samples](../../../../samples/cpp/module_genai/README.md)   <br>
+[CPP ComfyUI Sample](../../../../samples/cpp/module_genai/comfyui/README.md) <br>
+[Python Sample](../../../../samples/python/module_genai/README.md) <br>
 
 <details>
 <summary>Qwen2.5-VL</summary>
@@ -133,6 +120,6 @@ output = pipe.get_output("generated_text")
 
 print("output = ", output)
 ```
-``Note:`` Reference [config.yaml](samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml). Please update the `model_path` of config.yaml with your local path.
+``Note:`` Reference [config.yaml](../../../../samples/cpp/module_genai/config_yaml/Qwen2.5-VL-3B-Instruct/config.yaml). Please update the `model_path` of config.yaml with your local path.
 
 </details>
