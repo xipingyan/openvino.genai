@@ -181,17 +181,43 @@ ov::Tensor extract_audio_from_video(const std::filesystem::path& video_path) {
     avcodec_open2(dec_ctx, codec, nullptr);
 
     // Build SwrContext: source format → 16 kHz mono f32
-    SwrContext* swr = swr_alloc();
-    int64_t in_ch_layout = dec_ctx->channel_layout
-                         ? (int64_t)dec_ctx->channel_layout
-                         : av_get_default_channel_layout(dec_ctx->channels);
-    av_opt_set_int       (swr, "in_channel_layout",  in_ch_layout,            0);
-    av_opt_set_int       (swr, "out_channel_layout", AV_CH_LAYOUT_MONO,       0);
-    av_opt_set_int       (swr, "in_sample_rate",     dec_ctx->sample_rate,    0);
-    av_opt_set_int       (swr, "out_sample_rate",    16000,                   0);
-    av_opt_set_sample_fmt(swr, "in_sample_fmt",      dec_ctx->sample_fmt,     0);
-    av_opt_set_sample_fmt(swr, "out_sample_fmt",     AV_SAMPLE_FMT_FLT,       0);
-    swr_init(swr);
+    SwrContext* swr = nullptr;
+    AVChannelLayout in_layout{};
+    AVChannelLayout out_layout{};
+    av_channel_layout_default(&out_layout, 1);
+
+#if LIBAVCODEC_VERSION_MAJOR >= 61
+    // FFmpeg 7+: AVCodecContext exposes ch_layout instead of channel_layout/channels.
+    if (av_channel_layout_copy(&in_layout, &dec_ctx->ch_layout) < 0) {
+        av_channel_layout_default(&in_layout, dec_ctx->ch_layout.nb_channels > 0 ? dec_ctx->ch_layout.nb_channels : 1);
+    }
+#else
+    // FFmpeg <= 6: legacy channel layout stored as a bitmask + channels.
+    uint64_t in_mask = dec_ctx->channel_layout
+                         ? (uint64_t)dec_ctx->channel_layout
+                         : (uint64_t)av_get_default_channel_layout(dec_ctx->channels);
+    if (av_channel_layout_from_mask(&in_layout, in_mask) < 0) {
+        av_channel_layout_default(&in_layout, dec_ctx->channels > 0 ? dec_ctx->channels : 1);
+    }
+#endif
+
+    int swr_ret = swr_alloc_set_opts2(&swr,
+                                     &out_layout, AV_SAMPLE_FMT_FLT, 16000,
+                                     &in_layout,  dec_ctx->sample_fmt, dec_ctx->sample_rate,
+                                     0, nullptr);
+    av_channel_layout_uninit(&in_layout);
+    av_channel_layout_uninit(&out_layout);
+    if (swr_ret < 0 || !swr) {
+        avcodec_free_context(&dec_ctx);
+        avformat_close_input(&fmt_ctx);
+        throw std::runtime_error("extract_audio_from_video: cannot create SwrContext");
+    }
+    if (swr_init(swr) < 0) {
+        swr_free(&swr);
+        avcodec_free_context(&dec_ctx);
+        avformat_close_input(&fmt_ctx);
+        throw std::runtime_error("extract_audio_from_video: cannot init SwrContext");
+    }
 
     std::vector<float> samples;
     AVPacket* pkt   = av_packet_alloc();
