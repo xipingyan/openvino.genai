@@ -455,23 +455,13 @@ ov::genai::StreamerVariant pystreamer_to_streamer(const PyBindStreamerVariant& p
                 [](std::function<std::optional<uint16_t>(py::str)>* f) {
                     if (Py_IsInitialized()) {
                         py::gil_scoped_acquire acquire;
+                        delete f;
+                    } else {
+                        delete f;
+                    }
                 }
             );
 
-                py::gil_scoped_acquire acquire;
-                PyObject* py_str = PyUnicode_DecodeUTF8(subword.data(), subword.length(), "replace");
-                if (!py_str) {
-                    PyErr_Clear();
-                    return StreamingStatus::RUNNING;
-                }
-                std::optional<uint16_t> callback_output = (*shared_callback)(py::reinterpret_steal<py::str>(py_str));
-                if (callback_output.has_value()) {
-                    if (*callback_output == (uint16_t)StreamingStatus::RUNNING)
-                        return StreamingStatus::RUNNING;
-                    else if (*callback_output == (uint16_t)StreamingStatus::CANCEL)
-                        return StreamingStatus::CANCEL;
-                    return StreamingStatus::STOP;
-                } else {
             auto callback_wrapped = [shared_callback = std::move(shared_callback)](std::string subword) -> ov::genai::StreamingStatus {
                 py::gil_scoped_acquire acquire;
                 PyObject* py_str = PyUnicode_DecodeUTF8(subword.data(), subword.length(), "replace");

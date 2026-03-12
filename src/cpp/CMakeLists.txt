@@ -88,8 +88,6 @@ endif()
 # yaml-cpp dependency (use centralized cmake module)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/yaml-cpp.cmake)
 
-find_package(TBB REQUIRED)
-
 if(NOT TARGET minja)
     FetchContent_Declare(
         minja
@@ -225,7 +223,7 @@ endif()
 
 target_include_directories(${TARGET_NAME_OBJ} SYSTEM PRIVATE "${safetensors.h_SOURCE_DIR}")
 
-target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::runtime openvino::threading nlohmann_json::nlohmann_json minja ${YAML_CPP_TARGET} PRIVATE TBB::tbb)
+target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::runtime openvino::threading nlohmann_json::nlohmann_json minja ${YAML_CPP_TARGET})
 
 # modeling/ sources use internal OpenVINO dev-api headers (e.g. openvino/op/linear_attn.hpp)
 # openvino::core::dev exposes src/core/dev_api which contains these headers.
