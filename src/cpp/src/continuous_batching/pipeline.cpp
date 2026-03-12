@@ -89,8 +89,6 @@ ContinuousBatchingPipeline::ContinuousBatchingPipeline( const std::filesystem::p
     m_impl->m_load_time_ms = get_load_time(start_time);
 }
 
-std::shared_ptr<ov::Model> g_llm_model = nullptr;
-
 ContinuousBatchingPipeline::ContinuousBatchingPipeline(
     const std::filesystem::path& models_path,
     const Tokenizer& tokenizer,

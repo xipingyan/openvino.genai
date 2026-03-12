@@ -9,8 +9,6 @@
 namespace ov {
 namespace genai {
 
-extern std::shared_ptr<ov::Model> g_llm_model;
-extern std::shared_ptr<ov::Model> g_model_vision_embeddings_merger;
 namespace module {
 
 GENAI_REGISTER_MODULE_SAME(LLMInferenceModule);
@@ -93,10 +91,6 @@ bool LLMInferenceModule::initialize() {
     if (models_path.empty()) {
         m_ov_model_embed = get_ov_model_from_cfg_models_map("ov_model_embed", true);
         models_path = get_param("model_cfg_path");
-
-        // Pass model to global variables, tmp solution for vLLM pipeline
-        g_llm_model = m_ov_model;
-        g_model_vision_embeddings_merger = m_ov_model_embed;
     }
 
     // Force to use PA backend

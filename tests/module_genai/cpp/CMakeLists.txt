@@ -38,7 +38,15 @@ set(TEST_TARGET_NAME "genai_modules_test")
 
 add_executable(${TEST_TARGET_NAME} ${src_modules} ${src_pipelines} ${src_utils} $<TARGET_OBJECTS:openvino_genai_obj>)
 
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE $<TARGET_PROPERTY:openvino::genai,LINK_LIBRARIES> gtest_main gmock_main ${OpenCV_LIBS})
+get_target_property(genai_link_libraries openvino::genai LINK_LIBRARIES)
+if(genai_link_libraries)
+  set(filtered_genai_link_libraries ${genai_link_libraries})
+  if(NOT TARGET OpenCL::OpenCL)
+    list(REMOVE_ITEM filtered_genai_link_libraries OpenCL::OpenCL)
+  endif()
+endif()
+
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE ${filtered_genai_link_libraries} gtest_main gmock_main ${OpenCV_LIBS})
 target_include_directories(${TEST_TARGET_NAME} PRIVATE "${OpenVINOGenAI_SOURCE_DIR}/src/cpp/src"
                                                        "${CMAKE_CURRENT_SOURCE_DIR}"
                                                        $<TARGET_PROPERTY:openvino::genai,INTERFACE_INCLUDE_DIRECTORIES>

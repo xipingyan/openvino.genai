@@ -453,6 +453,7 @@ ov::Tensor InputsEmbedderLLaVANextVideo::get_inputs_embeds(
     const std::vector<size_t>& images_sequence,
     const std::vector<size_t>& videos_sequence,
     const std::vector<std::pair<std::size_t, std::size_t>>& history_vision_count) {
+
     ov::Tensor image_newline;
     std::vector<ov::Tensor> image_embeds;
     for (size_t new_image_id : images_sequence) {

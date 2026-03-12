@@ -25,9 +25,6 @@
 
 namespace ov::genai {
 
-std::shared_ptr<ov::Model> g_llm_model;
-std::shared_ptr<ov::Model> g_model_vision_embeddings_merger;
-
 namespace {
 
 // Chat template hardcodes char sequence instead of referring to tag values, so NATIVE_TAG is hardcoded as well.
@@ -886,7 +883,11 @@ EncodedImage VisionEncoderQwen2VL::encode(const ov::Tensor& image, const ov::Any
     if (use_ov_vision_preprocess == false) {
         encode_with_imagepreprocess_cpp({image}, config_map, encoded_img.resized_source, encoded_img.resized_source_size);
         return encoded_img;
+    }
+    encode_with_imagepreprocess_ov({image}, config_map, encoded_img.resized_source, encoded_img.resized_source_size);
+    return encoded_img;
 }
+
 EncodedVideo VisionEncoderQwen2VL::encode_frames(const std::vector<ov::Tensor>& frames, const ov::AnyMap& config_map) {
     ProcessorConfig config = utils::from_any_map(config_map, m_processor_config);
     EncodedVideo encoded_video;
@@ -958,7 +959,7 @@ InputsEmbedderQwen2VL::InputsEmbedderQwen2VL(
     const std::string& device,
     const ov::AnyMap device_config) :
     IInputsEmbedder(vlm_config, models_map, tokenizer, config_dir_path, device, device_config) {
-    auto model = g_model_vision_embeddings_merger ? g_model_vision_embeddings_merger : utils::singleton_core().read_model(
+    auto model = utils::singleton_core().read_model(
         utils::get_model_weights_pair(models_map, "vision_embeddings_merger").first,
         utils::get_model_weights_pair(models_map, "vision_embeddings_merger").second);
     utils::request_vl_sdpa_transformations(model);
@@ -1021,7 +1022,11 @@ NormalizedPrompt InputsEmbedderQwen2VL::normalize_prompt(const std::string& prom
         size_t grid_h = encoded_image.resized_source_size.height;
         size_t grid_w = encoded_image.resized_source_size.width;
         images_grid_thw.push_back({grid_t, grid_h, grid_w});
+    }
+
+    for (size_t new_image_id : images_sequence) {
         auto [grid_t, grid_h, grid_w] = images_grid_thw.at(new_image_id - image_base_id);
+        const size_t num_image_pad_tokens = calc_tokens_num(grid_t, grid_h, grid_w);
 
         std::string expanded_tag;
         expanded_tag.reserve(m_vlm_config.vision_start_token.length() +
@@ -1039,7 +1044,7 @@ NormalizedPrompt InputsEmbedderQwen2VL::normalize_prompt(const std::string& prom
     // Video
     std::vector<size_t> videos_sequence;
     std::tie(unified_prompt, videos_sequence) =
-        normalize(unified_prompt, NATIVE_VIDEO_TAG, NATIVE_VIDEO_TAG, video_base_id, videos.size());
+        normalize(unified_prompt, NATIVE_VIDEO_TAG, NATIVE_VIDEO_TAG, video_base_id, videos.size(), VisionType::VIDEO);
     std::vector<std::array<size_t, 3>> video_grid_thw;
     video_grid_thw.reserve(videos.size());
 
