@@ -159,6 +159,13 @@ if(NOT ENABLE_NEW_ARCH_OPS)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_weight_finalizer.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/safetensors_utils/safetensors_modeling.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/gguf/gguf_loader.cpp")
+
+    # Re-add qwen3_omni, qwen3_tts, and qwen3_vl model sources needed by always-built sample targets
+    file(GLOB QWEN3_OMNI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/models/qwen3_omni/*.cpp")
+    file(GLOB QWEN3_TTS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/models/qwen3_tts/*.cpp")
+    list(APPEND SOURCE_FILES ${QWEN3_OMNI_SOURCES} ${QWEN3_TTS_SOURCES})
+    list(APPEND SOURCE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/models/qwen3_vl/processing_qwen3_vl.cpp")
 endif()
 
 set(TARGET_NAME openvino_genai)

@@ -45,6 +45,6 @@ install(TARGETS ${TEST_MODELING_TARGET}
         EXCLUDE_FROM_ALL)
 endif() # ENABLE_NEW_ARCH_OPS
 
-if(ENABLE_SAMPLES AND ENABLE_NEW_ARCH_OPS)
+if(ENABLE_SAMPLES)
   add_subdirectory(samples)
 endif()

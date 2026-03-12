@@ -6,6 +6,8 @@ file(DOWNLOAD
     ${CMAKE_BINARY_DIR}/stb_image.h
     EXPECTED_HASH MD5=27932e6fb3a2f26aee2fc33f2cb4e696)
 
+if(ENABLE_NEW_ARCH_OPS)
+
 add_executable(modeling_qwen3_vl
     modeling_qwen3_vl.cpp
     "${OpenVINOGenAI_SOURCE_DIR}/samples/cpp/visual_language_chat/load_image.cpp"
@@ -44,6 +46,10 @@ set_target_properties(modeling_qwen3_vl PROPERTIES
     # Ensure out of box LC_RPATH on macOS with SIP
     INSTALL_RPATH_USE_LINK_PATH ON)
 
+endif() # ENABLE_NEW_ARCH_OPS -- modeling_qwen3_vl
+
+# ── Always-built targets (needed for build-master too) ──
+
 add_executable(modeling_qwen3_omni
     modeling_qwen3_omni.cpp
     "${OpenVINOGenAI_SOURCE_DIR}/samples/cpp/visual_language_chat/load_image.cpp"
@@ -73,6 +79,8 @@ add_custom_command(TARGET modeling_qwen3_omni POST_BUILD
 set_target_properties(modeling_qwen3_omni PROPERTIES
     # Ensure out of box LC_RPATH on macOS with SIP
     INSTALL_RPATH_USE_LINK_PATH ON)
+
+if(ENABLE_NEW_ARCH_OPS)
 
 add_executable(modeling_qwen3_5
     modeling_qwen3_5.cpp
@@ -276,6 +284,8 @@ add_custom_command(TARGET modeling_qwen3_tts POST_BUILD
 set_target_properties(modeling_qwen3_tts PROPERTIES
     # Ensure out of box LC_RPATH on macOS with SIP
     INSTALL_RPATH_USE_LINK_PATH ON)
+
+endif() # ENABLE_NEW_ARCH_OPS -- other modeling samples
 
 # Minimal Qwen3-Omni TTS sample for case2/3/4 executable comparison
 add_executable(modeling_qwen3_omni_tts_min
