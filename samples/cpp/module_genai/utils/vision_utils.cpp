@@ -182,31 +182,52 @@ ov::Tensor extract_audio_from_video(const std::filesystem::path& video_path) {
 
     // Build SwrContext: source format → 16 kHz mono f32
     SwrContext* swr = nullptr;
+    int swr_ret = -1;
+
+#if LIBAVUTIL_VERSION_MAJOR >= 57
     AVChannelLayout in_layout{};
     AVChannelLayout out_layout{};
     av_channel_layout_default(&out_layout, 1);
 
-#if LIBAVCODEC_VERSION_MAJOR >= 61
-    // FFmpeg 7+: AVCodecContext exposes ch_layout instead of channel_layout/channels.
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+    // FFmpeg 5+: AVCodecContext exposes ch_layout.
     if (av_channel_layout_copy(&in_layout, &dec_ctx->ch_layout) < 0) {
         av_channel_layout_default(&in_layout, dec_ctx->ch_layout.nb_channels > 0 ? dec_ctx->ch_layout.nb_channels : 1);
     }
 #else
-    // FFmpeg <= 6: legacy channel layout stored as a bitmask + channels.
+    // Compatibility path for older codec API with new channel layout type.
     uint64_t in_mask = dec_ctx->channel_layout
-                         ? (uint64_t)dec_ctx->channel_layout
-                         : (uint64_t)av_get_default_channel_layout(dec_ctx->channels);
+                         ? static_cast<uint64_t>(dec_ctx->channel_layout)
+                         : static_cast<uint64_t>(av_get_default_channel_layout(dec_ctx->channels));
     if (av_channel_layout_from_mask(&in_layout, in_mask) < 0) {
         av_channel_layout_default(&in_layout, dec_ctx->channels > 0 ? dec_ctx->channels : 1);
     }
 #endif
 
-    int swr_ret = swr_alloc_set_opts2(&swr,
-                                     &out_layout, AV_SAMPLE_FMT_FLT, 16000,
-                                     &in_layout,  dec_ctx->sample_fmt, dec_ctx->sample_rate,
-                                     0, nullptr);
+#if LIBSWRESAMPLE_VERSION_MAJOR >= 4
+    swr_ret = swr_alloc_set_opts2(&swr,
+                                  &out_layout, AV_SAMPLE_FMT_FLT, 16000,
+                                  &in_layout,  dec_ctx->sample_fmt, dec_ctx->sample_rate,
+                                  0, nullptr);
+#else
+    swr_ret = -1;
+#endif
+
     av_channel_layout_uninit(&in_layout);
     av_channel_layout_uninit(&out_layout);
+#else
+    // FFmpeg 4.x: legacy channel_layout/channel API + swr_alloc_set_opts.
+    const int64_t out_layout = static_cast<int64_t>(av_get_default_channel_layout(1));
+    const int64_t in_layout = dec_ctx->channel_layout
+                                ? static_cast<int64_t>(dec_ctx->channel_layout)
+                                : static_cast<int64_t>(av_get_default_channel_layout(dec_ctx->channels));
+    swr = swr_alloc_set_opts(nullptr,
+                             out_layout, AV_SAMPLE_FMT_FLT, 16000,
+                             in_layout,  dec_ctx->sample_fmt, dec_ctx->sample_rate,
+                             0, nullptr);
+    swr_ret = swr ? 0 : -1;
+#endif
+
     if (swr_ret < 0 || !swr) {
         avcodec_free_context(&dec_ctx);
         avformat_close_input(&fmt_ctx);
