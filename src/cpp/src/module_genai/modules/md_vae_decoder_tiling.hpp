@@ -5,9 +5,9 @@
 #include <memory>
 #include <vector>
 
-#include "module_genai/module.hpp"
-#include "module_genai/pipeline_impl.hpp"
-#include "module_genai/transformer_config.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/pipeline_impl.hpp"
+#include "module_genai/pipeline/transformer_config.hpp"
 
 namespace ov {
 namespace genai {

@@ -3,8 +3,8 @@
 
 #include "class.hpp"
 
-#include "module_genai/module_factory.hpp"
-#include "module_genai/transformer_config.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
+#include "module_genai/pipeline/transformer_config.hpp"
 #include "utils.hpp"
 #include "image_generation/schedulers/z_image_flow_match_euler_discrete.hpp"
 #include "json_utils.hpp"

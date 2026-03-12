@@ -3,7 +3,7 @@
 
 #include "md_save_image.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "utils.hpp"
 #include <iostream>
 #include <fstream>

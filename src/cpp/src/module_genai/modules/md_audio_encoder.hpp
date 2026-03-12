@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 
 namespace ov::genai::module {
 

@@ -3,7 +3,7 @@
 
 #include "md_llm_inference.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include <fstream>
 
 namespace ov {

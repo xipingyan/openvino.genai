@@ -3,7 +3,7 @@
 
 #include "md_text_embedding.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "visual_language/embedding_model.hpp"
 #include "circular_buffer_queue.hpp"
 

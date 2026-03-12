@@ -11,8 +11,8 @@
 
 #include "../utils/model_yaml.hpp"
 #include "../utils/ut_modules_base.hpp"
-#include "module_genai/module_base.hpp"
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_base.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "utils/load_image.hpp"
 #include "utils/model_yaml.hpp"
 #include "utils/utils.hpp"

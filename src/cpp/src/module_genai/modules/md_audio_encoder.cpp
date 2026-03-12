@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "md_audio_encoder.hpp"
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "module_genai/utils/profiler.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 

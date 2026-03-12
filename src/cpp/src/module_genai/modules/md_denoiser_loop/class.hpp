@@ -6,8 +6,8 @@
 #include <numeric>
 
 #include "circular_buffer_queue.hpp"
-#include "module_genai/module.hpp"
-#include "module_genai/transformer_config.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/transformer_config.hpp"
 #include "splitted_model_infer.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
 #include "../unipc_multistep_scheduler.hpp"

@@ -3,7 +3,7 @@
 
 #include "md_text_encoder.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "openvino/genai/tokenizer.hpp"
 #include "tokenizer/tokenizer_impl.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5config.hpp"

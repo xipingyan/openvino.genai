@@ -3,7 +3,7 @@
 
 #include "md_clip_text_encoder.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "utils.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 #include <iostream>

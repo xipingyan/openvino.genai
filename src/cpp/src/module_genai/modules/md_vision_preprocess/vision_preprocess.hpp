@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-#include "module_genai/module_base.hpp"
+#include "module_genai/pipeline/module_base.hpp"
 #include "module_genai/utils/video_utils.hpp"
 #include "openvino/runtime/tensor.hpp"
 #include "visual_language/vlm_config.hpp"

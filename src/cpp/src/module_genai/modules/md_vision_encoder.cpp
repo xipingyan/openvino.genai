@@ -1,6 +1,6 @@
 #include "md_vision_encoder.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include <array>
 #include <cstddef>
 #include <cstring>
@@ -14,7 +14,7 @@
 #include <vector>
 #include "circular_buffer_queue.hpp"
 #include "json_utils.hpp"
-#include "module_genai/module_base.hpp"
+#include "module_genai/pipeline/module_base.hpp"
 #include "nlohmann/json.hpp"
 #include "utils.hpp"
 #include "visual_language/processor_config.hpp"

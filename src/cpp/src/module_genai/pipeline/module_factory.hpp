@@ -7,7 +7,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 
 #include "openvino/core/except.hpp"
 

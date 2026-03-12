@@ -8,9 +8,9 @@
 #include <functional>
 #include <memory>
 
-#include "module_genai/module_data_type.hpp"
-#include "module_genai/module_print_config.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module_data_type.hpp"
+#include "module_genai/pipeline/module_print_config.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 #include "openvino/core/any.hpp"
 #include "openvino/genai/visibility.hpp"
 #include "visual_language/vision_encoder.hpp"

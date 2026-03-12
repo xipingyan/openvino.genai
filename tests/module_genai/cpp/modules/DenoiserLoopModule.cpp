@@ -5,7 +5,7 @@
 #include "../utils/utils.hpp"
 #include "../utils/model_yaml.hpp"
 #include "../utils/load_image.hpp"
-#include "module_genai/diffusion_model_type.hpp"
+#include "module_genai/pipeline/diffusion_model_type.hpp"
 #include <regex>
 
 using namespace ov::genai::module;

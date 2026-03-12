@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "module.hpp"
-#include "utils/yaml_utils.hpp"
+#include "module_genai/utils/yaml_utils.hpp"
 
 namespace ov {
 namespace genai {

@@ -3,10 +3,10 @@
 
 #include "md_random_latent_image.hpp"
 #include "utils.hpp"
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include <fstream>
 #include "json_utils.hpp"
-#include "module_genai/diffusion_model_type.hpp"
+#include "module_genai/pipeline/diffusion_model_type.hpp"
 
 namespace ov::genai::module {
 

@@ -4,9 +4,9 @@
 #include "pipeline_impl.hpp"
 
 #include "module.hpp"
-#include "modules/md_io.hpp"
-#include "utils/yaml_utils.hpp"
-#include "utils/profiler.hpp"
+#include "module_genai/modules/md_io.hpp"
+#include "module_genai/utils/yaml_utils.hpp"
+#include "module_genai/utils/profiler.hpp"
 
 namespace ov {
 namespace genai {

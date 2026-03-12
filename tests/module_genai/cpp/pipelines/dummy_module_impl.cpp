@@ -7,8 +7,8 @@
 #include <memory>
 #include <thread>
 
-#include "module_genai/module_base.hpp"
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_base.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 
 namespace ov::genai::module {
 

@@ -3,7 +3,7 @@
 
 #include "md_video_preprocess.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5preprocessor.hpp"
 

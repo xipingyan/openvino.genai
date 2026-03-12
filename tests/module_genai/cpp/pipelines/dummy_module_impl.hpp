@@ -2,7 +2,7 @@
 
 #include <thread>
 
-#include "module_genai/module_base.hpp"
+#include "module_genai/pipeline/module_base.hpp"
 
 namespace ov {
 namespace genai {

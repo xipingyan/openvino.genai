@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "module_genai/module.hpp"
+#include "module_genai/pipeline/module.hpp"
 
 namespace ov {
 namespace genai {

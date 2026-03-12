@@ -6,8 +6,8 @@
 #include <yaml-cpp/yaml.h>
 #include <variant>
 
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5preprocessor.hpp"
 #include "visual_language/qwen2vl/classes.hpp"
 // include vision_preprocess.hpp

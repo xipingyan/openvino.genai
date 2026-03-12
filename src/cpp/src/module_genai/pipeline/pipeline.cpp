@@ -9,11 +9,11 @@
 
 #include "openvino/genai/module_genai/pipeline.hpp"
 
-#include "comfyui/comfyui.hpp"
+#include "module_genai/comfyui/comfyui.hpp"
 #include "module.hpp"
-#include "modules/md_io.hpp"
+#include "module_genai/modules/md_io.hpp"
 #include "pipeline_impl.hpp"
-#include "utils/yaml_utils.hpp"
+#include "module_genai/utils/yaml_utils.hpp"
 
 namespace ov {
 namespace genai {

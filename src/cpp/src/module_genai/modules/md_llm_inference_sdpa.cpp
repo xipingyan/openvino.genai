@@ -5,7 +5,7 @@
 
 #include "md_llm_inference_sdpa.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 
 #include <chrono>
 #include <cstdint>

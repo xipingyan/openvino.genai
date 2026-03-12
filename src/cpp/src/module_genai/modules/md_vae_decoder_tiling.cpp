@@ -3,7 +3,7 @@
 
 #include "md_vae_decoder_tiling.hpp"
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 
 #include <fstream>
 #include <cstring>

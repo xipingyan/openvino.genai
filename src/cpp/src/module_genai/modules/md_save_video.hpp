@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#include "module_genai/module.hpp"
+#include "module_genai/pipeline/module.hpp"
 
 namespace ov {
 namespace genai {

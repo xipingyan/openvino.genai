@@ -5,8 +5,8 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 #include "openvino/genai/tokenizer.hpp"
 #include "tokenizer/tokenizer_impl.hpp"
 #include "visual_language/inputs_embedder.hpp"

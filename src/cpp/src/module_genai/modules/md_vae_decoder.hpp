@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#include "module_genai/module.hpp"
+#include "module_genai/pipeline/module.hpp"
 #include "openvino/genai/image_generation/autoencoder_kl.hpp"
 #include "autoencoder_kl_wan.hpp"
-#include "module_genai/diffusion_model_type.hpp"
+#include "module_genai/pipeline/diffusion_model_type.hpp"
 
 namespace ov {
 namespace genai {

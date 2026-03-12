@@ -1,7 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "module_genai/module_print_config.hpp"
+#include "module_genai/pipeline/module_print_config.hpp"
 
 #include "openvino/genai/module_genai/pipeline.hpp"
 

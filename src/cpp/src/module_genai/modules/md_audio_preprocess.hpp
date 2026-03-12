@@ -6,8 +6,8 @@
 #include <yaml-cpp/yaml.h>
 #include <variant>
 
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 #include "module_genai/modules/models/whisper/feature_extraction_whisper.hpp"
 
 namespace ov {

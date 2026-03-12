@@ -9,9 +9,9 @@
 #include <openvino/openvino.hpp>
 #include <thread>
 
-#include "module_genai/module_base.hpp"
-#include "module_genai/module_factory.hpp"
-#include "module_genai/pipeline_impl.hpp"
+#include "module_genai/pipeline/module_base.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
+#include "module_genai/pipeline/pipeline_impl.hpp"
 #include "utils/load_image.hpp"
 #include "utils/model_yaml.hpp"
 #include "utils/ut_modules_base.hpp"

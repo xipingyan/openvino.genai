@@ -3,8 +3,8 @@
 #include <yaml-cpp/yaml.h>
 #include <memory>
 #include <openvino/runtime/tensor.hpp>
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
 #include "visual_language/processor_config.hpp"
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/vlm_config.hpp"

@@ -6,7 +6,7 @@
 #include <chrono>
 #include <thread>
 
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "module_genai/utils/tensor_utils.hpp"
 
 namespace ov {

@@ -5,9 +5,9 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include "module_genai/module.hpp"
-#include "module_genai/module_type.hpp"
-#include "module_genai/transformer_config.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_type.hpp"
+#include "module_genai/pipeline/transformer_config.hpp"
 #include "openvino/genai/image_generation/generation_config.hpp"
 
 namespace ov::genai::module {
