@@ -48,6 +48,17 @@ set_target_properties(modeling_qwen3_vl PROPERTIES
 
 endif() # ENABLE_NEW_ARCH_OPS -- modeling_qwen3_vl
 
+# ── Tokenizer library name (needed for post-build copy on all targets) ──
+if(NOT tokenizers_dll_name)
+    if(WIN32)
+        set(tokenizers_dll_name "openvino_tokenizers$<$<CONFIG:Debug>:d>.dll")
+    elseif(APPLE)
+        set(tokenizers_dll_name "libopenvino_tokenizers$<$<CONFIG:Debug>:d>.dylib")
+    else()
+        set(tokenizers_dll_name "libopenvino_tokenizers$<$<CONFIG:Debug>:d>.so")
+    endif()
+endif()
+
 # ── Always-built targets (needed for build-master too) ──
 
 add_executable(modeling_qwen3_omni

@@ -688,6 +688,11 @@ int main(int argc, char* argv[]) try {
     ov::genai::safetensors::SafetensorsWeightSource source(std::move(data));
     ov::genai::safetensors::SafetensorsWeightFinalizer finalizer(quant_config);
 
+    // Vision model must NOT be quantized — INT4/INT8 weights cause divide-by-zero
+    // in the CPU plugin during vision inference.
+    ov::genai::modeling::weights::QuantizationConfig no_quant;
+    ov::genai::safetensors::SafetensorsWeightFinalizer vision_finalizer(no_quant);
+
     auto text_model = ov::genai::modeling::models::create_qwen3_omni_text_model(
         omni_cfg,
         source,
@@ -695,7 +700,7 @@ int main(int argc, char* argv[]) try {
         false,
         true);
 
-    auto vision_model = ov::genai::modeling::models::create_qwen3_omni_vision_model(omni_cfg, source, finalizer);
+    auto vision_model = ov::genai::modeling::models::create_qwen3_omni_vision_model(omni_cfg, source, vision_finalizer);
 
     if (precision_mode == PrecisionMode::kFP32 ||
         precision_mode == PrecisionMode::kInfFp32KvInt8 ||
