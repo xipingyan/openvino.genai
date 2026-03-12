@@ -124,9 +124,11 @@ void AudioEncoderModule::run() {
         if (audio_features_orig.get_shape().size() == 3) {
             size_t batch_size = audio_features_orig.get_shape()[0];
             size_t max_feature_length = audio_features_orig.get_shape()[1];
+            size_t hidden_size = audio_features_orig.get_shape()[2];
             ov::Tensor audio_features(audio_features_orig.get_element_type(),
-                                    {batch_size * max_feature_length, audio_features_orig.get_shape()[2]},
-                                    audio_features_orig.data());
+                                      {batch_size * max_feature_length, hidden_size});
+            std::memcpy(audio_features.data(), audio_features_orig.data(),
+                        audio_features_orig.get_byte_size());
             audio_features_vec.push_back(std::move(audio_features));
         } else {
             audio_features_vec.push_back(std::move(audio_features_orig));
