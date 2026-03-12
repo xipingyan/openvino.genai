@@ -3,6 +3,9 @@
 #
 
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB modeling_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/samples/*.cpp")
+list(REMOVE_ITEM SOURCE_FILES ${modeling_samples_src})
+list(FILTER SOURCE_FILES EXCLUDE REGEX ".*/safetensors_utils/.*")
 list(APPEND SOURCE_FILES "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 
 # Dependencies
@@ -101,6 +104,8 @@ FetchContent_Declare(safetensors.h
     URL_HASH SHA256=9aaf5961609601cf9aaa96582a207bce7c6e5fbf57ed2cc669bb7bde6a937d4b)
 FetchContent_MakeAvailable(safetensors.h)
 
+add_subdirectory(src/modeling)
+
 if(ENABLE_GGUF)
     FetchContent_Declare(
       gguflib
@@ -177,8 +182,27 @@ if(NOT ENABLE_GGUF)
     set(GGUF_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_quants.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_modeling.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_weight_finalizer.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/gguf_weight_source.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/src/gguf_utils/building_blocks.cpp)
     list(REMOVE_ITEM SOURCE_FILES ${GGUF_SOURCES})
+endif()
+
+# Safetensors support - requires ENABLE_GGUF for building_blocks
+if(ENABLE_GGUF AND ENABLE_SAFETENSORS)
+    add_subdirectory(src/safetensors_utils)
+    list(APPEND SOURCE_FILES ${SAFETENSORS_UTILS_SOURCES})
+endif()
+
+# New multi-format loaders - conditional compilation
+if(NOT ENABLE_GGUF)
+    set(GGUF_LOADER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/gguf/gguf_loader.cpp)
+    list(REMOVE_ITEM SOURCE_FILES ${GGUF_LOADER_SOURCES})
+endif()
+
+if(NOT ENABLE_GGUF OR NOT ENABLE_SAFETENSORS)
+    set(SAFETENSORS_LOADER_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/loaders/safetensors/safetensors_loader.cpp)
+    list(REMOVE_ITEM SOURCE_FILES ${SAFETENSORS_LOADER_SOURCES})
 endif()
 
 set(TARGET_NAME openvino_genai)
@@ -200,9 +224,14 @@ if(ENABLE_GGUF)
     target_compile_definitions(${TARGET_NAME_OBJ} PRIVATE ENABLE_GGUF)
 endif()
 
+if(ENABLE_GGUF AND ENABLE_SAFETENSORS)
+    target_compile_definitions(${TARGET_NAME_OBJ} PRIVATE ENABLE_SAFETENSORS)
+endif()
+
+
 target_include_directories(${TARGET_NAME_OBJ} SYSTEM PRIVATE "${safetensors.h_SOURCE_DIR}")
 
-target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::runtime openvino::threading nlohmann_json::nlohmann_json minja)
+target_link_libraries(${TARGET_NAME_OBJ} PRIVATE openvino::runtime openvino::core::dev openvino::threading nlohmann_json::nlohmann_json minja)
 
 # Add OpenCL support if enabled via OpenVINO configuration
 if(ENABLE_SYSTEM_OPENCL AND TARGET OpenCL::OpenCL AND (DEFINED OpenCL_HPP_INCLUDE_DIR OR DEFINED CL2_HPP_INCLUDE_DIR))
@@ -224,8 +253,8 @@ endif()
 # Add native CPU optimization for SIMD instructions
 if (ARCH_DIR STREQUAL "intel64")
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        # Force AVX2 only (disable AVX512)
-        target_compile_options(${TARGET_NAME_OBJ} PRIVATE "-mavx2" "-mno-avx512f")
+        # Force AVX2 + F16C (disable AVX512). F16C is needed for _mm256_cvtph_ps in rtn_quantize.hpp
+        target_compile_options(${TARGET_NAME_OBJ} PRIVATE "-mavx2" "-mf16c" "-mno-avx512f")
         message(STATUS "Enable SIMD compilation for ${TARGET_NAME_OBJ}")
     elseif(MSVC)
         target_compile_options(${TARGET_NAME_OBJ} PRIVATE "/arch:AVX2")
