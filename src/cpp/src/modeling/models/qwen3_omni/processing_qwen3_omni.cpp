@@ -15,6 +15,7 @@
 
 #include "json_utils.hpp"
 #include "module_genai/utils/profiler.hpp"
+#include "modeling/models/qwen3_tts/modeling_qwen3_tts.hpp"
 
 namespace {
 
@@ -944,6 +945,13 @@ Qwen3OmniProcessingConfig Qwen3OmniProcessingConfig::from_json(const nlohmann::j
         cfg.code2wav = Qwen3OmniCode2WavConfig::from_json(data.at("code2wav_config"));
     }
 
+    if (data.contains("talker_config") && data.at("talker_config").is_object()) {
+        cfg.talker_config_raw = data.at("talker_config");
+    }
+    if (data.contains("code2wav_config") && data.at("code2wav_config").is_object()) {
+        cfg.code2wav_config_raw = data.at("code2wav_config");
+    }
+
     cfg.finalize();
     cfg.validate();
     return cfg;
@@ -958,6 +966,192 @@ Qwen3OmniProcessingConfig Qwen3OmniProcessingConfig::from_json_file(const std::f
     read_config_json_file(resolved, data);
     return from_json(data);
 }
+
+Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniConfig& cfg) {
+    Qwen3TTSTalkerConfig talker_cfg;
+    const auto& raw = cfg.talker_config_raw;
+    if (!raw.is_object()) {
+        return talker_cfg;
+    }
+
+    // Qwen3-Omni stores the talker transformer config under "text_config" sub-object.
+    // Fall back to text_config values when not present at the top level.
+    const nlohmann::json empty_obj = nlohmann::json::object();
+    const auto& tc = (raw.contains("text_config") && raw.at("text_config").is_object())
+                         ? raw.at("text_config") : empty_obj;
+
+    auto val_i32 = [&](const char* key, int32_t def) -> int32_t {
+        return raw.value(key, tc.value(key, def));
+    };
+    auto val_f = [&](const char* key, float def) -> float {
+        return raw.value(key, tc.value(key, def));
+    };
+    auto val_f64 = [&](const char* key, double def) -> double {
+        return raw.value(key, tc.value(key, def));
+    };
+    auto val_str = [&](const char* key, const std::string& def) -> std::string {
+        return raw.value(key, tc.value(key, def));
+    };
+    auto val_bool = [&](const char* key, bool def) -> bool {
+        return raw.value(key, tc.value(key, def));
+    };
+
+    talker_cfg.hidden_size = val_i32("hidden_size", talker_cfg.hidden_size);
+    talker_cfg.num_attention_heads = val_i32("num_attention_heads", talker_cfg.num_attention_heads);
+    talker_cfg.num_key_value_heads = val_i32("num_key_value_heads", talker_cfg.num_key_value_heads);
+    talker_cfg.head_dim = val_i32("head_dim", talker_cfg.head_dim);
+    talker_cfg.intermediate_size = val_i32("intermediate_size", talker_cfg.intermediate_size);
+    talker_cfg.num_hidden_layers = val_i32("num_hidden_layers", talker_cfg.num_hidden_layers);
+    talker_cfg.vocab_size = val_i32("vocab_size", talker_cfg.vocab_size);
+    talker_cfg.text_vocab_size = val_i32("text_vocab_size", talker_cfg.text_vocab_size);
+    talker_cfg.text_hidden_size = raw.value("thinker_hidden_size",
+                                            raw.value("text_hidden_size", talker_cfg.text_hidden_size));
+    talker_cfg.rms_norm_eps = static_cast<float>(val_f64("rms_norm_eps", static_cast<double>(talker_cfg.rms_norm_eps)));
+    talker_cfg.rope_theta = static_cast<float>(val_f64("rope_theta", static_cast<double>(talker_cfg.rope_theta)));
+    talker_cfg.hidden_act = val_str("hidden_act", talker_cfg.hidden_act);
+    talker_cfg.attention_bias = val_bool("attention_bias", talker_cfg.attention_bias);
+    talker_cfg.mrope_interleaved = raw.value("mrope_interleaved", talker_cfg.mrope_interleaved);
+
+    if (raw.contains("mrope_section") && raw.at("mrope_section").is_array()) {
+        talker_cfg.mrope_section.clear();
+        for (const auto& section : raw.at("mrope_section")) {
+            talker_cfg.mrope_section.push_back(section.get<int32_t>());
+        }
+    } else if (tc.contains("mrope_section") && tc.at("mrope_section").is_array()) {
+        talker_cfg.mrope_section.clear();
+        for (const auto& section : tc.at("mrope_section")) {
+            talker_cfg.mrope_section.push_back(section.get<int32_t>());
+        }
+    }
+
+    talker_cfg.codec_eos_token_id = raw.value("codec_eos_token_id", talker_cfg.codec_eos_token_id);
+    // Omni uses "codec_bos_id" / "codec_pad_id" instead of "codec_bos_token_id" / "codec_pad_token_id"
+    talker_cfg.codec_bos_token_id = raw.value("codec_bos_token_id",
+                                              raw.value("codec_bos_id", talker_cfg.codec_bos_token_id));
+    talker_cfg.codec_pad_token_id = raw.value("codec_pad_token_id",
+                                              raw.value("codec_pad_id", talker_cfg.codec_pad_token_id));
+    return talker_cfg;
+}
+
+Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniConfig& cfg) {
+    Qwen3TTSCodePredictorConfig cp_cfg;
+    const auto& raw = cfg.talker_config_raw;
+    if (!raw.is_object()) {
+        return cp_cfg;
+    }
+
+    // The code predictor's talker_hidden_size matches the talker's hidden_size,
+    // which in Omni is under text_config.
+    const nlohmann::json empty_obj2 = nlohmann::json::object();
+    const auto& tc2 = (raw.contains("text_config") && raw.at("text_config").is_object())
+                          ? raw.at("text_config") : empty_obj2;
+    cp_cfg.talker_hidden_size = raw.value("hidden_size", tc2.value("hidden_size", cp_cfg.talker_hidden_size));
+    if (!raw.contains("code_predictor_config") || !raw.at("code_predictor_config").is_object()) {
+        return cp_cfg;
+    }
+
+    const auto& cp_raw = raw.at("code_predictor_config");
+    cp_cfg.hidden_size = cp_raw.value("hidden_size", cp_cfg.hidden_size);
+    cp_cfg.num_attention_heads = cp_raw.value("num_attention_heads", cp_cfg.num_attention_heads);
+    cp_cfg.num_key_value_heads = cp_raw.value("num_key_value_heads", cp_cfg.num_key_value_heads);
+    cp_cfg.head_dim = cp_raw.value("head_dim", cp_cfg.head_dim);
+    cp_cfg.intermediate_size = cp_raw.value("intermediate_size", cp_cfg.intermediate_size);
+    cp_cfg.num_hidden_layers = cp_raw.value("num_hidden_layers", cp_cfg.num_hidden_layers);
+    cp_cfg.vocab_size = cp_raw.value("vocab_size", cp_cfg.vocab_size);
+    cp_cfg.num_code_groups = cp_raw.value("num_code_groups", cp_cfg.num_code_groups);
+    cp_cfg.rms_norm_eps = cp_raw.value("rms_norm_eps", cp_cfg.rms_norm_eps);
+    cp_cfg.rope_theta = cp_raw.value("rope_theta", cp_cfg.rope_theta);
+    cp_cfg.hidden_act = cp_raw.value("hidden_act", cp_cfg.hidden_act);
+    cp_cfg.attention_bias = cp_raw.value("attention_bias", cp_cfg.attention_bias);
+    return cp_cfg;
+}
+
+SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniConfig& cfg) {
+    SpeechDecoderConfig decoder_cfg;
+    const auto& raw = cfg.code2wav_config_raw;
+    if (!raw.is_object()) {
+        return decoder_cfg;
+    }
+
+    const nlohmann::json* config_node = &raw;
+    if (raw.contains("speech_decoder_config") && raw.at("speech_decoder_config").is_object()) {
+        config_node = &raw.at("speech_decoder_config");
+    }
+
+    const auto& decoder_raw = *config_node;
+    decoder_cfg.num_quantizers = decoder_raw.value("num_quantizers", decoder_cfg.num_quantizers);
+    decoder_cfg.codebook_size = decoder_raw.value("codebook_size", decoder_cfg.codebook_size);
+
+    // Qwen3-Omni code2wav schema fields
+    const int32_t hidden_size = decoder_raw.value("hidden_size", decoder_cfg.transformer_hidden);
+    decoder_cfg.codebook_dim = decoder_raw.value("codebook_dim", hidden_size);
+    decoder_cfg.latent_dim = decoder_raw.value("latent_dim", hidden_size);
+    decoder_cfg.transformer_hidden = decoder_raw.value("transformer_hidden", hidden_size);
+    decoder_cfg.transformer_heads = decoder_raw.value("num_attention_heads",
+                                                      decoder_raw.value("transformer_heads", decoder_cfg.transformer_heads));
+    decoder_cfg.transformer_head_dim = decoder_raw.value(
+        "head_dim",
+        decoder_raw.value("transformer_head_dim", decoder_cfg.transformer_head_dim));
+    decoder_cfg.transformer_layers = decoder_raw.value("num_hidden_layers",
+                                                       decoder_raw.value("transformer_layers", decoder_cfg.transformer_layers));
+    decoder_cfg.transformer_intermediate = decoder_raw.value(
+        "intermediate_size",
+        decoder_raw.value("transformer_intermediate", decoder_cfg.transformer_intermediate));
+    decoder_cfg.sliding_window = decoder_raw.value("sliding_window", decoder_cfg.sliding_window);
+    decoder_cfg.layer_scale_init = decoder_raw.value(
+        "layer_scale_initial_scale",
+        decoder_raw.value("layer_scale_init", decoder_cfg.layer_scale_init));
+    decoder_cfg.rms_norm_eps = decoder_raw.value("rms_norm_eps", decoder_cfg.rms_norm_eps);
+    decoder_cfg.decoder_dim = decoder_raw.value("decoder_dim", decoder_cfg.decoder_dim);
+    decoder_cfg.sample_rate = decoder_raw.value("sample_rate", decoder_cfg.sample_rate);
+    decoder_cfg.rope_theta = decoder_raw.value("rope_theta", decoder_cfg.rope_theta);
+
+    if (decoder_raw.contains("decoder_channel_mults") && decoder_raw.at("decoder_channel_mults").is_array()) {
+        decoder_cfg.decoder_channel_mults.clear();
+        for (const auto& value : decoder_raw.at("decoder_channel_mults")) {
+            decoder_cfg.decoder_channel_mults.push_back(value.get<int32_t>());
+        }
+    }
+    if (decoder_raw.contains("decoder_dilations") && decoder_raw.at("decoder_dilations").is_array()) {
+        decoder_cfg.decoder_dilations.clear();
+        for (const auto& value : decoder_raw.at("decoder_dilations")) {
+            decoder_cfg.decoder_dilations.push_back(value.get<int32_t>());
+        }
+    }
+    if (decoder_raw.contains("pre_upsample_ratios") && decoder_raw.at("pre_upsample_ratios").is_array()) {
+        decoder_cfg.pre_upsample_ratios.clear();
+        for (const auto& value : decoder_raw.at("pre_upsample_ratios")) {
+            decoder_cfg.pre_upsample_ratios.push_back(value.get<int32_t>());
+        }
+    }
+    if (decoder_raw.contains("decoder_upsample_rates") && decoder_raw.at("decoder_upsample_rates").is_array()) {
+        decoder_cfg.decoder_upsample_rates.clear();
+        for (const auto& value : decoder_raw.at("decoder_upsample_rates")) {
+            decoder_cfg.decoder_upsample_rates.push_back(value.get<int32_t>());
+        }
+    }
+
+    if (decoder_raw.contains("upsampling_ratios") && decoder_raw.at("upsampling_ratios").is_array()) {
+        decoder_cfg.pre_upsample_ratios.clear();
+        for (const auto& value : decoder_raw.at("upsampling_ratios")) {
+            decoder_cfg.pre_upsample_ratios.push_back(value.get<int32_t>());
+        }
+    }
+
+    if (decoder_raw.contains("upsample_rates") && decoder_raw.at("upsample_rates").is_array()) {
+        decoder_cfg.decoder_upsample_rates.clear();
+        for (const auto& value : decoder_raw.at("upsample_rates")) {
+            decoder_cfg.decoder_upsample_rates.push_back(value.get<int32_t>());
+        }
+    }
+
+    if (decoder_cfg.transformer_heads > 0 && decoder_cfg.transformer_hidden > 0) {
+        decoder_cfg.transformer_head_dim = decoder_cfg.transformer_hidden / decoder_cfg.transformer_heads;
+    }
+
+    return decoder_cfg;
+}
+
 
 }  // namespace models
 }  // namespace modeling

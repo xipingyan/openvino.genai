@@ -204,4 +204,40 @@ ov::Tensor load_audio(const std::filesystem::path& audio_path) {
     return tensor;
 }
 
+void write_wav(const std::string& filename, const float* samples, size_t num_samples, int sample_rate) {
+    std::ofstream file(filename, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Failed to create WAV file: " + filename);
+    }
+
+    int32_t data_size = static_cast<int32_t>(num_samples * sizeof(int16_t));
+    int32_t file_size = 36 + data_size;
+    int16_t audio_format = 1;
+    int16_t num_channels = 1;
+    int32_t byte_rate = sample_rate * num_channels * 2;
+    int16_t block_align = num_channels * 2;
+    int16_t bits_per_sample = 16;
+
+    file.write("RIFF", 4);
+    file.write(reinterpret_cast<char*>(&file_size), 4);
+    file.write("WAVE", 4);
+    file.write("fmt ", 4);
+    int32_t fmt_size = 16;
+    file.write(reinterpret_cast<char*>(&fmt_size), 4);
+    file.write(reinterpret_cast<char*>(&audio_format), 2);
+    file.write(reinterpret_cast<char*>(&num_channels), 2);
+    file.write(reinterpret_cast<char*>(&sample_rate), 4);
+    file.write(reinterpret_cast<char*>(&byte_rate), 4);
+    file.write(reinterpret_cast<char*>(&block_align), 2);
+    file.write(reinterpret_cast<char*>(&bits_per_sample), 2);
+    file.write("data", 4);
+    file.write(reinterpret_cast<char*>(&data_size), 4);
+
+    for (size_t i = 0; i < num_samples; ++i) {
+        float v = std::max(-1.0f, std::min(1.0f, samples[i]));
+        int16_t s = static_cast<int16_t>(v * 32767.0f);
+        file.write(reinterpret_cast<char*>(&s), 2);
+    }
+}
+
 } // namespace audio_utils

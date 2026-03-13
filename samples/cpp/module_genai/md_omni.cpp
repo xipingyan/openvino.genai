@@ -72,6 +72,7 @@ int main(int argc, char* argv[]) {
                                      "  -video: [Optional] video path\n"
                                      "  -audio: [Optional] audio path\n"
                                      "  -use_audio_in_video: [Optional] set to 1 if the video contains audio and you want to use the audio, default 0\n"
+                                     "  -tts: [Optional] set to 1 to use tts, default 0\n"
                                      "  -warmup: [Optional] number of warmup runs, default 0\n"
                                      "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
         }
@@ -80,6 +81,7 @@ int main(int argc, char* argv[]) {
         std::string cache_dir = utils::get_input_arg(argc, argv, "-cache_dir", std::string{});
         int warmup = std::stoi(utils::get_input_arg(argc, argv, "-warmup", std::string("0")));
         bool perf = std::stoi(utils::get_input_arg(argc, argv, "-perf", std::string("0")));
+        bool use_tts = std::stoi(utils::get_input_arg(argc, argv, "-tts", std::string("0"))) != 0;
 
         utils::OmniInputParams input_params = utils::parse_omni_input_params(argc, argv);
         ov::AnyMap inputs = parse_inputs_for_omni(input_params);
@@ -126,7 +128,22 @@ int main(int argc, char* argv[]) {
             std::cout << "[Generation] Duration: " << diff << " ms" << std::endl;
         }
 
-        std::cout << "Generation Result: " << pipe.get_output("generated_text").as<std::string>() << std::endl;
+        if (!use_tts) {
+            std::cout << "Generation Result: " << pipe.get_output("generated_text").as<std::string>() << std::endl;
+        } else {
+            std::vector<ov::Tensor> audios = pipe.get_output("audios").as<std::vector<ov::Tensor>>();
+            std::vector<int> sample_rates = pipe.get_output("sample_rates").as<std::vector<int>>();
+            std::vector<std::string> texts = pipe.get_output("generated_texts").as<std::vector<std::string>>();
+            for (size_t i = 0; i < audios.size(); ++i) {
+                std::string output_path = "output_audio_" + std::to_string(i) + ".wav";
+                auto audio_data = audios[i].data<const float>();
+                const size_t sample_count = audios[i].get_size();
+                std::cout << "Generated text: " << texts[i] << std::endl;
+                audio_utils::write_wav(output_path, audio_data, sample_count, sample_rates[i]);
+                std::cout << "Saved generated audio to: " << output_path << std::endl;
+            }
+        }
+        
     } catch (const std::exception& ex) {
         std::cerr << "[ERROR] " << ex.what() << std::endl;
         return EXIT_FAILURE;
