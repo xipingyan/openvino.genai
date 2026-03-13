@@ -9,4 +9,6 @@ namespace audio_utils {
 
 ov::Tensor load_audio(const std::filesystem::path& audio_path);
 
+void write_wav(const std::string& filename, const float* samples, size_t num_samples, int sample_rate);
+
 }

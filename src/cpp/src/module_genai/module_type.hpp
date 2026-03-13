@@ -42,6 +42,7 @@ namespace module {
         X(DenoiserLoopModule, 41) \
         X(VAEDecoderModule, 42) \
         OPENVINO_NEW_ARCH_X(LLMInferenceSDPAModule, 43) \
+        OPENVINO_NEW_ARCH_X(TextToSpeechModule, 44) \
         X(ResultModule, 50) \
         X(SaveImageModule, 51) \
         X(SaveVideoModule, 52) \

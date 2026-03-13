@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>
 
 #include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
+#include "modeling/models/qwen3_tts/modeling_qwen3_tts.hpp"
 
 namespace ov {
 namespace genai {
@@ -152,6 +153,8 @@ struct Qwen3OmniConfig {
     int32_t system_token_id      = 8948;
     int32_t user_token_id        = 872;
     int32_t assistant_token_id   = 77091;
+    nlohmann::json talker_config_raw;
+    nlohmann::json code2wav_config_raw;
 
     void finalize();
     void validate() const;
@@ -300,6 +303,10 @@ struct Qwen3OmniAudioInputs {
     ov::Tensor input_features;         // [B, n_mels, T]  f32
     ov::Tensor feature_attention_mask; // [B, T]           i32 / bool
 };
+
+Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniConfig& cfg);
+Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniConfig& cfg);
+SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniConfig& cfg);
 
 }  // namespace models
 }  // namespace modeling

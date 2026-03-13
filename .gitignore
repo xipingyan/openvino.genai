@@ -53,3 +53,6 @@ samples/python/module_genai/*.sh
 tests/module_genai/cpp/*.sh
 tests/module_genai/cpp/*.yaml
 tests/module_genai/cpp/test_data/*.json
+modelprint_*_before_la_fusion.cpp
+output_audio_*.wav
+profile_*.json
