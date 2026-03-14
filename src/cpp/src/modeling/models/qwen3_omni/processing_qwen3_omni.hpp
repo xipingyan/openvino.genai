@@ -131,11 +131,11 @@ struct Qwen3OmniCode2WavConfig {
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// Qwen3OmniConfig  (top-level, analogous to Qwen3VLConfig)
+// Qwen3OmniProcessingConfig (top-level, analogous to Qwen3VLConfig)
 // Mirrors Python Qwen3OmniConfig (configuration_qwen3_omni.py:1009).
 // ────────────────────────────────────────────────────────────────────────────
 
-struct Qwen3OmniConfig {
+struct Qwen3OmniProcessingConfig {
     std::string model_type = "qwen3_omni";
     std::vector<std::string> architectures;
 
@@ -156,8 +156,8 @@ struct Qwen3OmniConfig {
     void finalize();
     void validate() const;
 
-    static Qwen3OmniConfig from_json(const nlohmann::json& data);
-    static Qwen3OmniConfig from_json_file(const std::filesystem::path& config_path);
+    static Qwen3OmniProcessingConfig from_json(const nlohmann::json& data);
+    static Qwen3OmniProcessingConfig from_json_file(const std::filesystem::path& config_path);
 };
 
 // ────────────────────────────────────────────────────────────────────────────

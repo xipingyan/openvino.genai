@@ -901,24 +901,24 @@ Qwen3OmniCode2WavConfig Qwen3OmniCode2WavConfig::from_json(const nlohmann::json&
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Qwen3OmniConfig  (top-level)
+// Qwen3OmniProcessingConfig  (top-level)
 // ────────────────────────────────────────────────────────────────────────────
 
-void Qwen3OmniConfig::finalize() {
+void Qwen3OmniProcessingConfig::finalize() {
     thinker.finalize();
     talker.finalize();
     code2wav.finalize();
 }
 
-void Qwen3OmniConfig::validate() const {
+void Qwen3OmniProcessingConfig::validate() const {
     thinker.validate();
     talker.validate();
     code2wav.validate();
 }
 
-Qwen3OmniConfig Qwen3OmniConfig::from_json(const nlohmann::json& data) {
+Qwen3OmniProcessingConfig Qwen3OmniProcessingConfig::from_json(const nlohmann::json& data) {
     using ov::genai::utils::read_json_param;
-    Qwen3OmniConfig cfg;
+    Qwen3OmniProcessingConfig cfg;
 
     read_json_param(data, "model_type",           cfg.model_type);
     read_json_param(data, "architectures",         cfg.architectures);
@@ -949,7 +949,7 @@ Qwen3OmniConfig Qwen3OmniConfig::from_json(const nlohmann::json& data) {
     return cfg;
 }
 
-Qwen3OmniConfig Qwen3OmniConfig::from_json_file(const std::filesystem::path& config_path) {
+Qwen3OmniProcessingConfig Qwen3OmniProcessingConfig::from_json_file(const std::filesystem::path& config_path) {
     auto resolved = resolve_config_path(config_path);
     if (!std::filesystem::exists(resolved)) {
         OPENVINO_THROW("Config file not found: ", resolved.string());
