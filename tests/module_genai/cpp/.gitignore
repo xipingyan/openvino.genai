@@ -1,3 +1,6 @@
 dumped*.yaml
 profile*.json
 unittest_cache_dir_*
+*.sh
+*.yaml
+test_data/*.json

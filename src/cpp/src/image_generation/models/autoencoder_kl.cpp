@@ -147,7 +147,6 @@ AutoencoderKL::AutoencoderKL(const std::filesystem::path& vae_decoder_path,
     m_decoder_model = utils::singleton_core().read_model(vae_decoder_path / "openvino_model.xml");
     // apply VaeImageProcessor postprocessing steps by merging them into the VAE decoder model
     merge_vae_image_post_processing(enable_postprocess);
-
     compile(device, *extract_adapters_from_properties(properties_without_blob));
 }
 

@@ -1,3 +1,5 @@
 build
 ut_pipelines
 temp_*.yaml
+dumped_*.yaml
+generated_*.bmp

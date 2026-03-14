@@ -1794,6 +1794,7 @@ def test_model_tags_older(
         ov_pipe.generate(get_universal_tag(vision_type, 0), **get_vision_inputs_kwargs([input_tensor], vision_type))
     ov_pipe.finish_chat()
 
+
 @parametrize_model_with_vision_type()
 def test_model_tags_missing_universal(ov_pipe_model: VlmModelInfo, vision_type: VisionType):
     ov_pipe = ov_pipe_model.pipeline
