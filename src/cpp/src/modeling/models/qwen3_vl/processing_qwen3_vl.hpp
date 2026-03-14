@@ -189,6 +189,14 @@ public:
     Qwen3VLVisionInputs preprocess(const ov::Tensor& images,
                                    const ov::Tensor& pos_embed_weight) const;
 
+    /// Preprocess video frames (each [1, H, W, 3] u8) into vision encoder inputs.
+    /// All frames are resized to a shared resolution using VIDEO_MIN/MAX_PIXELS,
+    /// temporally padded to a multiple of temporal_patch_size, then patchified.
+    Qwen3VLVisionInputs preprocess_video(const std::vector<ov::Tensor>& frames,
+                                         const ov::Tensor& pos_embed_weight,
+                                         size_t video_min_pixels = 128 * 28 * 28,
+                                         size_t video_max_pixels = 768 * 28 * 28) const;
+
     static int64_t count_visual_tokens(const ov::Tensor& grid_thw,
                                        int32_t spatial_merge_size);
 

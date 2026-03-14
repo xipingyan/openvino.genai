@@ -3,12 +3,23 @@
 
 #include "gguf_utils/gguf.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <optional>
+#include <openvino/core/parallel.hpp>
+#include <cfloat>
+
+#ifndef MIN
+#    define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#ifndef MAX
+#    define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 // https://github.com/antirez/gguf-tools/blob/af7d88d808a7608a33723fba067036202910acb3/gguflib.h#L102-L108
 constexpr int gguf_array_header_size = 12;
@@ -102,6 +113,106 @@ ov::Tensor extract_tensor_data(gguf_tensor* tensor) {
     free(data);
 
     return weights;
+}
+
+static void set_u4(uint8_t* packed, size_t idx, uint8_t v) {
+    const size_t byte_idx = idx / 2;
+    const uint8_t val = static_cast<uint8_t>(v & 0x0F);
+    if ((idx & 1) == 0) {
+        packed[byte_idx] = static_cast<uint8_t>((packed[byte_idx] & 0xF0) | val);
+    } else {
+        packed[byte_idx] = static_cast<uint8_t>((packed[byte_idx] & 0x0F) | (val << 4));
+    }
+}
+
+void gguf_load_moe_weights(std::unordered_map<std::string, ov::Tensor>& a,
+                           std::unordered_map<std::string, gguf_tensor_type>& qtype_map,
+                           gguf_tensor& tensor) {
+    std::string name(tensor.name, tensor.namelen);
+
+    auto shape = get_shape(tensor);
+
+    float* weights_f32 = gguf_tensor_to_float(&tensor);
+
+    size_t total_elem_num = ov::shape_size(shape);
+    // TODO: channelwise?
+    // size_t group_size = shape.back();
+    size_t group_size = 128;
+    size_t num_experts = shape[0];
+    size_t shape_1 = shape[1];
+    size_t shape_2 = shape[2];
+
+    auto weights_shape = shape;
+    // TODO: support q8, since MoE Q8 has not yet been merged into the OpenVINO 
+    //       master branch, we are currently only supporting Q4 in this implementation.
+    ov::Tensor weights(ov::element::u4, std::move(weights_shape));
+    auto weights_ptr = static_cast<uint8_t*>(weights.data());
+
+    size_t group_num = shape_2 / group_size;
+
+    ov::Shape scale_zp_shape{num_experts, group_num, shape_1};
+
+    ov::Tensor scales(ov::element::f16, scale_zp_shape);
+    ov::Tensor zps(ov::element::u4, std::move(scale_zp_shape));
+
+    auto scales_ptr = scales.data<ov::element_type_traits<ov::element::f16>::value_type>();
+    auto zps_ptr = static_cast<uint8_t*>(zps.data());
+
+    const size_t rows = num_experts * shape_1;
+    ov::parallel_for(rows, [&](size_t idx) {
+        const size_t e = idx / shape_1;
+        const size_t row = idx - e * shape_1;
+        for (size_t g = 0; g < group_num; ++g) {
+            const size_t start_idx = ((e * shape_1 + row) * shape_2) + g * group_size;
+            float max = -FLT_MAX;
+            float min = FLT_MAX;
+            for (size_t i = 0; i < group_size; ++i) {
+                const float v = weights_f32[start_idx + i];
+                if (v > max) {
+                    max = v;
+                }
+                if (v < min) {
+                    min = v;
+                }
+            }
+
+            const float d = (max - min) / ((1 << 4) - 1);
+            const float id = d ? 1.0f / d : 0.0f;
+            const uint8_t zp = static_cast<uint8_t>(std::round(-1.f * min / d));
+
+            const size_t scale_idx = (e * group_num + g) * shape_1 + row;
+            scales_ptr[scale_idx] = ov::float16(d);
+            set_u4(zps_ptr, scale_idx, zp);
+
+            const size_t dst_base = start_idx / 2;
+            for (size_t j = 0; j < group_size / 2; ++j) {
+                const float x0 = (weights_f32[start_idx + j * 2] - min) * id;
+                const float x1 = (weights_f32[start_idx + j * 2 + 1] - min) * id;
+                const uint8_t xi0 = MIN(15, static_cast<int8_t>(x0 + 0.5f));
+                const uint8_t xi1 = MIN(15, static_cast<int8_t>(x1 + 0.5f));
+                weights_ptr[dst_base + j] = xi0;
+                weights_ptr[dst_base + j] |= static_cast<uint8_t>(xi1 << 4);
+            }
+        }
+    });
+
+    free(weights_f32);
+
+    a.emplace(name, std::move(weights));
+
+    auto check_insert = [](const auto& inserted) {
+        OPENVINO_ASSERT(inserted.second,
+                        "[load_gguf] Duplicate parameter name ",
+                        inserted.first->second.data(),
+                        ". This can happen when loading quantized tensors");
+    };
+
+    constexpr std::string_view weight_suffix = ".weight";
+    const std::string name_prefix = name.substr(0, name.length() - weight_suffix.length());
+    check_insert(a.emplace(name_prefix + ".scales", std::move(scales)));
+    check_insert(a.emplace(name_prefix + ".zps", std::move(zps)));
+
+    qtype_map.emplace(name_prefix + ".qtype", GGUF_TYPE_Q4_1);
 }
 
 void set_value_from_gguf(gguf_ctx* ctx, uint32_t type, gguf_value* val, GGUFMetaData& value) {
@@ -276,17 +387,26 @@ void load_arrays(gguf_ctx* ctx,
     };
 
     while (gguf_get_tensor(ctx, &tensor)) {
-        if (tensor.type == GGUF_TYPE_Q4_0 || tensor.type == GGUF_TYPE_Q4_1 || tensor.type == GGUF_TYPE_Q8_0 ||
-            tensor.type == GGUF_TYPE_Q4_K || tensor.type == GGUF_TYPE_Q6_K) {
+        std::string name(tensor.name, tensor.namelen);
+
+        bool is_moe_weights = name.find("exps") != std::string::npos;
+
+        if (is_moe_weights) {
+            gguf_load_moe_weights(array_map, qtype_map, tensor);
+        } else if (tensor.type == GGUF_TYPE_Q4_0 || tensor.type == GGUF_TYPE_Q4_1 || tensor.type == GGUF_TYPE_Q8_0 ||
+            tensor.type == GGUF_TYPE_Q4_K) {
             gguf_load_quantized(array_map, qtype_map, tensor);
         } else {
-            std::string name(tensor.name, tensor.namelen);
             ov::Tensor loaded_array = extract_tensor_data(&tensor);
             check_insert(array_map.emplace(name, loaded_array));
 
             constexpr std::string_view weight_suffix = ".weight";
             const std::string name_prefix = name.substr(0, name.length() - weight_suffix.length());
-            qtype_map.emplace(name_prefix + ".qtype", static_cast<gguf_tensor_type>(tensor.type));
+            if (tensor.type == GGUF_TYPE_Q6_K) {
+                qtype_map.emplace(name_prefix + ".qtype", static_cast<gguf_tensor_type>(GGUF_TYPE_F16)); //WA: Q6_K is not supported by platform because of group size 16, so we use F16 as a workaround
+            } else {
+                qtype_map.emplace(name_prefix + ".qtype", static_cast<gguf_tensor_type>(tensor.type));
+            }
         }
     }
 }
@@ -319,7 +439,7 @@ std::vector<std::string> get_all_files(std::string file, int total_num) {
     return files;
 }
 
-GGUFLoad get_gguf_data(const std::string& file) {
+GGUFLoad get_gguf_data(const std::string& file, bool is_tokenizer) {
     std::unordered_map<std::string, ov::Tensor> arrays;
     std::unordered_map<std::string, gguf_tensor_type> qtype;
 
@@ -330,6 +450,10 @@ GGUFLoad get_gguf_data(const std::string& file) {
 
     // get main config from first file or single file
     auto metadata = load_metadata(ctx.get());
+
+    if (is_tokenizer) {
+        return {metadata, arrays, qtype};
+    }
 
     std::string split_flag = "split.count";
     auto it = metadata.find(split_flag);
@@ -368,6 +492,27 @@ int metadata_to_int(const std::unordered_map<std::string, GGUFMetaData>& metadat
     return *(tensor.data<ov::element_type_traits<ov::element::i32>::value_type>());
 }
 
+std::vector<int32_t> metadata_to_int_vec(const std::unordered_map<std::string, GGUFMetaData>& metadata,
+                                         const std::string& key) {
+    auto tensor = std::get<ov::Tensor>(metadata.at(key));
+    const auto size = tensor.get_size();
+    std::vector<int32_t> out(size, 0);
+    const auto type = tensor.get_element_type();
+    if (type == ov::element::i32) {
+        const int32_t* data = tensor.data<const int32_t>();
+        std::copy(data, data + size, out.begin());
+        return out;
+    }
+    if (type == ov::element::i64) {
+        const int64_t* data = tensor.data<const int64_t>();
+        for (size_t i = 0; i < size; ++i) {
+            out[i] = static_cast<int32_t>(data[i]);
+        }
+        return out;
+    }
+    OPENVINO_THROW("[load_gguf] Unsupported metadata array type for key: ", key);
+}
+
 std::map<std::string, GGUFMetaData> config_from_meta(const std::unordered_map<std::string, GGUFMetaData>& metadata) {
     std::map<std::string, GGUFMetaData> config;
     auto arch = std::get<std::string>(metadata.at("general.architecture"));
@@ -388,6 +533,23 @@ std::map<std::string, GGUFMetaData> config_from_meta(const std::unordered_map<st
     config["rope_freq_base"] = metadata.count(arch + ".rope.freq_base") ?
             metadata_to_float(metadata, arch + ".rope.freq_base") : 10000.0f;
     config["file_type"] = metadata_to_int(metadata, "general.file_type");
+    // MoE related configs
+    if (metadata.count(arch + ".expert_count")) {
+        config["expert_count"] = metadata_to_int(metadata, arch + ".expert_count");
+        config["expert_used_count"] = metadata_to_int(metadata, arch + ".expert_used_count");
+        config["moe_inter_size"] = metadata_to_int(metadata, arch + ".expert_feed_forward_length");
+    } else {
+        config["expert_count"] = 0;
+        config["expert_used_count"] = 0;
+        config["moe_inter_size"] = 0;
+    }
+
+    if (metadata.count(arch + ".no_rope_layer_interval")) {
+        config["no_rope_layer_interval"] = metadata_to_int(metadata, arch + ".no_rope_layer_interval");
+    }
+    if (metadata.count(arch + ".no_rope_layers")) {
+        config["no_rope_layers"] = metadata_to_int_vec(metadata, arch + ".no_rope_layers");
+    }
     return config;
 }
 
@@ -447,17 +609,38 @@ std::unordered_map<std::string, ov::Tensor> consts_from_weights(
         }
 
         // MLP weights
-        consts[format("model.layers[%d].mlp.gate_proj.weight", i)] = weights.at(format("blk.%d.ffn_gate.weight", i));
+        if (weights.count(format("blk.%d.ffn_gate.weight", i))) {
+            consts[format("model.layers[%d].mlp.gate_proj.weight", i)] = weights.at(format("blk.%d.ffn_gate.weight", i));
+        }
         if (weights.count(format("blk.%d.ffn_gate.bias", i))) {
             consts[format("model.layers[%d].mlp.gate_proj.bias", i)] = weights.at(format("blk.%d.ffn_gate.bias", i));
         }
-        consts[format("model.layers[%d].mlp.up_proj.weight", i)] = weights.at(format("blk.%d.ffn_up.weight", i));
+        if (weights.count(format("blk.%d.ffn_up.weight", i))) {
+            consts[format("model.layers[%d].mlp.up_proj.weight", i)] = weights.at(format("blk.%d.ffn_up.weight", i));
+        }
         if (weights.count(format("blk.%d.ffn_up.bias", i))) {
             consts[format("model.layers[%d].mlp.up_proj.bias", i)] = weights.at(format("blk.%d.ffn_up.bias", i));
         }
-        consts[format("model.layers[%d].mlp.down_proj.weight", i)] = weights.at(format("blk.%d.ffn_down.weight", i));
+        if (weights.count(format("blk.%d.ffn_down.weight", i))) {
+            consts[format("model.layers[%d].mlp.down_proj.weight", i)] = weights.at(format("blk.%d.ffn_down.weight", i));
+        }
         if (weights.count(format("blk.%d.ffn_down.bias", i))) {
             consts[format("model.layers[%d].mlp.down_proj.bias", i)] = weights.at(format("blk.%d.ffn_down.bias", i));
+        }
+
+        // MoE weights
+        // router weights
+        if (weights.count(format("blk.%d.ffn_gate_inp.weight", i))) {
+            consts[format("model.layers[%d].moe.gate_inp.weight", i)] = weights.at(format("blk.%d.ffn_gate_inp.weight", i));
+        }
+        if (weights.count(format("blk.%d.ffn_gate_exps.weight", i))) {
+            consts[format("model.layers[%d].moe.gate_exps.weight", i)] = weights.at(format("blk.%d.ffn_gate_exps.weight", i));
+        }
+        if (weights.count(format("blk.%d.ffn_up_exps.weight", i))) {
+            consts[format("model.layers[%d].moe.up_exps.weight", i)] = weights.at(format("blk.%d.ffn_up_exps.weight", i));
+        }
+        if (weights.count(format("blk.%d.ffn_down_exps.weight", i))) {
+            consts[format("model.layers[%d].moe.down_exps.weight", i)] = weights.at(format("blk.%d.ffn_down_exps.weight", i));
         }
 
         // Quantization parameters 
@@ -485,6 +668,16 @@ std::unordered_map<std::string, ov::Tensor> consts_from_weights(
                 consts[format("model.layers[%d].mlp.down_proj.scales", i)] = weights.at(format("blk.%d.ffn_down.scales", i));
             }
 
+            if (weights.count(format("blk.%d.ffn_gate_exps.scales", i))) {
+                consts[format("model.layers[%d].moe.gate_exps.scales", i)] = weights.at(format("blk.%d.ffn_gate_exps.scales", i));
+            }
+            if (weights.count(format("blk.%d.ffn_up_exps.scales", i))) {
+                consts[format("model.layers[%d].moe.up_exps.scales", i)] = weights.at(format("blk.%d.ffn_up_exps.scales", i));
+            }
+            if (weights.count(format("blk.%d.ffn_down_exps.scales", i))) {
+                consts[format("model.layers[%d].moe.down_exps.scales", i)] = weights.at(format("blk.%d.ffn_down_exps.scales", i));
+            }
+
             if (weights.count(format("blk.%d.attn_q.biases", i))) {
                 consts[format("model.layers[%d].self_attn.q_proj.biases", i)] = weights.at(format("blk.%d.attn_q.biases", i));
             }  
@@ -505,6 +698,16 @@ std::unordered_map<std::string, ov::Tensor> consts_from_weights(
             }           
             if (weights.count(format("blk.%d.ffn_down.biases", i))) {
                 consts[format("model.layers[%d].mlp.down_proj.biases", i)] = weights.at(format("blk.%d.ffn_down.biases", i));
+            }
+
+            if (weights.count(format("blk.%d.ffn_gate_exps.zps", i))) {
+                consts[format("model.layers[%d].moe.gate_exps.zps", i)] = weights.at(format("blk.%d.ffn_gate_exps.zps", i));
+            }
+            if (weights.count(format("blk.%d.ffn_up_exps.zps", i))) {
+                consts[format("model.layers[%d].moe.up_exps.zps", i)] = weights.at(format("blk.%d.ffn_up_exps.zps", i));
+            }
+            if (weights.count(format("blk.%d.ffn_down_exps.zps", i))) {
+                consts[format("model.layers[%d].moe.down_exps.zps", i)] = weights.at(format("blk.%d.ffn_down_exps.zps", i));
             }
         }
     }
@@ -561,6 +764,20 @@ std::unordered_map<std::string, gguf_tensor_type> get_qtype_map(
         }
         if (qtype.count(format("blk.%d.ffn_down.qtype", i))) {
             qtype_map[format("model.layers[%d].mlp.down_proj.qtype", i)] = qtype.at(format("blk.%d.ffn_down.qtype", i));
+        }
+
+        // MoE weights
+        if (qtype.count(format("blk.%d.ffn_gate_inp.qtype", i))) {
+            qtype_map[format("model.layers[%d].moe.gate_inp.qtype", i)] = qtype.at(format("blk.%d.ffn_gate_inp.qtype", i));
+        }
+        if (qtype.count(format("blk.%d.ffn_gate_exps.qtype", i))) {
+            qtype_map[format("model.layers[%d].moe.gate_exps.qtype", i)] = qtype.at(format("blk.%d.ffn_gate_exps.qtype", i));
+        }
+        if (qtype.count(format("blk.%d.ffn_up_exps.qtype", i))) {
+            qtype_map[format("model.layers[%d].moe.up_exps.qtype", i)] = qtype.at(format("blk.%d.ffn_up_exps.qtype", i));
+        }
+        if (qtype.count(format("blk.%d.ffn_down_exps.qtype", i))) {
+            qtype_map[format("model.layers[%d].moe.down_exps.qtype", i)] = qtype.at(format("blk.%d.ffn_down_exps.qtype", i));
         }
     }
 

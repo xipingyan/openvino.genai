@@ -361,6 +361,7 @@ private:
     friend class InputsEmbedderPhi4MM;
     friend class InputsEmbedderQwen2VL;
     friend class InputsEmbedderQwen2_5_VL;
+    friend class InputsEmbedderQwen3VL;
     friend class InputsEmbedderGemma3;
 };
 

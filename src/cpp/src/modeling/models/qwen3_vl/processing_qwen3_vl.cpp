@@ -1230,6 +1230,136 @@ Qwen3VLVisionInputs Qwen3VLVisionPreprocessor::preprocess(const ov::Tensor& imag
     return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
 }
 
+Qwen3VLVisionInputs Qwen3VLVisionPreprocessor::preprocess_video(
+    const std::vector<ov::Tensor>& frames,
+    const ov::Tensor& pos_embed_weight,
+    size_t video_min_pixels,
+    size_t video_max_pixels) const {
+    if (frames.empty()) {
+        OPENVINO_THROW("preprocess_video: frames must not be empty");
+    }
+
+    // All frames must be [1, H, W, 3] or [H, W, 3] u8
+    size_t in_h = 0, in_w = 0;
+    for (size_t f = 0; f < frames.size(); ++f) {
+        const auto s = frames[f].get_shape();
+        if (frames[f].get_element_type() != ov::element::u8) {
+            OPENVINO_THROW("preprocess_video: frame must be u8");
+        }
+        size_t fh, fw, fc;
+        if (s.size() == 3) {
+            fh = s[0]; fw = s[1]; fc = s[2];
+        } else if (s.size() == 4 && s[0] == 1) {
+            fh = s[1]; fw = s[2]; fc = s[3];
+        } else {
+            OPENVINO_THROW("preprocess_video: frame shape must be [H,W,3] or [1,H,W,3]");
+        }
+        if (fc != 3) {
+            OPENVINO_THROW("preprocess_video: frame must have 3 channels");
+        }
+        if (f == 0) { in_h = fh; in_w = fw; }
+        // Use first frame dimensions for smart_resize; all frames are resized to the same size
+    }
+
+    const size_t factor = static_cast<size_t>(preprocess_cfg_.patch_size * preprocess_cfg_.merge_size);
+    const size_t channels = 3;
+    size_t out_h = in_h, out_w = in_w;
+    if (preprocess_cfg_.do_resize) {
+        auto resized = smart_resize(in_h, in_w, factor, video_min_pixels, video_max_pixels);
+        out_h = resized.first;
+        out_w = resized.second;
+    }
+
+    const size_t nframes = frames.size();
+    const size_t temporal_patch = static_cast<size_t>(preprocess_cfg_.temporal_patch_size);
+    size_t padded_nframes = nframes;
+    if (nframes % temporal_patch != 0) {
+        padded_nframes += temporal_patch - (nframes % temporal_patch);
+    }
+
+    // Resize each frame to CHW float, then stack temporally
+    const size_t frame_chw_size = channels * out_h * out_w;
+    std::vector<float> stacked(padded_nframes * frame_chw_size, 0.0f);
+
+    for (size_t f = 0; f < padded_nframes; ++f) {
+        // For padding frames, duplicate the last real frame
+        const size_t src_idx = (f < nframes) ? f : (nframes - 1);
+        const auto& frm = frames[src_idx];
+        const auto s = frm.get_shape();
+        size_t fh = (s.size() == 4) ? s[1] : s[0];
+        size_t fw = (s.size() == 4) ? s[2] : s[1];
+        const uint8_t* src = frm.data<const uint8_t>();
+
+        std::vector<float> frame_chw;
+        resize_bilinear_to_chw(src, fh, fw, channels, /*nchw=*/false,
+                               out_h, out_w,
+                               preprocess_cfg_.image_mean,
+                               preprocess_cfg_.image_std,
+                               frame_chw);
+        std::copy(frame_chw.begin(), frame_chw.end(),
+                  stacked.begin() + static_cast<std::ptrdiff_t>(f * frame_chw_size));
+    }
+
+    // Build grid_thw: single video entity
+    const int64_t grid_t = static_cast<int64_t>(padded_nframes / temporal_patch);
+    const int64_t grid_h = static_cast<int64_t>(out_h / static_cast<size_t>(preprocess_cfg_.patch_size));
+    const int64_t grid_w = static_cast<int64_t>(out_w / static_cast<size_t>(preprocess_cfg_.patch_size));
+
+    ov::Tensor grid_thw(ov::element::i64, {1, 3});
+    auto* grid = grid_thw.data<int64_t>();
+    grid[0] = grid_t;
+    grid[1] = grid_h;
+    grid[2] = grid_w;
+
+    const int64_t total_patches = grid_t * grid_h * grid_w;
+    const size_t patch_size = static_cast<size_t>(preprocess_cfg_.patch_size);
+    const size_t merge_size = static_cast<size_t>(preprocess_cfg_.merge_size);
+    const size_t patch_stride = channels * temporal_patch * patch_size * patch_size;
+
+    ov::Tensor pixel_values(ov::element::f32,
+                            {static_cast<size_t>(total_patches),
+                             channels, temporal_patch, patch_size, patch_size});
+    float* out = pixel_values.data<float>();
+    const float* data = stacked.data();
+    const size_t frame_stride = channels * out_h * out_w;
+    const size_t merged_h = static_cast<size_t>(grid_h) / merge_size;
+    const size_t merged_w = static_cast<size_t>(grid_w) / merge_size;
+    size_t patch_offset = 0;
+
+    for (int64_t t = 0; t < grid_t; ++t) {
+        for (size_t bh = 0; bh < merged_h; ++bh) {
+            for (size_t bw = 0; bw < merged_w; ++bw) {
+                for (size_t mh = 0; mh < merge_size; ++mh) {
+                    for (size_t mw = 0; mw < merge_size; ++mw) {
+                        float* dst = out + patch_offset * patch_stride;
+                        size_t dst_idx = 0;
+                        const size_t h_idx = (bh * merge_size + mh) * patch_size;
+                        const size_t w_idx = (bw * merge_size + mw) * patch_size;
+                        for (size_t c = 0; c < channels; ++c) {
+                            for (size_t tp = 0; tp < temporal_patch; ++tp) {
+                                const size_t t_idx = (static_cast<size_t>(t) * temporal_patch + tp) * frame_stride;
+                                for (size_t ph = 0; ph < patch_size; ++ph) {
+                                    for (size_t pw = 0; pw < patch_size; ++pw) {
+                                        const size_t src_idx_val =
+                                            t_idx + (c * out_h + h_idx + ph) * out_w + w_idx + pw;
+                                        dst[dst_idx++] = data[src_idx_val];
+                                    }
+                                }
+                            }
+                        }
+                        patch_offset++;
+                    }
+                }
+            }
+        }
+    }
+
+    auto pos_embeds = build_pos_embeds(pos_embed_weight, grid_thw, preprocess_cfg_.merge_size);
+    auto rotary = build_rotary_cos_sin(grid_thw, vision_cfg_, preprocess_cfg_.merge_size);
+
+    return {pixel_values, grid_thw, pos_embeds, rotary.first, rotary.second};
+}
+
 int64_t Qwen3VLVisionPreprocessor::count_visual_tokens(const ov::Tensor& grid_thw,
                                                        int32_t spatial_merge_size) {
     if (grid_thw.get_element_type() != ov::element::i64) {

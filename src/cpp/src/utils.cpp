@@ -6,6 +6,7 @@
 #include <variant>
 #include <fstream>
 #include <memory>
+#include <cstdlib>
 
 #include "openvino/op/add.hpp"
 #include "openvino/op/divide.hpp"
@@ -16,7 +17,14 @@
 #include "openvino/op/tanh.hpp"
 #include "openvino/op/transpose.hpp"
 #include "openvino/genai/text_streamer.hpp"
-#include "gguf_utils/gguf_modeling.hpp"
+
+
+// New unified loader system
+#include "loaders/loaders.hpp"
+
+#ifdef ENABLE_SAFETENSORS
+#include "safetensors_utils/safetensors_loader.hpp"
+#endif
 
 
 #include "sampling/sampler.hpp"
@@ -370,6 +378,12 @@ bool is_gguf_model(const std::filesystem::path& file_path) {
     return file_path.extension() == ".gguf";
 }
 
+#ifdef ENABLE_SAFETENSORS
+bool is_safetensors_model_dir(const std::filesystem::path& model_dir) {
+    return ov::genai::safetensors::is_safetensors_model(model_dir);
+}
+#endif
+
 } // namespace
 
 std::pair<ov::AnyMap, bool> extract_gguf_properties(const ov::AnyMap& external_properties) {
@@ -400,27 +414,127 @@ void save_openvino_model(const std::shared_ptr<ov::Model>& model, const std::str
     }
 }
 
+// Check if new unified loader should be used
+bool use_unified_loader() {
+    const char* env = std::getenv("OV_GENAI_USE_UNIFIED_LOADER");
+    // Default to false for now (use existing path)
+    // Set OV_GENAI_USE_UNIFIED_LOADER=1 to enable new loader system
+    return env && (std::string(env) == "1" || std::string(env) == "true");
+}
+
+std::pair<ov::AnyMap, std::optional<ov::genai::modeling::weights::QuantizationConfig>> extract_quantization_config(const ov::AnyMap& properties) {
+    ov::AnyMap plugin_config = properties;
+    using QConfig = ov::genai::modeling::weights::QuantizationConfig;
+    std::optional<QConfig> quant_config = std::nullopt;
+    
+    // Check for "QUANTIZATION_CONFIG" key
+    auto it = plugin_config.find("QUANTIZATION_CONFIG");
+    if (it != plugin_config.end()) {
+         if (it->second.is<QConfig>()) {
+             quant_config = it->second.as<QConfig>();
+         }
+         plugin_config.erase(it);
+    }
+    
+    return {plugin_config, quant_config};
+};
+
 std::shared_ptr<ov::Model> read_model(const std::filesystem::path& model_dir,  const ov::AnyMap& properties) {
     auto [filtered_properties, enable_save_ov_model] = extract_gguf_properties(properties);
+    auto [props_without_qconfig, quant_config] = extract_quantization_config(filtered_properties);
+    // Use properties potentially without quantization config for further processing if needed, 
+    // but read_model typically passes filtered properties to Core.
+    // However, for Unified Loader we want to pass the config.
+    
+    // We update filtered_properties to remove QUANTIZATION_CONFIG so it doesn't cause issues if passed to Core
+    filtered_properties = props_without_qconfig; 
+    
+    // =========================================================================
+    // New unified loader path (opt-in via OV_GENAI_USE_UNIFIED_LOADER=1)
+    // =========================================================================
+    if (use_unified_loader()) {
+        try {
+            auto& registry = loaders::LoaderRegistry::instance();
+            
+            // Detect format and get appropriate loader
+            auto format = registry.detect_format(model_dir);
+            
+            if (format != loaders::ModelFormat::Auto) {
+                // GGUF or Safetensors format: use loader to create model
+                auto loader = registry.get_loader(format);
+                
+                if (loader && loader->supports(model_dir.string())) {
+                    std::cout << "[UnifiedLoader] Using " 
+                              << (format == loaders::ModelFormat::GGUF ? "GGUF" : "Safetensors")
+                              << " loader for: " << model_dir << std::endl;
+                    
+                    // Load config
+                    auto config = loader->load_config(model_dir.string());
+                    
+                    // Inject quantization config if provided via properties
+                    if (quant_config.has_value()) {
+                        config.quantization_config = quant_config;
+                    }
+                    
+                    // Create weight source and finalizer
+                    auto source = loader->create_weight_source(model_dir.string());
+                    auto finalizer = loader->create_weight_finalizer(config);
+                    
+                    // Build model using ModelBuilder
+                    std::cout << "[UnifiedLoader] Building model via ModelBuilder..." << std::endl;
+                    auto model = loaders::ModelBuilder::instance().build(config, *source, *finalizer);
+                    
+                    // Optionally save the model
+                    if (enable_save_ov_model) {
+                        auto xml_path = model_dir / "openvino_model.xml";
+                        auto bin_path = model_dir / "openvino_model.bin";
+                        ov::save_model(model, xml_path.string());
+                        std::cout << "[UnifiedLoader] Saved model to: " << xml_path << std::endl;
+                    }
+                    
+                    return model;
+                }
+            }
+            
+            // Fall through to legacy path (e.g., for OpenVINO IR)
+        } catch (const std::exception& e) {
+            std::cerr << "[UnifiedLoader] Error: " << e.what() 
+                      << ", falling back to legacy path" << std::endl;
+        }
+    }
+    
+    // =========================================================================
+    // Legacy path (default)
+    // =========================================================================
     if (is_gguf_model(model_dir)) {
 #ifdef ENABLE_GGUF
-        return create_from_gguf(model_dir.string(), enable_save_ov_model);
+        OPENVINO_THROW("GGUF model creation requires new-arch OpenVINO build. Please use pre-compiled OpenVINO IR models.");
 #else
         OPENVINO_ASSERT("GGUF support is switched off. Please, recompile with 'cmake -DENABLE_GGUF=ON'");
 #endif
-    } else {
-        std::filesystem::path model_path = model_dir;
-
-        if (std::filesystem::exists(model_dir / "openvino_model.xml")) {
-            model_path = model_dir / "openvino_model.xml";
-        } else if (std::filesystem::exists(model_dir / "openvino_language_model.xml")) {
-            model_path = model_path / "openvino_language_model.xml";
-        } else {
-            OPENVINO_THROW("Could not find a model in the directory '", model_dir, "'");
-        }
-
-        return singleton_core().read_model(model_path, {}, filtered_properties);
     }
+    
+#ifdef ENABLE_SAFETENSORS
+    // Check if directory contains safetensors model (before checking for OpenVINO IR)
+    if (std::filesystem::is_directory(model_dir) && is_safetensors_model_dir(model_dir)) {
+        // If OpenVINO model already exists, use it; otherwise create from safetensors
+        if (!std::filesystem::exists(model_dir / "openvino_model.xml")) {
+            OPENVINO_THROW("Safetensors model creation requires new-arch OpenVINO build. Please use pre-compiled OpenVINO IR models.");
+        }
+    }
+#endif
+
+    std::filesystem::path model_path = model_dir;
+
+    if (std::filesystem::exists(model_dir / "openvino_model.xml")) {
+        model_path = model_dir / "openvino_model.xml";
+    } else if (std::filesystem::exists(model_dir / "openvino_language_model.xml")) {
+        model_path = model_path / "openvino_language_model.xml";
+    } else {
+        OPENVINO_THROW("Could not find a model in the directory '", model_dir, "'");
+    }
+
+    return singleton_core().read_model(model_path, {}, filtered_properties);
 }
 
 size_t get_first_history_difference(const ov::Tensor& encoded_history, const std::vector<int64_t> tokenized_history) {
@@ -435,6 +549,23 @@ size_t get_first_history_difference(const ov::Tensor& encoded_history, const std
     return idx;
 }
 
+namespace {
+
+bool is_attention_kv_state_name(const std::string& name) {
+    if (name.empty()) {
+        return false;
+    }
+    if (name.find("past_key_values.") != std::string::npos) {
+        return true;
+    }
+    if (name.find(".key_cache") != std::string::npos || name.find(".value_cache") != std::string::npos) {
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
 KVAxesPosition get_kv_axes_pos(std::shared_ptr<const ov::Model> model) {
     // sequence length axis in key/values tensors, for most cases [BATCH_SIZE, num_kv_heads, seq_len, head_size],
     // therefore usually seq_length_axis = 2 and batch = 0
@@ -443,14 +574,22 @@ KVAxesPosition get_kv_axes_pos(std::shared_ptr<const ov::Model> model) {
     // "ReadValue" node is KV cache representation in stateful model
     std::string kv_node_type_name = std::string(ov::op::v6::ReadValue::get_type_info_static().name);
 
-    for (const auto op : model->get_ops()) {
+    for (const auto& op : model->get_ops()) {
         // check input size, as in LoRA adapters case it could be 0
         if (op->get_type_name() != kv_node_type_name || op->get_input_size() < 1) {
             continue;
         }
 
+        auto read = ov::as_type_ptr<ov::op::v6::ReadValue>(op);
+        if (!read || !is_attention_kv_state_name(read->get_variable_id())) {
+            continue;
+        }
+
         // Shape example: [-1,4,0,64]
         auto shape = op->get_input_partial_shape(0);
+        if (!shape.rank().is_static()) {
+            continue;
+        }
 
         for (size_t i = 0; i < shape.rank().get_length(); i++) {
             // Find axis = 0. This would be sequence length axis.
@@ -494,13 +633,26 @@ void trim_kv_cache(ov::InferRequest request, KVCacheState& kv_cache_state, std::
         if(adapter_controller && adapter_controller->has_state_name(state.get_name()))
             continue;
 
-        ov::Tensor old_tensor = state.get_state();
-        // [BATCH_SIZE, num_kv_heads, seq_len, head_size]
-        auto shape = old_tensor.get_shape();
-        shape[kv_cache_state.seq_length_axis] -= kv_cache_state.num_tokens_to_trim;
+        if (!is_attention_kv_state_name(state.get_name())) {
+            continue;
+        }
 
-        ov::Coordinate new_shape_begin{0, 0, 0, 0};
-        ov::Coordinate new_shape_end{shape};
+        ov::Tensor old_tensor = state.get_state();
+        auto shape = old_tensor.get_shape();
+        if (kv_cache_state.seq_length_axis >= shape.size()) {
+            continue;
+        }
+
+        const size_t seq_axis = kv_cache_state.seq_length_axis;
+        const size_t old_seq_len = shape[seq_axis];
+        const size_t trim = std::min<size_t>(old_seq_len, kv_cache_state.num_tokens_to_trim);
+        if (trim == 0) {
+            continue;
+        }
+        shape[seq_axis] = old_seq_len - trim;
+
+        ov::Coordinate new_shape_begin(shape.size(), 0);
+        ov::Coordinate new_shape_end(shape.begin(), shape.end());
 
         auto trimmed_tensor = ov::Tensor(old_tensor, new_shape_begin, new_shape_end);
 

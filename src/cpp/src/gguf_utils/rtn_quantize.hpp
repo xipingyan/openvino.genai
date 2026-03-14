@@ -129,12 +129,34 @@ inline float get_float_value(const ov::Tensor& tensor, size_t idx) {
 #if defined(__AVX2__) || (defined(_MSC_VER) && !defined(_M_ARM64))
 #   define OV_GENAI_RTN_AVX2 1
 #   include <immintrin.h>
+// F16C is needed for _mm256_cvtph_ps (FP16->FP32 SIMD conversion)
+#   if defined(__F16C__) || defined(_MSC_VER)
+#       define OV_GENAI_RTN_F16C 1
+#   endif
 #endif
 
 // Conversion function wrappers
 inline float convert_f32(float val) { return val; }
 inline float convert_f16(uint16_t val) { return fp16_to_float(val); }
 inline float convert_bf16(uint16_t val) { return bf16_to_float(val); }
+
+#ifdef OV_GENAI_RTN_AVX2
+// Helper: convert 8 FP16 values (in __m128i) to 8 FP32 values (in __m256)
+// Uses hardware F16C when available, otherwise scalar fallback
+inline __m256 cvt_fp16x8_to_fp32x8(__m128i v_fp16) {
+#ifdef OV_GENAI_RTN_F16C
+    return _mm256_cvtph_ps(v_fp16);
+#else
+    // Scalar fallback: extract each uint16_t, convert via software
+    alignas(16) uint16_t tmp[8];
+    _mm_store_si128(reinterpret_cast<__m128i*>(tmp), v_fp16);
+    alignas(32) float out[8];
+    for (int k = 0; k < 8; ++k)
+        out[k] = fp16_to_float(tmp[k]);
+    return _mm256_load_ps(out);
+#endif
+}
+#endif
 
 enum class InputType { F32, F16, BF16 };
 
@@ -163,7 +185,7 @@ inline void find_min_max(const DataType* data, size_t count, float& min_val, flo
             else if constexpr (InType == InputType::F16) {
                 // Load 8 FP16 (128-bit), convert to FP32 (256-bit)
                 __m128i v_fp16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + i));
-                vals = _mm256_cvtph_ps(v_fp16);
+                vals = cvt_fp16x8_to_fp32x8(v_fp16);
             } 
             else if constexpr (InType == InputType::BF16) {
                 // Load 8 BF16 (128-bit)
@@ -268,7 +290,7 @@ inline void quantize_int4_sym_typed(
                         vals = _mm256_loadu_ps(reinterpret_cast<const float*>(row_data + col));
                     } else if constexpr (InType == InputType::F16) {
                         __m128i v_fp16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
-                        vals = _mm256_cvtph_ps(v_fp16);
+                        vals = cvt_fp16x8_to_fp32x8(v_fp16);
                     } else if constexpr (InType == InputType::BF16) {
                         __m128i v_bf16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
                         __m256i v_32 = _mm256_cvtepu16_epi32(v_bf16);
@@ -399,7 +421,7 @@ inline void quantize_int4_asym_typed(
                         vals = _mm256_loadu_ps(reinterpret_cast<const float*>(row_data + col));
                     } else if constexpr (InType == InputType::F16) {
                         __m128i v_fp16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
-                        vals = _mm256_cvtph_ps(v_fp16);
+                        vals = cvt_fp16x8_to_fp32x8(v_fp16);
                     } else if constexpr (InType == InputType::BF16) {
                         __m128i v_bf16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
                         __m256i v_32 = _mm256_cvtepu16_epi32(v_bf16);
@@ -702,7 +724,7 @@ inline void quantize_int8_sym_typed(
                         vals = _mm256_loadu_ps(reinterpret_cast<const float*>(row_data + col));
                     } else if constexpr (InType == InputType::F16) {
                         __m128i v_fp16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
-                        vals = _mm256_cvtph_ps(v_fp16);
+                        vals = cvt_fp16x8_to_fp32x8(v_fp16);
                     } else if constexpr (InType == InputType::BF16) {
                         __m128i v_bf16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
                         __m256i v_32 = _mm256_cvtepu16_epi32(v_bf16);
@@ -801,7 +823,7 @@ inline void quantize_int8_asym_typed(
                         vals = _mm256_loadu_ps(reinterpret_cast<const float*>(row_data + col));
                     } else if constexpr (InType == InputType::F16) {
                         __m128i v_fp16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
-                        vals = _mm256_cvtph_ps(v_fp16);
+                        vals = cvt_fp16x8_to_fp32x8(v_fp16);
                     } else if constexpr (InType == InputType::BF16) {
                         __m128i v_bf16 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row_data + col));
                         __m256i v_32 = _mm256_cvtepu16_epi32(v_bf16);
