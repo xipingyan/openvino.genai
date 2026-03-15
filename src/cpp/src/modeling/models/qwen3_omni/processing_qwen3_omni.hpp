@@ -304,9 +304,9 @@ struct Qwen3OmniAudioInputs {
     ov::Tensor feature_attention_mask; // [B, T]           i32 / bool
 };
 
-Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniConfig& cfg);
-Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniConfig& cfg);
-SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniConfig& cfg);
+Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniProcessingConfig& cfg);
+Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniProcessingConfig& cfg);
+SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniProcessingConfig& cfg);
 
 }  // namespace models
 }  // namespace modeling

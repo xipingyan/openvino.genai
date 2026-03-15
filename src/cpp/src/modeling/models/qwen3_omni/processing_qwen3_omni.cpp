@@ -967,7 +967,7 @@ Qwen3OmniProcessingConfig Qwen3OmniProcessingConfig::from_json_file(const std::f
     return from_json(data);
 }
 
-Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniConfig& cfg) {
+Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniProcessingConfig& cfg) {
     Qwen3TTSTalkerConfig talker_cfg;
     const auto& raw = cfg.talker_config_raw;
     if (!raw.is_object()) {
@@ -1033,7 +1033,7 @@ Qwen3TTSTalkerConfig to_qwen3_omni_talker_config(const Qwen3OmniConfig& cfg) {
     return talker_cfg;
 }
 
-Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniConfig& cfg) {
+Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniProcessingConfig& cfg) {
     Qwen3TTSCodePredictorConfig cp_cfg;
     const auto& raw = cfg.talker_config_raw;
     if (!raw.is_object()) {
@@ -1066,7 +1066,7 @@ Qwen3TTSCodePredictorConfig to_qwen3_omni_code_predictor_config(const Qwen3OmniC
     return cp_cfg;
 }
 
-SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniConfig& cfg) {
+SpeechDecoderConfig to_qwen3_omni_speech_decoder_config(const Qwen3OmniProcessingConfig& cfg) {
     SpeechDecoderConfig decoder_cfg;
     const auto& raw = cfg.code2wav_config_raw;
     if (!raw.is_object()) {
