@@ -107,12 +107,12 @@ bool ClipTextEncoderModule::initialize() {
                 root_dir, "text_encoder/config.json");
 
             // Load tokenizer
+            auto tokenizer_path = root_dir / "tokenizer";
             try {
-                auto tokenizer_path = root_dir / "tokenizer";
                 resources->tokenizer_impl = std::make_shared<Tokenizer::TokenizerImpl>(tokenizer_path, properties);
             } catch (const std::exception& e) {
-                GENAI_ERR("ClipTextEncoderModule: Failed to load tokenizer: " + std::string(e.what()));
-                return nullptr;
+                OPENVINO_THROW("ClipTextEncoderModule: Failed to load tokenizer: " + tokenizer_path.string() +
+                               ": catched exception: " + std::string(e.what()));
             }
 
             // Load and compile text encoder model
@@ -133,8 +133,8 @@ bool ClipTextEncoderModule::initialize() {
                     device,
                     compile_properties);
             } catch (const std::exception& e) {
-                GENAI_ERR("ClipTextEncoderModule: Failed to load text encoder model: " + std::string(e.what()));
-                return nullptr;
+                OPENVINO_THROW("ClipTextEncoderModule: Failed to load text encoder model: " +
+                               text_encoder_path.string() + ": catched exception: " + std::string(e.what()));
             }
 
             resources->minja_template = std::make_shared<minja::chat_template>(
