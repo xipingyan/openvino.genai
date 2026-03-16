@@ -1,0 +1,3 @@
+transformers>=4.40
+openvino>=2024.3
+openvino-tokenizers>=2024.3
