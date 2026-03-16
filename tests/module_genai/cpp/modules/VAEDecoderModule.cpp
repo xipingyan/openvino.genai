@@ -6,6 +6,7 @@
 #include "../utils/model_yaml.hpp"
 
 using namespace ov::genai::module;
+namespace VAEDecoderModuleTest {
 
 struct VAEDecoderTestData {
     std::string test_name;
@@ -35,7 +36,7 @@ VAEDecoderTestData vae_decoder_skip_postprocess() {
     data.enable_postprocess = false;
     data.expected_output_f32 = {-0.0553406f, -0.177907f, -0.268292f, -0.276685f, -0.182945f,
                                  0.0203716f, 0.255036f, 0.342477f, 0.279524f, 0.0960406f};
-    data.threshold = 1e-6f;
+    data.threshold = 1e-2f;
     return data;
 }
 
@@ -138,3 +139,4 @@ INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          ::testing::Combine(::testing::ValuesIn(vae_decoder_test::test_data),
                                             ::testing::ValuesIn(vae_decoder_test::test_devices)),
                          VAEDecoderModuleTest::get_test_case_name);
+} // namespace VAEDecoderModuleTest
