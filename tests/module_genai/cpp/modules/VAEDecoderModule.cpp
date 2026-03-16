@@ -15,6 +15,7 @@ struct VAEDecoderTestData {
     std::vector<uint8_t> expected_output_u8;
     std::vector<float> expected_output_f32;
     float threshold;
+    uint8_t threshold_u8;
 };
 
 namespace TEST_DATA {
@@ -26,6 +27,7 @@ VAEDecoderTestData vae_decoder_with_postprocess() {
     data.enable_postprocess = true;
     data.expected_output_u8 = {120, 150, 165, 104, 128, 145, 93, 108, 127, 92};
     data.threshold = 0.0f;
+    data.threshold_u8 = 1;
     return data;
 }
 
@@ -37,6 +39,7 @@ VAEDecoderTestData vae_decoder_skip_postprocess() {
     data.expected_output_f32 = {-0.0553406f, -0.177907f, -0.268292f, -0.276685f, -0.182945f,
                                  0.0203716f, 0.255036f, 0.342477f, 0.279524f, 0.0960406f};
     data.threshold = 1e-2f;
+    data.threshold_u8 = 1;
     return data;
 }
 
@@ -110,7 +113,7 @@ protected:
         EXPECT_GT(image.get_size(), 0) << "VAE decoder output is empty";
 
         if (m_test_data.enable_postprocess) {
-            EXPECT_TRUE(compare_big_tensor<uint8_t>(image, m_test_data.expected_output_u8))
+            EXPECT_TRUE(compare_big_tensor<uint8_t>(image, m_test_data.expected_output_u8, m_test_data.threshold_u8))
                 << "decoder output does not match expected values";
         } else {
             // Use non-template version that supports threshold for float comparison

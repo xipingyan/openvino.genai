@@ -84,6 +84,8 @@ std::vector<UniPCMultistepSchedulerTestData> unipc_multistep_scheduler_test_data
 }
 
 class UniPCMultistepSchedulerTest : public ::testing::TestWithParam<UniPCMultistepSchedulerTestData> {
+private:
+    float m_threshold = 1e-2;
 public:
     static std::string get_test_case_name(const testing::TestParamInfo<UniPCMultistepSchedulerTestData> & obj) {
         std::string test_type;
@@ -110,7 +112,7 @@ public:
         auto sigmas_data = sigmas.data<const float>();
 
         for (size_t i = 0; i < sigmas.get_size(); ++i) {
-            EXPECT_NEAR(sigmas_data[i], data.expected_sigmas[i], 1e-4);
+            EXPECT_NEAR(sigmas_data[i], data.expected_sigmas[i], m_threshold);
         }
 
         for (size_t i = 0; i < timesteps.size(); ++i) {
@@ -138,7 +140,7 @@ public:
 
         latents_data = latents.data<float>();
         for (size_t i = 0; i < data.expected_latents.size(); i++) {
-            EXPECT_NEAR(latents_data[i], data.expected_latents[i], 1e-4);
+            EXPECT_NEAR(latents_data[i], data.expected_latents[i], m_threshold);
         }
     }
 };

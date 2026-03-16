@@ -95,7 +95,7 @@ protected:
             T exp_val = static_cast<T>(expected_top[i]);
             if (std::fabs(val - exp_val) > thr) {
                 bresult = false;
-                std::cout << "Mismatch at index " << i << ": expected " << expected_top[i] << ", got " << val
+                std::cout << "Mismatch at index " << i << ": expected " << static_cast<double>(exp_val) << ", got " << static_cast<double>(val)
                           << std::endl;
             }
         }
