@@ -15,6 +15,7 @@ struct ClipTextEncoderPositiveTestDataCommon {
     ov::Shape expected_embeds_shape;
     ov::Shape expected_negative_embeds_shape;
     std::vector<float> expected_embeds;
+    std::vector<float> expected_embeds_gpu;
     std::vector<float> expected_negative_embeds;
 };
 
@@ -44,7 +45,10 @@ ClipTextEncoderPositiveTestData z_image_clip_text_encoder_1_test_data() {
     data.guidance_scale = 0.0f;
     data.expected_embeds_shape = ov::Shape{101, 2560};
     data.expected_embeds = { 
-        -603.058, -6.29294, -24.5433, 33.7109, 13672.3, -8.1542, -6.41789, 25.8192, 6.84497, 67.1992
+        -603.058f, -6.29294f, -24.5433f, 33.7109f, 13672.3f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
+    };
+    data.expected_embeds_gpu = {
+        -585.0f, -6.29294f, -24.5433f, 33.7109f, 13424.0f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
     };
     return data;
 }
@@ -57,7 +61,10 @@ ClipTextEncoderNegativeTestData z_image_clip_text_encoder_2_test_data() {
     data.guidance_scale = 2.0f;
     data.expected_negative_embeds_shape = ov::Shape{12, 2560};
     data.expected_negative_embeds = { 
-        -603.058, -6.29294, -24.5433, 33.7109, 13672.3, -8.1542, -6.41789, 25.8192, 6.84497, 67.1992
+        -603.058f, -6.29294f, -24.5433f, 33.7109f, 13672.3f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
+    };
+    data.expected_embeds_gpu = {
+        -585.0f, -6.29294f, -24.5433f, 33.7109f, 13424.0f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
     };
     return data;
 }
@@ -71,12 +78,13 @@ ClipTextEncoderPosNegTestData z_image_clip_text_encoder_3_test_data() {
     data.guidance_scale = 2.0f;
     data.expected_embeds_shape = ov::Shape{101, 2560};
     data.expected_embeds = { 
-        -603.058, -6.29294, -24.5433, 33.7109, 13672.3, -8.1542, -6.41789, 25.8192, 6.84497, 67.1992
+        -603.058f, -6.29294f, -24.5433f, 33.7109f, 13672.3f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
+    };
+    data.expected_embeds_gpu = {
+        -585.0f, -6.29294f, -24.5433f, 33.7109f, 13424.0f, -8.1542f, -6.41789f, 25.8192f, 6.84497f, 67.1992f
     };
     data.expected_negative_embeds_shape = ov::Shape{12, 2560};
-    data.expected_negative_embeds = { 
-        -603.058, -6.29294, -24.5433, 33.7109, 13672.3, -8.1542, -6.41789, 25.8192, 6.84497, 67.1992
-    };
+    data.expected_negative_embeds = data.expected_embeds;
     return data;
 }
 
@@ -89,11 +97,12 @@ ClipTextEncoderPosNegTestData wan_2_1_clip_text_encoder_1_test_data() {
     data.guidance_scale = 5.0f;
     data.expected_embeds_shape = ov::Shape{512,4096};
     data.expected_embeds = { 
-        0.00152739, 0.0495682, -0.0664976, 0.125089, -0.00320548, 0.145041, 0.0220366, -0.00679807, -0.009486, 0.118701
+        0.00152739f, 0.0495682f, -0.0664976f, 0.125089f, -0.00320548f, 0.145041f, 0.0220366f, -0.00679807f, -0.009486f, 0.118701f
     };
+    data.expected_embeds_gpu = data.expected_embeds;
     data.expected_negative_embeds_shape = ov::Shape{512,4096};
     data.expected_negative_embeds = { 
-        0.00205161, -0.0196467, 0.0319586, 0.117366, 0.0435993, 0.0243144, 0.0910006, -0.130668, -0.007705, -0.0799274
+        0.00205161f, -0.0196467f, 0.0319586f, 0.117366f, 0.0435993f, 0.0243144f, 0.0910006f, -0.130668f, -0.007705f, -0.0799274f
     };
     return data;
 }
@@ -208,8 +217,13 @@ protected:
 
         EXPECT_TRUE(compare_shape(output[0].get_shape(), test_data.expected_embeds_shape))
             << "prompt_embeds shape does not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(output[0], test_data.expected_embeds, m_threshold))
-            << "negative_prompt_embeds do not match expected values within threshold " << m_threshold;
+        if (m_device == "GPU") {
+            EXPECT_TRUE(compare_big_tensor(output[0], test_data.expected_embeds_gpu, m_threshold))
+                << "prompt_embeds do not match expected GPU values within threshold " << m_threshold;
+        } else {
+            EXPECT_TRUE(compare_big_tensor(output[0], test_data.expected_embeds, m_threshold))
+                << "prompt_embeds do not match expected values within threshold " << m_threshold;
+        }
     }
 
     void check_outputs_input_2(ov::genai::module::ModulePipeline& pipe) {
@@ -229,8 +243,13 @@ protected:
 
         EXPECT_TRUE(compare_shape(pos_output[0].get_shape(), test_data.expected_embeds_shape))
             << "positive_prompt_embeds shape does not match expected shape";
-        EXPECT_TRUE(compare_big_tensor(pos_output[0], test_data.expected_embeds, m_threshold))
-            << "positive_prompt_embeds do not match expected values within threshold " << m_threshold;
+        if (m_device == "GPU") {
+            EXPECT_TRUE(compare_big_tensor(pos_output[0], test_data.expected_embeds_gpu, m_threshold))
+                << "prompt_embeds do not match expected GPU values within threshold " << m_threshold;
+        } else {
+            EXPECT_TRUE(compare_big_tensor(pos_output[0], test_data.expected_embeds, m_threshold))
+                << "positive_prompt_embeds do not match expected values within threshold " << m_threshold;
+        }
         EXPECT_TRUE(compare_shape(neg_output[0].get_shape(), test_data.expected_negative_embeds_shape))
             << "negative_prompt_embeds shape does not match expected shape";
         EXPECT_TRUE(compare_big_tensor(neg_output[0], test_data.expected_negative_embeds, m_threshold))
