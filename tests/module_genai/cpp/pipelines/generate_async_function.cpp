@@ -16,6 +16,9 @@
 #include "utils/model_yaml.hpp"
 #include "utils/utils.hpp"
 
+using ov::genai::module::input_node;
+using ov::genai::module::output_node;
+
 // Test for ModulePipeline generate_async function with different thread modes.
 // The test verifies that modules configured to run in SYNC mode execute on the same thread,
 // while those in ASYNC mode may run on different threads(Checked by comparing thread ids).

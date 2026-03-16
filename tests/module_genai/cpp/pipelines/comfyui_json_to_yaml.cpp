@@ -20,6 +20,9 @@
 namespace fs = std::filesystem;
 using namespace ov::genai::module;
 
+using ov::genai::module::utils::get_test_file_path;
+using ov::genai::module::utils::readFileToString;
+
 // ============================================================================
 // Parameterized Test Structure
 // ============================================================================

@@ -7,6 +7,8 @@
 #include <string>
 #include <openvino/runtime/tensor.hpp>
 
+namespace ov::genai::module::utils {
+
 bool readFileToString(const std::string &filename, std::string &content);
 
 // Get the absolute path to the data directory.
@@ -27,3 +29,8 @@ bool check_env_variable(const std::string& var_name);
 bool check_file_exists(const std::string& path);
 
 ov::Tensor load_tensor_from_file(const std::string& meta_data_path);
+
+// Check if the current CPU is Xeon.
+bool is_xeon();
+
+}  // namespace ov::genai::module::utils

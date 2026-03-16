@@ -7,6 +7,8 @@
 #include <string>
 #include <yaml-cpp/yaml.h>
 
+namespace ov::genai::module {
+
 // Helper functions to create YAML nodes for inputs and outputs.
 // source: empty means no source field.
 inline YAML::Node input_node(const std::string& name,
@@ -48,3 +50,4 @@ std::string Qwen3_Omni_4B_Instruct_Multilingual();
 // Return yaml content string for Qwen2.5-VL-3B-Instruct model pipeline configuration.
 std::string get_qwen2_5_vl_config_yaml(const std::string& model_path, const std::string& device = "CPU");
 };  // namespace TEST_MODEL
+}  // namespace ov::genai::module

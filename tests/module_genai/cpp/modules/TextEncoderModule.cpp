@@ -104,8 +104,8 @@ protected:
     ov::AnyMap prepare_inputs() override {
         ov::AnyMap inputs;
         inputs["prompts_data"] = std::vector<std::string>{"This is a sample prompt."};
-        auto img1 = utils::load_image(TEST_DATA::img_cat_120_100());
-        EXPECT_TRUE(img1) << "Failed to load test image: " + TEST_DATA::img_cat_120_100();
+        auto img1 = utils::load_image(utils::TEST_DATA::img_cat_120_100());
+        EXPECT_TRUE(img1) << "Failed to load test image: " + utils::TEST_DATA::img_cat_120_100();
         inputs["img1"] = img1;
         return inputs;
     }
@@ -229,8 +229,8 @@ protected:
     ov::AnyMap prepare_inputs() override {
         ov::AnyMap inputs;
         inputs["prompts_data"] = std::vector<std::string>{"Describe this picture"};
-        auto image = utils::load_image(TEST_DATA::img_dog_120_120());
-        EXPECT_TRUE(image) << "Failed to load test image: " + TEST_DATA::img_dog_120_120();
+        auto image = utils::load_image(utils::TEST_DATA::img_dog_120_120());
+        EXPECT_TRUE(image) << "Failed to load test image: " + utils::TEST_DATA::img_dog_120_120();
         inputs["image"] = image;
         return inputs;
     }

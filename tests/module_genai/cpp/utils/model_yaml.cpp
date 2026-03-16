@@ -7,6 +7,7 @@
 
 #include <yaml-cpp/yaml.h>
 
+namespace ov::genai::module {
 namespace TEST_MODEL {
 
 std::string get_device() {
@@ -18,27 +19,27 @@ std::string get_device() {
 }
 
 std::string Qwen2_5_VL_3B_Instruct_INT4() {
-    return get_model_path() + "/Qwen2.5-VL-3B-Instruct/INT4/";
+    return utils::get_model_path() + "/Qwen2.5-VL-3B-Instruct/INT4/";
 }
 
 std::string ZImage_Turbo_fp16_ov() {
-    return get_model_path() + "/Z-Image-Turbo-fp16-ov/";
+    return utils::get_model_path() + "/Z-Image-Turbo-fp16-ov/";
 }
 
 std::string Wan_2_1() {
-    return get_model_path() + "/Wan2.1-T2V-1.3B-Diffusers/";
+    return utils::get_model_path() + "/Wan2.1-T2V-1.3B-Diffusers/";
 }
 
 std::string Qwen3_5() {
-    return get_model_path() + "/Qwen3.5-35B-A3B-Base_VL_OV_IR/";
+    return utils::get_model_path() + "/Qwen3.5-35B-A3B-Base_VL_OV_IR/";
 }
 
 std::string Qwen3_5_0_8B() {
-    return get_model_path() + "/Qwen3.5-0.8B/";
+    return utils::get_model_path() + "/Qwen3.5-0.8B/";
 }
 
 std::string Qwen3_Omni_4B_Instruct_Multilingual() {
-    return get_model_path() + "/Qwen3-Omni-4B-Instruct-multilingual/";
+    return utils::get_model_path() + "/Qwen3-Omni-4B-Instruct-multilingual/";
 }
 
 std::string get_qwen2_5_vl_config_yaml(const std::string& model_path, const std::string& device) {
@@ -179,3 +180,4 @@ std::string get_qwen2_5_vl_config_yaml(const std::string& model_path, const std:
     return YAML::Dump(config);
 }
 }  // namespace TEST_MODEL
+}  // namespace ov::genai::module

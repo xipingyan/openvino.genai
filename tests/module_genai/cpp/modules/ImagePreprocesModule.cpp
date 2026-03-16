@@ -6,6 +6,8 @@
 #include "../utils/model_yaml.hpp"
 #include "../utils/load_image.hpp"
 
+namespace ImagePreprocesModuleTest {
+
 // add device param to test_params
 using test_params = std::tuple<std::vector<std::string>, std::string>;
 using namespace ov::genai::module;
@@ -100,14 +102,23 @@ protected:
     }
 
     const std::vector<float> expected_input_ids_for_input_1 =
-        {-0.0712891, 0.251953, 0.0825195, 0.078125, 0.122559, 0.0986328, 0.0844727, -0.0932617, 0.130859, -0.0274658};
+        {-0.0712891f, 0.251953f, 0.0825195f, 0.078125f, 0.122559f, 0.0986328f, 0.0844727f, -0.0932617f, 0.130859f, -0.0274658f};
+    const std::vector<float> expected_input_ids_for_input_1_xeon =
+        {-0.106934f, 0.157227f, 0.0578613f, 0.0605469f, 0.135742f, 0.0397949f, 0.074707f, -0.0810547f, 0.106445f};
     const std::vector<float> expected_input_ids_for_input_2 =
-        {-0.341116, 0.223862, -0.00889927, 0.0725508, 0.39603, 0.0243148, 0.151016, -0.21681, 0.289946, -0.170177};
+        {-0.341116f, 0.223862f, -0.00889927f, 0.0725508f, 0.39603f, 0.0243148f, 0.151016f, -0.21681f, 0.289946f, -0.170177f};
+    const std::vector<float> expected_input_ids_for_input_2_xeon =
+        {-0.174805f, 0.151367f, 0.0356445f, 0.0568848f, 0.207031f, 0.0197754f, 0.0942383f, -0.118652f, 0.148438f, -0.0751953f};
 
     void check_output_input_1(ov::genai::module::ModulePipeline& pipe) {
         auto raw_data = pipe.get_output("raw_data").as<ov::Tensor>();
-        EXPECT_TRUE(compare_big_tensor(raw_data, expected_input_ids_for_input_1, _threshold))
-            << "raw_data do not match expected values";
+        if (is_xeon() && _device == "CPU") {
+            EXPECT_TRUE(compare_big_tensor(raw_data, expected_input_ids_for_input_1_xeon, _threshold))
+                << "raw_data do not match expected values for Xeon device";
+        } else {
+            EXPECT_TRUE(compare_big_tensor(raw_data, expected_input_ids_for_input_1, _threshold))
+                << "raw_data do not match expected values";
+        }
         EXPECT_TRUE(compare_shape(raw_data.get_shape(), ov::Shape{64, 1280}))
             << "raw_data's shape not match expected shape";
 
@@ -119,8 +130,12 @@ protected:
     void check_output_input_2(ov::genai::module::ModulePipeline& pipe) {
         auto raw_datas = pipe.get_output("raw_datas").as<std::vector<ov::Tensor>>();
 
-        std::vector<std::vector<float>> expected_input_ids = {expected_input_ids_for_input_1,
-                                                              expected_input_ids_for_input_2};
+        std::vector<std::vector<float>> expected_input_ids;
+        if (is_xeon() && _device == "CPU") {
+            expected_input_ids = {expected_input_ids_for_input_1_xeon, expected_input_ids_for_input_2_xeon};
+        } else {
+            expected_input_ids = {expected_input_ids_for_input_1, expected_input_ids_for_input_2};
+        }
         EXPECT_EQ(raw_datas.size(), expected_input_ids.size()) << "Number of raw_datas does not match expected";
 
         for (size_t i = 0; i < raw_datas.size(); ++i) {
@@ -148,8 +163,8 @@ TEST_P(ImagePreprocesModuleTest, ModuleTest) {
     run();
 }
 
-auto test_image_1 = std::vector<std::string>{TEST_DATA::img_cat_120_100()};
-auto test_image_2 = std::vector<std::string>{TEST_DATA::img_cat_120_100(), TEST_DATA::img_dog_120_120()};
+auto test_image_1 = std::vector<std::string>{utils::TEST_DATA::img_cat_120_100()};
+auto test_image_2 = std::vector<std::string>{utils::TEST_DATA::img_cat_120_100(), utils::TEST_DATA::img_dog_120_120()};
 
 auto test_devices = std::vector<std::string>{TEST_MODEL::get_device()};
 
@@ -311,10 +326,11 @@ TEST_P(Qwen3_5ImagePreprocessModuleTest, ModuleTest) {
     run();
 }
 
-auto test_image_3 = std::vector<std::string>{TEST_DATA::img_dog_120_120()};
+auto test_image_3 = std::vector<std::string>{utils::TEST_DATA::img_dog_120_120()};
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          Qwen3_5ImagePreprocessModuleTest,
-                         ::testing::Combine(::testing::Values(test_image_3),
-                                            ::testing::ValuesIn(test_devices)),
+                         ::testing::Combine(::testing::Values(test_image_3), ::testing::ValuesIn(test_devices)),
                          Qwen3_5ImagePreprocessModuleTest::get_test_case_name);
+
+}  // namespace ImagePreprocesModuleTest

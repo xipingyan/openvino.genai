@@ -21,9 +21,22 @@
 #include "model_yaml.hpp"
 #include "pipelines/dummy_module_impl.hpp"
 
-namespace ov {
-namespace genai {
-namespace module {
+namespace ov::genai::module {
+
+// Test code historically relied on helpers being reachable from `ov::genai::module`
+// (often via `using namespace ov::genai::module;`). Keep that working after moving
+// helpers into `ov::genai::module::utils`.
+using utils::check_env_variable;
+using utils::check_file_exists;
+using utils::create_countdown_frames;
+using utils::get_data_path;
+using utils::get_model_path;
+using utils::get_test_file_path;
+using utils::is_xeon;
+using utils::load_image;
+using utils::load_images;
+using utils::load_tensor_from_file;
+using utils::load_video;
 
 class ModuleTestBase {
 public:
@@ -31,7 +44,7 @@ public:
 
     void run() {
         std::string yaml_content = generate_yaml_content();
-        if (check_env_variable("DUMP_YAML")) {
+        if (utils::check_env_variable("DUMP_YAML")) {
             std::string filename = "dumped_" + m_test_name + ".yaml";
             std::ofstream out(filename);
             out << yaml_content;
@@ -167,6 +180,4 @@ inline std::string sanitize_for_gtest(std::string name) {
     return name;
 }
 
-}  // namespace module
-}  // namespace genai
-}  // namespace ov
+}  // namespace ov::genai::module

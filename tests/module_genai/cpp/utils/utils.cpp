@@ -6,20 +6,29 @@
 
 #include <cstdlib>
 #if __has_include(<filesystem>)
-#include <filesystem>
+#    include <filesystem>
 namespace fs = std::filesystem;
 #elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
+#    include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
 #else
-#error "Missing the <filesystem> header."
+#    error "Missing the <filesystem> header."
 #endif
-#include "json_utils.hpp"
 #include <fstream>
 #include <openvino/runtime/tensor.hpp>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+#include "json_utils.hpp"
+
+#ifdef _WIN32
+#    include <intrin.h>
+#else
+#    include <cpuid.h>
+#endif
+
+namespace ov::genai::module::utils {
 
 bool readFileToString(const std::string& filename, std::string& content) {
     std::ifstream file(filename);
@@ -91,16 +100,6 @@ std::string get_model_path() {
     return fs::absolute(base_path).string();
 }
 
-bool check_env_variable(const std::string& var_name) {
-    const char* env_p = std::getenv(var_name.c_str());
-    if (env_p != nullptr && (std::string(env_p) == "true" || std::string(env_p) == "TRUE" ||
-                             std::string(env_p) == "1" || std::string(env_p) == "True")) {
-        return true;
-    }
-
-    return false;
-}
-
 bool check_file_exists(const std::string& path) {
     return fs::exists(path) && fs::is_regular_file(path);
 }
@@ -142,3 +141,28 @@ ov::Tensor load_tensor_from_file(const std::string& meta_data_path) {
 std::string get_test_file_path(const std::string& filename) {
     return (fs::path(get_data_path()) / filename).string();
 }
+
+std::string get_cpu_brand_string() {
+    int cpu_info[4] = { 0 };
+    char brand[49] = { 0 }; // 3 calls * 16 bytes + null terminator
+
+    for (unsigned int i = 0; i < 3; ++i) {
+        unsigned int level = 0x80000002 + i;
+#ifdef _WIN32
+        __cpuid(cpu_info, level);
+#else
+        __get_cpuid(level, (unsigned int*)&cpu_info[0], (unsigned int*)&cpu_info[1], 
+                           (unsigned int*)&cpu_info[2], (unsigned int*)&cpu_info[3]);
+#endif
+        std::memcpy(brand + i * 16, cpu_info, 16);
+    }
+    return std::string(brand);
+}
+
+bool is_xeon() {
+    std::string brand = get_cpu_brand_string();
+    // Xeon processors almost always contain "Xeon" in the brand string
+    return brand.find("Xeon") != std::string::npos;
+}
+
+}  // namespace ov::genai::module::utils

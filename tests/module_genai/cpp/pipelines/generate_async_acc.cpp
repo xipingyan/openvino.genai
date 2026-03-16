@@ -22,7 +22,7 @@ using namespace ov::genai::module;
 TEST(PipelineTestAccuracy, GenerateVsGenerateAsync) {
     std::string device = TEST_MODEL::get_device();
     std::string qwen2_5_vl_model_path = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
-    std::string test_img_cat = TEST_DATA::img_cat_120_100();
+    std::string test_img_cat = ov::genai::module::utils::TEST_DATA::img_cat_120_100();
 
     std::string yaml_context = TEST_MODEL::get_qwen2_5_vl_config_yaml(qwen2_5_vl_model_path, device);
 

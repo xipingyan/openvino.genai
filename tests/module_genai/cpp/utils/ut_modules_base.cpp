@@ -4,9 +4,7 @@
 #include "ut_modules_base.hpp"
 #include "utils.hpp"
 
-namespace ov {
-namespace genai {
-namespace module {
+namespace ov::genai::module {
 
 std::string ModuleTestBase::check_yaml(const std::string& yaml_content) {
     YAML::Node config = YAML::Load(yaml_content);
@@ -87,6 +85,4 @@ void ModuleTestBase::set_test_name(const std::string& test_name) {
     std::replace(m_test_name.begin(), m_test_name.end(), ' ', '_');
 }
 
-}  // namespace module
-}  // namespace genai
-}  // namespace ov
+}  // namespace ov::genai::module

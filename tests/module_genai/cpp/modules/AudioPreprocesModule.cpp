@@ -92,7 +92,7 @@ protected:
 
     ov::AnyMap prepare_inputs() override {
         ov::AnyMap inputs;
-        auto audio = TEST_DATA::audio_dummy_data(2.9013125f);
+        auto audio = utils::TEST_DATA::audio_dummy_data(2.9013125f);
         if (_is_single_audio) {
             inputs["audio"] = audio;
             return inputs;

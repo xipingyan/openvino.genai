@@ -10,9 +10,10 @@
 #include "load_image.hpp"
 #include "utils.hpp"
 
+namespace ov::genai::module::utils {
 namespace fs = std::filesystem;
 
-std::vector<ov::Tensor> utils::load_images(const std::filesystem::path& input_path) {
+std::vector<ov::Tensor> load_images(const std::filesystem::path& input_path) {
     if (input_path.empty() || !fs::exists(input_path)) {
         throw std::runtime_error{"Path to images is empty or does not exist."};
     }
@@ -20,14 +21,14 @@ std::vector<ov::Tensor> utils::load_images(const std::filesystem::path& input_pa
         std::set<fs::path> sorted_images{fs::directory_iterator(input_path), fs::directory_iterator()};
         std::vector<ov::Tensor> images;
         for (const fs::path& dir_entry : sorted_images) {
-            images.push_back(utils::load_image(dir_entry));
+            images.push_back(load_image(dir_entry));
         }
         return images;
     }
-    return {utils::load_image(input_path)};
+    return {load_image(input_path)};
 }
 
-ov::Tensor utils::load_video(const std::filesystem::path& input_path) {
+ov::Tensor load_video(const std::filesystem::path& input_path) {
     auto rgbs = load_images(input_path);
     if (rgbs.size() == 0) {
         return {};
@@ -50,7 +51,7 @@ ov::Tensor utils::load_video(const std::filesystem::path& input_path) {
 }
 
 // Return video with shape: [num_frames, height, width, 3]
-ov::Tensor utils::create_countdown_frames()
+ov::Tensor create_countdown_frames()
 {
     int frames_count = 5, height = 240, width = 360;
     auto video = ov::Tensor(ov::element::u8,
@@ -103,7 +104,7 @@ ov::Tensor utils::create_countdown_frames()
     return video;
 }
 
-ov::Tensor utils::load_image(const std::filesystem::path &image_path)
+ov::Tensor load_image(const std::filesystem::path &image_path)
 {
     int x = 0, y = 0, channels_in_file = 0;
     constexpr int desired_channels = 3;
@@ -165,3 +166,4 @@ ov::Tensor audio_dummy_data(float duration, int sample_rate) {
     return audio;
 }
 }  // namespace TEST_DATA
+}  // namespace ov::genai::module::utils
