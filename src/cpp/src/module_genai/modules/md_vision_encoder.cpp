@@ -352,8 +352,8 @@ void VisionEncoderModule::run() {
         }
         ov::Tensor attention_mask = get_input("attention_mask").as<ov::Tensor>();
 
-        if (model_type == VLMModelType::QWEN3_5) {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
+        if (model_type == VLMModelType::QWEN3_5) {
             Qwen3_5VisionEmbeddingResult result = embed(
                 preprocessed_image, image_grid_thw, image_pos_embeds, image_rotary_cos, image_rotary_sin, input_ids, attention_mask);
 
@@ -414,10 +414,8 @@ void VisionEncoderModule::run() {
                 this->outputs["deepstack_embeds"].data = result.deepstack_embeds.value();
             }
         }
-        return;
 #else
-        }
-        OPENVINO_THROW("Qwen 3.5 and Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
+        OPENVINO_THROW("Qwen 3.5 encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
 #endif
     } else {
         OPENVINO_THROW("Unsupported model: " + module_desc->model_type);

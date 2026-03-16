@@ -8,6 +8,7 @@
 
 using namespace ov::genai::module;
 
+namespace VisionEncoderTestData {
 struct VisionEncoderTestData {
     ov::Tensor preprocessed_image;
     std::vector<int> source_size;
@@ -229,6 +230,9 @@ public:
     void SetUp() override {
         REGISTER_TEST_NAME();
         std::tie(m_test_data, m_device) = GetParam();
+#ifndef ENABLE_OPENVINO_NEW_ARCH
+        GTEST_SKIP() << "ENABLE_OPENVINO_NEW_ARCH must be enabled to run Qwen 3.5 vision encoder test.";
+#endif  // ENABLE_OPENVINO_NEW_ARCH
     }
 
     void TearDown() override {}
@@ -357,7 +361,8 @@ namespace qwen3_5_vision_encoder_test {
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
                          Qwen3_5VisionEncoderModuleTest,
-                         ::testing::Combine(
-                             ::testing::ValuesIn(qwen3_5_vision_encoder_test::test_data),
-                             ::testing::ValuesIn(qwen3_5_vision_encoder_test::test_devices)),
+                         ::testing::Combine(::testing::ValuesIn(qwen3_5_vision_encoder_test::test_data),
+                                            ::testing::ValuesIn(qwen3_5_vision_encoder_test::test_devices)),
                          Qwen3_5VisionEncoderModuleTest::get_test_case_name);
+
+}  // namespace VisionEncoderTestData
