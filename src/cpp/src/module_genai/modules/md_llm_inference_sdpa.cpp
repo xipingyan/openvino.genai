@@ -188,6 +188,7 @@ int64_t LLMInferenceSDPAModule::argmax_last(const ov::Tensor& logits) {
 
 bool LLMInferenceSDPAModule::initialize() {
     const auto& params = module_desc->params;
+    VLMModelType model_type = to_vlm_model_type(module_desc->model_type);
 
     // Resolve model directory
     std::filesystem::path models_path = get_optional_param("model_path");
@@ -224,9 +225,16 @@ bool LLMInferenceSDPAModule::initialize() {
 
     // Load model config
     try {
-        m_model_config = ov::genai::modeling::models::Qwen3_5Config::from_json_file(models_path);
+        if (model_type == VLMModelType::QWEN3_5){
+            m_model_config = ov::genai::modeling::models::Qwen3_5Config::from_json_file(models_path);
+        } else if (model_type == VLMModelType::QWEN3_OMNI) {
+            m_model_config = ov::genai::modeling::models::Qwen3OmniConfig::from_json_file(models_path);
+        } else {
+            GENAI_ERR("Unsupported model type: " + module_desc->model_type);
+            return false;
+        }
     } catch (const std::exception& e) {
-        GENAI_ERR("Failed to load Qwen3.5 config from " + models_path.string() + ": " + e.what());
+        GENAI_ERR("Failed to load model config from " + models_path.string() + ": " + e.what());
         return false;
     }
 
@@ -311,8 +319,11 @@ bool LLMInferenceSDPAModule::initialize() {
             if (eid >= 0) m_stop_ids.insert(eid);
         } catch (...) {}
     }
-    if (m_model_config.text.eos_token_id > 0) {
-        m_stop_ids.insert(m_model_config.text.eos_token_id);
+    if (model_type == VLMModelType::QWEN3_5) {
+        auto& cfg = std::get<ov::genai::modeling::models::Qwen3_5Config>(m_model_config);
+        if (cfg.text.eos_token_id > 0) {
+            m_stop_ids.insert(cfg.text.eos_token_id);
+        }
     }
     if (m_stop_ids.empty()) {
         GENAI_INFO("LLMInferenceSDPAModule: no stop token ids found — "
@@ -334,6 +345,7 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
                                                      const ov::Tensor& position_ids,
                                                      const ov::Tensor& rope_deltas) {
     using TIO = ov::genai::modeling::models::Qwen3_5TextIO;
+    const auto &model_config = std::get<modeling::models::Qwen3_5Config>(m_model_config);
 
     const size_t  batch      = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
@@ -352,7 +364,7 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
         // Feed zero visual inputs for text-only usage of VL IR
         text_req.set_tensor(TIO::kVisualEmbeds,
             make_zeros(ov::element::f32, {batch, static_cast<size_t>(prompt_len),
-                       static_cast<size_t>(m_model_config.text.hidden_size)}));
+                       static_cast<size_t>(model_config.text.hidden_size)}));
         text_req.set_tensor(TIO::kVisualPosMask,
             make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)}));
     }
@@ -373,7 +385,7 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
 
     ov::Tensor dec_vis, dec_vis_mask;
     if (m_text_uses_vl_ir) {
-        dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+        dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
         dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
     }
 
@@ -458,6 +470,7 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
                                                     const ov::Tensor& visual_pos_mask,
                                                     const std::optional<std::vector<ov::Tensor>>& deepstack_embeds) {
     using TIO = ov::genai::modeling::models::Qwen3_5TextIO;
+    const auto &model_config = std::get<modeling::models::Qwen3_5Config>(m_model_config);
 
     const size_t  batch      = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
@@ -480,7 +493,7 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
                 std::to_string(i);
             text_req.set_tensor(name, deepstack_embeds.value()[i]);
         }
-        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(m_model_config.text.hidden_size)});
+        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(model_config.text.hidden_size)});
         std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
         text_req.set_tensor("audio_features", prefill_audio_features);
         ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
@@ -502,17 +515,17 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     ov::Tensor step_mask = make_zeros(ov::element::i64, {batch, 1});
     for (size_t b = 0; b < batch; ++b) step_mask.data<int64_t>()[b] = 1;
 
-    ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
     ov::Tensor dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
     ov::Tensor decode_audio_features =
-        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
     ov::Tensor decode_audio_pos_mask = make_zeros(ov::element::boolean, {batch, 1});
     std::vector<ov::Tensor> decode_deepstack;
     if (deepstack_embeds.has_value()) {
         decode_deepstack.reserve(deepstack_embeds.value().size());
         for (size_t i = 0; i < deepstack_embeds.value().size(); ++i) {
             decode_deepstack.push_back(
-                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)}));
+                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)}));
         }
     }
 
@@ -605,6 +618,7 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
                                       const std::optional<ov::Tensor>& audio_embeds,
                                       const std::optional<ov::Tensor>& audio_pos_mask) {
     using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
+    const auto &model_config = std::get<modeling::models::Qwen3OmniConfig>(m_model_config);
 
     const size_t  batch      = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
@@ -621,20 +635,33 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     if (visual_embeds.has_value() && visual_pos_mask.has_value()) {
         text_req.set_tensor(TIO::kVisualEmbeds,  visual_embeds.value());
         text_req.set_tensor(TIO::kVisualPosMask, visual_pos_mask.value());
+    } else{
+        text_req.set_tensor(TIO::kVisualEmbeds,
+            make_zeros(ov::element::f32, {batch, static_cast<size_t>(prompt_len),
+                       static_cast<size_t>(model_config.thinker.text.hidden_size)}));
+        text_req.set_tensor(TIO::kVisualPosMask,
+            make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)}));
     }
     if (deepstack_embeds.has_value()) {
         for (size_t i = 0; i < deepstack_embeds->size(); i++) {
             const std::string name =
-                std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                std::string(ov::genai::modeling::models::Qwen3OmniVisionIO::kDeepstackEmbedsPrefix) + "." +
                 std::to_string(i);
             text_req.set_tensor(name, deepstack_embeds.value()[i]);
+        }
+    } else {
+        for (size_t i = 0; i < model_config.thinker.vision.deepstack_visual_indexes.size(); i++) {
+            const std::string name =
+                std::string(ov::genai::modeling::models::Qwen3OmniVisionIO::kDeepstackEmbedsPrefix) + "." +
+                std::to_string(i);
+            text_req.set_tensor(name, make_zeros(ov::element::f32, {batch, static_cast<size_t>(prompt_len), static_cast<size_t>(model_config.thinker.text.hidden_size)}));
         }
     }
     if (audio_embeds.has_value() && audio_pos_mask.has_value()) {
         text_req.set_tensor(TIO::kAudioFeatures, audio_embeds.value());
         text_req.set_tensor(TIO::kAudioPosMask, audio_pos_mask.value());
     } else {
-        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(m_model_config.text.hidden_size)});
+        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(model_config.thinker.text.hidden_size)});
         std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
         text_req.set_tensor(TIO::kAudioFeatures, prefill_audio_features);
         ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
@@ -656,18 +683,16 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     ov::Tensor step_mask = make_zeros(ov::element::i64, {batch, 1});
     for (size_t b = 0; b < batch; ++b) step_mask.data<int64_t>()[b] = 1;
 
-    ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor dec_vis      = make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
     ov::Tensor dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
     ov::Tensor decode_audio_features =
-        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
     ov::Tensor decode_audio_pos_mask = make_zeros(ov::element::boolean, {batch, 1});
     std::vector<ov::Tensor> decode_deepstack;
-    if (deepstack_embeds.has_value()) {
-        decode_deepstack.reserve(deepstack_embeds.value().size());
-        for (size_t i = 0; i < deepstack_embeds.value().size(); ++i) {
-            decode_deepstack.push_back(
-                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)}));
-        }
+    decode_deepstack.reserve(model_config.thinker.vision.deepstack_visual_indexes.size());
+    for (size_t i = 0; i < model_config.thinker.vision.deepstack_visual_indexes.size(); ++i) {
+        decode_deepstack.push_back(
+            make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)}));
     }
 
     int64_t past_len     = prompt_len;
@@ -831,7 +856,7 @@ void LLMInferenceSDPAModule::run() {
                         this->inputs.find("position_ids") != this->inputs.end() &&
                         this->inputs.find("rope_delta") != this->inputs.end());
 
-    ov::genai::modeling::models::Qwen3_5InputPlanner planner(m_model_config);
+    ov::genai::modeling::models::Qwen3_5InputPlanner planner(std::get<modeling::models::Qwen3_5Config>(m_model_config));
 
     if (is_vl) {
         // ---- VL mode ----

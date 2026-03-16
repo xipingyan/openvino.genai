@@ -13,6 +13,7 @@
 #include "modeling/models/qwen3_5/modeling_qwen3_5_text.hpp"
 #include "modeling/models/qwen3_5/processing_qwen3_5.hpp"
 #include "modeling/weights/quantization_config.hpp"
+#include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 
 namespace ov {
 namespace genai {
@@ -82,7 +83,7 @@ private:
     std::set<int64_t> m_stop_ids;
 
     // Model config
-    ov::genai::modeling::models::Qwen3_5Config m_model_config;
+    std::variant<ov::genai::modeling::models::Qwen3_5Config, modeling::models::Qwen3OmniConfig> m_model_config;
 
     // Tokenizer (for text mode and decoding)
     std::unique_ptr<ov::genai::Tokenizer> m_tokenizer;
