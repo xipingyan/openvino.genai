@@ -1,0 +1,71 @@
+global_context:
+  model_type: "qwen3_omni"
+
+pipeline_modules:
+  pipeline_params:
+    type: "ParameterModule"
+    outputs:
+      - name: "prompts"
+        type: "VecString"
+
+  prompt_encoder:
+    type: "TextEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "prompts"
+        type: "VecString"
+        source: "pipeline_params.prompts"
+    outputs:
+      - name: "input_ids"
+        type: "OVTensor"
+      - name: "mask"
+        type: "OVTensor"
+    params:
+      model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual/"
+
+  vision_encoder:
+    type: "VisionEncoderModule"
+    device: "GPU"
+    inputs:
+      - name: "input_ids"
+        type: "OVTensor"
+        source: "prompt_encoder.input_ids"
+      - name: "attention_mask"
+        type: "OVTensor"
+        source: "prompt_encoder.mask"
+    outputs:
+      - name: "position_ids"
+        type: "OVTensor"
+      - name: "rope_delta"
+        type: "OVTensor"
+    params:
+      model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual/qwen3_omni_vision_model.xml"
+      vision_start_token_id: 248053
+
+  llm:
+    type: "LLMInferenceSDPAModule"
+    device: "GPU"
+    inputs:
+      - name: "input_ids"
+        type: "OVTensor"
+        source: "prompt_encoder.input_ids"
+      - name: "position_ids"
+        type: "OVTensor"
+        source: "vision_encoder.position_ids"
+      - name: "rope_delta"
+        type: "OVTensor"
+        source: "vision_encoder.rope_delta"
+    outputs:
+      - name: "generated_text"
+        type: "String"
+    params:
+      model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual/qwen3_omni_text_model.xml"
+      max_new_tokens: 512
+
+  pipeline_result:
+    type: "ResultModule"
+    description: "Collects final results and formats the output structure."
+    inputs:
+      - name: "generated_text"
+        type: "String"
+        source: "llm.generated_text"
