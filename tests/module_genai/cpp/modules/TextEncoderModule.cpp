@@ -207,7 +207,7 @@ protected:
             cur_node["outputs"].push_back(output_node("input_ids", to_string(DataType::OVTensor)));
             cur_node["outputs"].push_back(output_node("mask", to_string(DataType::OVTensor)));
             cur_node["params"] = YAML::Node();
-            cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5();
+            cur_node["params"]["model_path"] = TEST_MODEL::Qwen3_5_0_8B();
             pipeline_modules[prompt_encoder_name] = cur_node;
         }
 
