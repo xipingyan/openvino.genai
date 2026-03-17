@@ -67,6 +67,14 @@ std::string IBaseModule::get_optional_param(const std::string& param_item) {
     return it_models_path->second;
 }
 
+size_t IBaseModule::str_to_size_t(const std::string& str) {
+    try {
+        return std::stoull(str);
+    } catch (...) {
+        OPENVINO_THROW("Failed to parse size_t from string: " + str);
+    }
+}
+
 void IBaseModule::init_ov_model() {
     if (m_ov_model == nullptr) {
         m_ov_model = get_ov_model_from_cfg_models_map("ov_model", false);

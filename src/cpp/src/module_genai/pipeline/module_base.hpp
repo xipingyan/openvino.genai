@@ -63,6 +63,7 @@ public:
     // Return empty string if param not found.
     std::string get_param(const std::string& param_item);
     std::string get_optional_param(const std::string& param_item);
+    size_t str_to_size_t(const std::string& param_item);
 
 protected:
     bool is_input_module = false;
@@ -111,6 +112,13 @@ protected:
 #    define DeclareModuleConstructorDummy(class_name) \
         DeclareModuleConstructorImpl(class_name, {}, : IBaseModule(desc, pipeline_desc))
 #endif
+
+#define DeclareClass_PTR_Create(classname)    \
+    using PTR = std::shared_ptr<classname>;   \
+    static PTR create() {                     \
+        return std::make_shared<classname>(); \
+    }                                         \
+    virtual ~classname() = default
 
 }  // namespace module
 }  // namespace genai
