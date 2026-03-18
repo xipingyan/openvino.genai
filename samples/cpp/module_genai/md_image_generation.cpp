@@ -103,8 +103,9 @@ int main(int argc, char* argv[]) {
 
         ov::AnyMap inputs = parse_inputs_from_yaml_cfg_for_image_generation(config_path, prompt, width, height, num_inference_steps, guidance_scale, max_sequence_length);
 
+        std::cout << "Pipeline inputs:" << std::endl;
         for (const auto& [key, value] : inputs) {
-            std::cout << "[Input] " << key << ": " << value.as<std::string>() << std::endl;
+            std::cout << "  - [" << key << "]: " << utils::any_to_string(value) << std::endl;
         }
 
         ov::AnyMap properties{};

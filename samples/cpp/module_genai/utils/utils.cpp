@@ -28,9 +28,27 @@ bool readFileToString(const std::string& filename, std::string& content) {
     return true;
 }
 
+static std::string ov_tensor_to_string(const ov::Tensor& tensor) {
+    std::stringstream ss;
+    ss << "ov::Tensor[shape=" << tensor.get_shape() << ", dtype=" << tensor.get_element_type() << "]";
+    return ss.str();
+}
+
 std::string any_to_string(const ov::Any& value) {
     if (value.is<std::string>()) {
         return value.as<std::string>();
+    }
+    if (value.is<std::vector<std::string>>()) {
+        const auto& vec = value.as<std::vector<std::string>>();
+        std::string result = "[";
+        for (size_t i = 0; i < vec.size(); ++i) {
+            result += vec[i];
+            if (i < vec.size() - 1) {
+                result += ", ";
+            }
+        }
+        result += "]";
+        return result;
     }
     if (value.is<int>()) {
         return std::to_string(value.as<int>());
@@ -48,7 +66,19 @@ std::string any_to_string(const ov::Any& value) {
         return value.as<bool>() ? "true" : "false";
     }
     if (value.is<ov::Tensor>()) {
-        return "ov::Tensor[" + value.as<ov::Tensor>().get_shape().to_string() + "]";
+        return ov_tensor_to_string(value.as<ov::Tensor>());
+    }
+    if (value.is<std::vector<ov::Tensor>>()) {
+        const auto& vec = value.as<std::vector<ov::Tensor>>();
+        std::string result = "[";
+        for (size_t i = 0; i < vec.size(); ++i) {
+            result += ov_tensor_to_string(vec[i]);
+            if (i < vec.size() - 1) {
+                result += ", ";
+            }
+        }
+        result += "]";
+        return result;
     }
     return "<unsupported>";
 }

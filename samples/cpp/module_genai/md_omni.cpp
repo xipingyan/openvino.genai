@@ -86,17 +86,9 @@ int main(int argc, char* argv[]) {
         utils::OmniInputParams input_params = utils::parse_omni_input_params(argc, argv);
         ov::AnyMap inputs = parse_inputs_for_omni(input_params);
 
+        std::cout << "Pipeline inputs:" << std::endl;
         for (const auto& [key, value] : inputs) {
-            std::cout << "[Input] " << key << ": ";
-            if (value.is<std::string>()) {
-                std::cout << value.as<std::string>();
-            } else if (value.is<ov::Tensor>()) {
-                const auto& tensor = value.as<ov::Tensor>();
-                std::cout << "Tensor (rank=" << tensor.get_shape().size() << ")";
-            } else {
-                std::cout << "<non-string input>";
-            }
-            std::cout << std::endl;
+            std::cout << "  - [" << key << "]: " << utils::any_to_string(value) << std::endl;
         }
 
         ov::AnyMap properties{};

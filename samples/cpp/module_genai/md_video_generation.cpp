@@ -182,9 +182,9 @@ int main(int argc, char* argv[]) {
                                                                             num_videos_per_prompt,
                                                                             seed);
 
-        std::cout << "Final pipeline inputs:" << std::endl;
+        std::cout << "Pipeline inputs:" << std::endl;
         for (const auto& [key, value] : inputs) {
-            std::cout << "  - " << key << ": " << utils::any_to_string(value) << std::endl;
+            std::cout << "  - [" << key << "]: " << utils::any_to_string(value) << std::endl;
         }
 
         ov::AnyMap properties{};
