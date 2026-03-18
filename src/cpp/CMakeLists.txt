@@ -111,7 +111,15 @@ FetchContent_MakeAvailable(safetensors.h)
 
 add_subdirectory(src/modeling)
 if(ENABLE_MODELING_PRIVATE)
-    add_subdirectory(src/modeling_private)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling_private/CMakeLists.txt")
+        add_subdirectory(src/modeling_private)
+    else()
+        message(FATAL_ERROR
+            "ENABLE_MODELING_PRIVATE is ON, but src/modeling_private is missing or not initialized.\n"
+            "Please run:\n"
+            "  git submodule update --init --recursive\n"
+            "or configure with -DENABLE_MODELING_PRIVATE=OFF.")
+    endif()
 endif()
 
 if(ENABLE_GGUF)
