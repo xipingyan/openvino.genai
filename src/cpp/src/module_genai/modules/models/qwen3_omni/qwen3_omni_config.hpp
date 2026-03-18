@@ -3,7 +3,7 @@
 
 #pragma once
 
-#ifdef ENABLE_OPENVINO_NEW_ARCH
+// #ifdef ENABLE_OPENVINO_NEW_ARCH
 #include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
 #include <filesystem>
 #include <optional>
@@ -36,4 +36,4 @@ struct Qwen3OmniVisionEmbeddingResult {
 modeling::models::Qwen3VLConfig get_qwen3_omni_vl_config(const std::filesystem::path &config_path);
 
 }
-#endif
+// #endif

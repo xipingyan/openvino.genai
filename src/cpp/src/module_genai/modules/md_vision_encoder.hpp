@@ -9,11 +9,11 @@
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/vlm_config.hpp"
 #include "module_genai/modules/models/qwen3_5/qwen3_5config.hpp"
-#ifdef ENABLE_OPENVINO_NEW_ARCH
 #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 #include "models/qwen3_omni/qwen3_omni_config.hpp"
+// #ifdef ENABLE_OPENVINO_NEW_ARCH
 #include "modeling/models/qwen3_5/processing_qwen3_5.hpp"
-#endif
+// #endif
 namespace ov {
 namespace genai {
 namespace module {
@@ -32,7 +32,7 @@ private:
         const std::vector<ov::Tensor> &rotary_sin,
         const ov::Tensor &input_ids,
         const ov::Tensor &attention_mask);
-#ifdef ENABLE_OPENVINO_NEW_ARCH
+// #ifdef ENABLE_OPENVINO_NEW_ARCH
     // Qwen 3-Omni
     Qwen3OmniVisionEmbeddingResult embed(
         const ov::Tensor &input_ids,
@@ -40,7 +40,7 @@ private:
         std::optional<Qwen3OmniVisionInput> &vision_image_input,
         std::optional<Qwen3OmniVisionInput> &vision_video_input,
         std::optional<Qwen3OmniAudioInput> &audio_input);
-#endif
+// #endif
     ov::Tensor get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw);
     size_t calc_vec_tokens_num(const std::vector<std::array<size_t, 3UL>>& vec_grid_thw) const;
     size_t calc_tokens_num(size_t grid_t, size_t grid_h, size_t grid_w) const;
@@ -66,10 +66,10 @@ private:
     int64_t m_vision_start_token_id = 0;
     int64_t m_image_pad_token_id = 0;
     int64_t m_video_pad_token_id = 0;
-#ifdef ENABLE_OPENVINO_NEW_ARCH
+// #ifdef ENABLE_OPENVINO_NEW_ARCH
     std::variant<modeling::models::Qwen3OmniProcessingConfig, modeling::models::Qwen3_5Config> m_config;
     std::optional<std::variant<modeling::models::Qwen3OmniInputPlanner, modeling::models::Qwen3_5InputPlanner>> m_input_planner;
-#endif
+// #endif
 };
 
 REGISTER_MODULE_CONFIG(VisionEncoderModule) ;

@@ -208,15 +208,10 @@ bool VisionEncoderModule::initialize() {
     }
 
     if (model_type == VLMModelType::QWEN3_OMNI) {
-#ifdef ENABLE_OPENVINO_NEW_ARCH
         modeling::models::Qwen3OmniProcessingConfig omni_config = modeling::models::Qwen3OmniProcessingConfig::from_json_file(model_path / "config.json");
         // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
         m_config = omni_config;
         m_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
-#else
-        GENAI_ERR("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
-        return false;
-#endif
     } else if (model_type == VLMModelType::QWEN3_5) {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
         modeling::models::Qwen3_5Config qwen3_5config = modeling::models::Qwen3_5Config::from_json_file(model_path / "config.json");
@@ -352,17 +347,25 @@ void VisionEncoderModule::run() {
         }
         ov::Tensor attention_mask = get_input("attention_mask").as<ov::Tensor>();
 
-#ifdef ENABLE_OPENVINO_NEW_ARCH
         if (model_type == VLMModelType::QWEN3_5) {
-            Qwen3_5VisionEmbeddingResult result = embed(
-                preprocessed_image, image_grid_thw, image_pos_embeds, image_rotary_cos, image_rotary_sin, input_ids, attention_mask);
+#ifdef ENABLE_OPENVINO_NEW_ARCH
+            Qwen3_5VisionEmbeddingResult result = embed(preprocessed_image,
+                                                        image_grid_thw,
+                                                        image_pos_embeds,
+                                                        image_rotary_cos,
+                                                        image_rotary_sin,
+                                                        input_ids,
+                                                        attention_mask);
 
-            this->outputs["position_ids"].data    = result.position_ids;
-            this->outputs["rope_delta"].data     = result.rope_deltas;
+            this->outputs["position_ids"].data = result.position_ids;
+            this->outputs["rope_delta"].data = result.rope_deltas;
             if (result.visual_embeds.has_value()) {
                 this->outputs["image_embedding"].data = result.visual_embeds.value();
                 this->outputs["visual_pos_mask"].data = result.visual_pos_mask.value();
             }
+#else
+            OPENVINO_THROW("Qwen 3.5 encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
+#endif
         } else {
             std::optional<Qwen3OmniAudioInput> audio_input = std::nullopt;
             if (exists_input("audio_features")) {
@@ -414,9 +417,6 @@ void VisionEncoderModule::run() {
                 this->outputs["deepstack_embeds"].data = result.deepstack_embeds.value();
             }
         }
-#else
-        OPENVINO_THROW("Qwen 3.5 encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
-#endif
     } else {
         OPENVINO_THROW("Unsupported model: " + module_desc->model_type);
     }
@@ -567,6 +567,7 @@ Qwen3_5VisionEmbeddingResult VisionEncoderModule::embed(
     }
     return result;
 }
+#endif
 
 // Qwen 3-Omni
 Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
@@ -683,8 +684,6 @@ Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
     
     return result;
 }
-#endif
-
 
 ov::Tensor VisionEncoderModule::get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw) {
     const size_t spatial_merge_size = m_processor_config.merge_size;
