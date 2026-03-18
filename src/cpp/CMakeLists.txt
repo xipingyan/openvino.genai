@@ -5,7 +5,12 @@
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 file(GLOB modeling_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/samples/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES ${modeling_samples_src})
-list(FILTER SOURCE_FILES EXCLUDE REGEX ".*/safetensors_utils/.*")
+file(GLOB modeling_private_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling_private/samples/*.cpp")
+list(REMOVE_ITEM SOURCE_FILES ${modeling_private_samples_src})
+list(FILTER SOURCE_FILES EXCLUDE REGEX ".*[/\\]safetensors_utils[/\\].*")
+if(NOT ENABLE_MODELING_PRIVATE)
+    list(FILTER SOURCE_FILES EXCLUDE REGEX ".*[/\\]modeling_private[/\\].*")
+endif()
 list(APPEND SOURCE_FILES "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
 
 # Dependencies
@@ -108,6 +113,17 @@ FetchContent_Declare(safetensors.h
 FetchContent_MakeAvailable(safetensors.h)
 
 add_subdirectory(src/modeling)
+if(ENABLE_MODELING_PRIVATE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling_private/CMakeLists.txt")
+        add_subdirectory(src/modeling_private)
+    else()
+        message(FATAL_ERROR
+            "ENABLE_MODELING_PRIVATE is ON, but src/modeling_private is missing or not initialized.\n"
+            "Please run:\n"
+            "  git submodule update --init --recursive\n"
+            "or configure with -DENABLE_MODELING_PRIVATE=OFF.")
+    endif()
+endif()
 
 if(ENABLE_GGUF)
     FetchContent_Declare(

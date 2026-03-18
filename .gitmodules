@@ -1,3 +1,6 @@
 [submodule "thirdparty/openvino_tokenizers"]
     path = thirdparty/openvino_tokenizers
     url = https://github.com/openvinotoolkit/openvino_tokenizers.git
+[submodule "src/cpp/src/modeling_private"]
+    path = src/cpp/src/modeling_private
+    url = https://github.com/openvinotoolkit/modeling_private.git
