@@ -30,10 +30,6 @@ target_include_directories(text2video PRIVATE ${CMAKE_BINARY_DIR} "${CMAKE_CURRE
 ov_genai_link_opencv(text2video core imgproc videoio imgcodecs)
 target_link_libraries(text2video PRIVATE openvino::genai indicators::indicators)
 
-if(CURL_FOUND)
-    target_link_libraries(text2video PRIVATE CURL::libcurl)
-endif()
-
 if(UNIX AND NOT APPLE)
     set_target_properties(text2video PROPERTIES
         INSTALL_RPATH "$ORIGIN/../lib"
