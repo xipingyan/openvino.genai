@@ -3,4 +3,4 @@
     url = https://github.com/openvinotoolkit/openvino_tokenizers.git
 [submodule "src/cpp/src/modeling_private"]
     path = src/cpp/src/modeling_private
-    url = https://github.com/openvinotoolkit/modeling_private.git
+    url = https://github.com/xipingyan/modeling_private.git
