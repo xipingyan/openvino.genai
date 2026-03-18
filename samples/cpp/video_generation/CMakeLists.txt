@@ -8,6 +8,8 @@ find_package(OpenVINOGenAI REQUIRED
     NO_CMAKE_FIND_ROOT_PATH
 )
 
+find_package(CURL REQUIRED)
+
 file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31/stb_image_write.h ${CMAKE_BINARY_DIR}/stb_image_write.h
      EXPECTED_HASH MD5=845b8b43d7d941890a57a477455558ad)
 
@@ -29,6 +31,10 @@ add_executable(text2video text2video.cpp imwrite_video.cpp)
 target_include_directories(text2video PRIVATE ${CMAKE_BINARY_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/../image_generation/" "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/cpp/src/")
 ov_genai_link_opencv(text2video core imgproc videoio imgcodecs)
 target_link_libraries(text2video PRIVATE openvino::genai indicators::indicators)
+
+if(CURL_FOUND)
+    target_link_libraries(text2video PRIVATE CURL::libcurl)
+endif()
 
 if(UNIX AND NOT APPLE)
     set_target_properties(text2video PROPERTIES

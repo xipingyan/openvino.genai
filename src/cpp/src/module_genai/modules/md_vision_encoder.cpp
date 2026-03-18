@@ -209,7 +209,7 @@ bool VisionEncoderModule::initialize() {
 
     if (model_type == VLMModelType::QWEN3_OMNI) {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
-        modeling::models::Qwen3OmniConfig omni_config = modeling::models::Qwen3OmniConfig::from_json_file(model_path / "config.json");
+        modeling::models::Qwen3OmniProcessingConfig omni_config = modeling::models::Qwen3OmniProcessingConfig::from_json_file(model_path / "config.json");
         // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
         m_config = omni_config;
         m_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
@@ -580,7 +580,7 @@ Qwen3OmniVisionEmbeddingResult VisionEncoderModule::embed(
         OPENVINO_THROW("This embed function is only for Qwen 3-Omni model");
     }
     Qwen3OmniVisionEmbeddingResult result {};
-    const auto& ds_indexes = std::get<modeling::models::Qwen3OmniConfig>(m_config).thinker.vision.deepstack_visual_indexes;
+    const auto& ds_indexes = std::get<modeling::models::Qwen3OmniProcessingConfig>(m_config).thinker.vision.deepstack_visual_indexes;
     std::optional<ov::Tensor> vision_embeds = std::nullopt;
     std::vector<std::vector<ov::Tensor>> deepstack_embeds_vec {};
     std::vector<ov::Tensor> deepstack_embeds {};

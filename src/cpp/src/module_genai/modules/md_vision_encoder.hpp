@@ -67,7 +67,7 @@ private:
     int64_t m_image_pad_token_id = 0;
     int64_t m_video_pad_token_id = 0;
 #ifdef ENABLE_OPENVINO_NEW_ARCH
-    std::variant<modeling::models::Qwen3OmniConfig, modeling::models::Qwen3_5Config> m_config;
+    std::variant<modeling::models::Qwen3OmniProcessingConfig, modeling::models::Qwen3_5Config> m_config;
     std::optional<std::variant<modeling::models::Qwen3OmniInputPlanner, modeling::models::Qwen3_5InputPlanner>> m_input_planner;
 #endif
 };

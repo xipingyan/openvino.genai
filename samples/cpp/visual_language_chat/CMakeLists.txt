@@ -12,6 +12,8 @@ find_package(OpenVINOGenAI REQUIRED
     NO_CMAKE_FIND_ROOT_PATH
 )
 
+find_package(CURL REQUIRED)
+
 file(DOWNLOAD
     https://raw.githubusercontent.com/nothings/stb/f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31/stb_image.h
     ${CMAKE_BINARY_DIR}/stb_image.h
@@ -24,6 +26,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../fetch_opencv.cmake)
 add_executable(visual_language_chat visual_language_chat.cpp load_image.cpp)
 target_include_directories(visual_language_chat PRIVATE "${CMAKE_BINARY_DIR}")
 target_link_libraries(visual_language_chat PRIVATE openvino::genai)
+
+if(CURL_FOUND)
+    target_link_libraries(visual_language_chat PRIVATE CURL::libcurl)
+endif()
 
 set_target_properties(visual_language_chat PROPERTIES
     # Ensure out of box LC_RPATH on macOS with SIP
@@ -66,6 +72,10 @@ add_executable(video_to_text_chat video_to_text_chat.cpp)
 target_include_directories(video_to_text_chat PRIVATE "${CMAKE_BINARY_DIR}")
 ov_genai_link_opencv(video_to_text_chat core imgproc videoio imgcodecs)
 target_link_libraries(video_to_text_chat PRIVATE openvino::genai cxxopts::cxxopts)
+
+if(CURL_FOUND)
+    target_link_libraries(video_to_text_chat PRIVATE CURL::libcurl)
+endif()
 
 install(TARGETS video_to_text_chat
         RUNTIME DESTINATION samples_bin/

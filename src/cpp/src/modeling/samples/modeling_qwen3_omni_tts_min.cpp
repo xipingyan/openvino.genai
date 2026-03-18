@@ -36,6 +36,7 @@ extern "C" __declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
 #include "modeling/models/qwen3_omni/processing_qwen3_omni_audio.hpp"
 #include "modeling/models/qwen3_omni/processing_qwen3_omni_vl.hpp"
 #include "modeling/models/qwen3_omni/whisper_mel_spectrogram.hpp"
+#include "modeling/weights/quantization_config.hpp"
 
 using namespace ov::genai::modeling::models;
 
@@ -260,6 +261,27 @@ std::string resolve_pos_embed_name(ov::genai::modeling::weights::WeightSource& s
 }
 
 
+// --- Quantization helpers (matching modeling_qwen3_5.cpp) ---
+
+static std::string quant_mode_cache_token(ov::genai::modeling::weights::QuantizationConfig::Mode mode) {
+    using Mode = ov::genai::modeling::weights::QuantizationConfig::Mode;
+    switch (mode) {
+        case Mode::INT4_SYM:  return "4s";
+        case Mode::INT4_ASYM: return "4a";
+        case Mode::INT8_SYM:  return "8s";
+        case Mode::INT8_ASYM: return "8a";
+        case Mode::NONE:
+        default:              return "n";
+    }
+}
+
+static std::string quant_cache_suffix(const ov::genai::modeling::weights::QuantizationConfig& cfg) {
+    if (!cfg.enabled()) return "";
+    return "_q" + quant_mode_cache_token(cfg.mode)
+           + "_b" + quant_mode_cache_token(cfg.backup_mode)
+           + "_g" + std::to_string(cfg.group_size);
+}
+
 // --- Precision mode support (aligned with modeling_qwen3_omni.cpp) ---
 
 enum class PrecisionMode {
@@ -377,6 +399,9 @@ TextGenResult run_text_generation(const std::filesystem::path& model_dir,
                                 ov::Core& core,
                                 ov::genai::modeling::weights::WeightSource& source,
                                 ov::genai::modeling::weights::WeightFinalizer& finalizer,
+                                bool save_ov_models,
+                                const ov::genai::modeling::weights::QuantizationConfig& quant_config,
+                                const std::filesystem::path& output_dir,
                                 const Qwen3OmniConfig& cfg,
                                 const std::string& user_prompt,
                                 const std::filesystem::path& image_path,
@@ -398,6 +423,12 @@ TextGenResult run_text_generation(const std::filesystem::path& model_dir,
     const bool has_multimodal = has_image || has_audio || has_video;
     auto text_model = create_qwen3_omni_text_model(cfg, source, finalizer, false, has_multimodal);
     set_text_model_precision(text_model, precision_mode);
+    if (save_ov_models) {
+        const auto xml = output_dir / ("qwen3_omni_text_model.xml");
+        const auto bin = output_dir / ("qwen3_omni_text_model.bin");
+        ov::serialize(text_model, xml.string(), bin.string());
+        std::cout << "[save] Saved text model: " << xml.string() << std::endl;
+    }
 
     ov::genai::Tokenizer tokenizer(model_dir);
 
@@ -408,7 +439,14 @@ TextGenResult run_text_generation(const std::filesystem::path& model_dir,
     std::shared_ptr<ov::Model> vision_model;
     if (has_image || has_video) {
         // Build vision model whenever image or video is present
-        vision_model = create_qwen3_omni_vision_model(cfg, source, finalizer);
+        ov::genai::safetensors::SafetensorsWeightFinalizer vision_finalizer{};
+        vision_model = create_qwen3_omni_vision_model(cfg, source, vision_finalizer);
+        if (save_ov_models) {
+            const auto xml = output_dir / ("qwen3_omni_vision_model.xml");
+            const auto bin = output_dir / ("qwen3_omni_vision_model.bin");
+            ov::serialize(vision_model, xml.string(), bin.string());
+            std::cout << "[save] Saved vision model: " << xml.string() << std::endl;
+        }
     }
 
     auto compiled_text = core.compile_model(text_model, device, props);
@@ -444,6 +482,12 @@ TextGenResult run_text_generation(const std::filesystem::path& model_dir,
         // Step 3: Build & run audio encoder
         std::cout << "[Audio] Building audio encoder model..." << std::endl;
         auto audio_encoder_model = create_qwen3_omni_audio_encoder_model(cfg, source, finalizer);
+        if (save_ov_models) {
+            const auto xml = output_dir / ("qwen3_omni_audio_encoder_model.xml");
+            const auto bin = output_dir / ("qwen3_omni_audio_encoder_model.bin");
+            ov::serialize(audio_encoder_model, xml.string(), bin.string());
+            std::cout << "[save] Saved audio encoder model: " << xml.string() << std::endl;
+        }
         auto compiled_audio = core.compile_model(audio_encoder_model, device, props);
         auto areq = compiled_audio.create_infer_request();
 
@@ -1070,6 +1114,9 @@ TtsRunResult run_min_tts(const std::filesystem::path& model_dir,
                          ov::Core& core,
                          ov::genai::modeling::weights::WeightSource& source,
                          ov::genai::modeling::weights::WeightFinalizer& finalizer,
+                         bool save_ov_models,
+                         const ov::genai::modeling::weights::QuantizationConfig& quant_config,
+                         const std::filesystem::path& output_dir,
                          const Qwen3OmniConfig& cfg,
                          const std::string& text,
                          const std::filesystem::path& wav_out,
@@ -1083,6 +1130,10 @@ TtsRunResult run_min_tts(const std::filesystem::path& model_dir,
         ov::AnyMap tts_props = {{ov::hint::inference_precision.name(), ov::element::f32}};
         std::cerr << "[TTS] precision_mode (text model): " << precision_mode_to_string(precision_mode)
                   << " | TTS models: fp32\n";
+        // TTS models must NOT be INT4-quantized: GPU has no _reorder_weights kernel
+        // for INT4 dequant subgraphs in small talker/code-predictor/speech-decoder models.
+        // Use a plain (no-quant) finalizer for all TTS model creation.
+        ov::genai::safetensors::SafetensorsWeightFinalizer tts_finalizer;
         auto talker_cfg = to_qwen3_omni_talker_config(cfg);
         auto cp_cfg = to_qwen3_omni_code_predictor_config(cfg);
 
@@ -1097,24 +1148,48 @@ TtsRunResult run_min_tts(const std::filesystem::path& model_dir,
         // --- Create and compile all models ---
         const auto t_compile_start = std::chrono::steady_clock::now();
         std::cerr << "[TTS] Creating talker embedding model...\n";
-        auto embed_model = create_qwen3_omni_talker_embedding_model(cfg, talker_source, finalizer);
+        auto embed_model = create_qwen3_omni_talker_embedding_model(cfg, talker_source, tts_finalizer);
         auto embed_compiled = core.compile_model(embed_model, device, tts_props);
         auto embed_infer = embed_compiled.create_infer_request();
 
+        if (save_ov_models) {
+            ov::serialize(embed_model,
+                (output_dir / ("qwen3_omni_talker_embedding_model.xml")).string(),
+                (output_dir / ("qwen3_omni_talker_embedding_model.bin")).string());
+        }
+
         std::cerr << "[TTS] Creating talker prefill model...\n";
-        auto prefill_model = create_qwen3_omni_talker_prefill_model(cfg, talker_source, finalizer);
+        auto prefill_model = create_qwen3_omni_talker_prefill_model(cfg, talker_source, tts_finalizer);
         auto prefill_compiled = core.compile_model(prefill_model, device, tts_props);
         auto prefill_infer = prefill_compiled.create_infer_request();
 
+        if (save_ov_models) {
+            ov::serialize(prefill_model,
+                (output_dir / ("qwen3_omni_talker_prefill_model.xml")).string(),
+                (output_dir / ("qwen3_omni_talker_prefill_model.bin")).string());
+        }
+
         std::cerr << "[TTS] Creating talker decode model...\n";
-        auto decode_model = create_qwen3_omni_talker_decode_model(cfg, talker_source, finalizer);
+        auto decode_model = create_qwen3_omni_talker_decode_model(cfg, talker_source, tts_finalizer);
         auto decode_compiled = core.compile_model(decode_model, device, tts_props);
         auto decode_infer = decode_compiled.create_infer_request();
 
+        if (save_ov_models) {
+            ov::serialize(decode_model,
+                (output_dir / ("qwen3_omni_talker_decode_model.xml")).string(),
+                (output_dir / ("qwen3_omni_talker_decode_model.bin")).string());
+        }
+
         std::cerr << "[TTS] Creating talker codec embedding model...\n";
-        auto codec_embed_model = create_qwen3_omni_talker_codec_embedding_model(cfg, talker_source, finalizer);
+        auto codec_embed_model = create_qwen3_omni_talker_codec_embedding_model(cfg, talker_source, tts_finalizer);
         auto codec_embed_compiled = core.compile_model(codec_embed_model, device, tts_props);
         auto codec_embed_infer = codec_embed_compiled.create_infer_request();
+
+        if (save_ov_models) {
+            ov::serialize(codec_embed_model,
+                (output_dir / ("qwen3_omni_talker_codec_embedding_model.xml")).string(),
+                (output_dir / ("qwen3_omni_talker_codec_embedding_model.bin")).string());
+        }
 
         // Code predictor AR models (15 steps) and single codec embed models
         const int cp_steps = std::max(1, cp_cfg.num_code_groups - 1);
@@ -1124,28 +1199,52 @@ TtsRunResult run_min_tts(const std::filesystem::path& model_dir,
         cp_embed_infer.reserve(cp_steps);
         for (int step = 0; step < cp_steps; ++step) {
             std::cerr << "[TTS] Creating code predictor AR step " << step << "...\n";
-            auto ar_model = create_qwen3_omni_code_predictor_ar_model(cfg, step, talker_source, finalizer);
+            auto ar_model = create_qwen3_omni_code_predictor_ar_model(cfg, step, talker_source, tts_finalizer);
             auto ar_c = core.compile_model(ar_model, device, tts_props);
             cp_ar_infer.push_back(ar_c.create_infer_request());
 
-            auto se_model = create_qwen3_omni_code_predictor_single_codec_embed_model(cfg, step, talker_source, finalizer);
+            if (save_ov_models) {
+                ov::serialize(ar_model,
+                    (output_dir / ("qwen3_omni_code_predictor_ar_model_step_" + std::to_string(step) + ".xml")).string(),
+                    (output_dir / ("qwen3_omni_code_predictor_ar_model_step_" + std::to_string(step) + ".bin")).string());
+            }
+
+            auto se_model = create_qwen3_omni_code_predictor_single_codec_embed_model(cfg, step, talker_source, tts_finalizer);
             auto se_c = core.compile_model(se_model, device, tts_props);
             cp_embed_infer.push_back(se_c.create_infer_request());
+
+            if (save_ov_models) {
+                ov::serialize(se_model,
+                    (output_dir / ("qwen3_omni_code_predictor_single_codec_embed_model_step_" + std::to_string(step) + ".xml")).string(),
+                    (output_dir / ("qwen3_omni_code_predictor_single_codec_embed_model_step_" + std::to_string(step) + ".bin")).string());
+            }
         }
 
         std::cerr << "[TTS] Creating code predictor codec embedding model...\n";
-        auto cp_codec_model = create_qwen3_omni_code_predictor_codec_embed_model(cfg, talker_source, finalizer);
+        auto cp_codec_model = create_qwen3_omni_code_predictor_codec_embed_model(cfg, talker_source, tts_finalizer);
         auto cp_codec_compiled = core.compile_model(cp_codec_model, device, tts_props);
         auto cp_codec_infer = cp_codec_compiled.create_infer_request();
+
+        if (save_ov_models) {
+            ov::serialize(cp_codec_model,
+                (output_dir / ("qwen3_omni_code_predictor_codec_embed_model.xml")).string(),
+                (output_dir / ("qwen3_omni_code_predictor_codec_embed_model.bin")).string());
+        }
 
         // Speech decoder (BigVGAN) always runs on CPU: GPU f16 accumulation in
         // SnakeBeta activations (exp/sin²) across 4 upsample stages causes
         // systematic ~10x amplitude loss, producing noise-like audio.
         std::cerr << "[TTS] Creating speech decoder model (always CPU)...\n";
-        auto decoder_model = create_qwen3_omni_speech_decoder_model(cfg, source, finalizer);
+        auto decoder_model = create_qwen3_omni_speech_decoder_model(cfg, source, tts_finalizer);
         auto decoder_compiled = core.compile_model(decoder_model, "CPU", tts_props);
         auto decoder_infer = decoder_compiled.create_infer_request();
         const auto t_compile_end = std::chrono::steady_clock::now();
+
+        if (save_ov_models) {
+            ov::serialize(decoder_model,
+                (output_dir / ("qwen3_omni_speech_decoder_model.xml")).string(),
+                (output_dir / ("qwen3_omni_speech_decoder_model.bin")).string());
+        }
 
         // --- Tokenize text ---
         ov::genai::Tokenizer tokenizer(model_dir);
@@ -1547,7 +1646,7 @@ int main(int argc, char* argv[]) try {
 #endif
     if (argc < 5) {
         std::cerr << "Usage: " << argv[0]
-                  << " <MODEL_DIR> <CASE_ID> <TEXT_PROMPT> <WAV_OUT> [IMAGE_PATH] [AUDIO_PATH] [DEVICE] [MAX_NEW_TOKENS] [PRECISION] [VIDEO_FRAMES_DIR]\n";
+                  << " <MODEL_DIR> <CASE_ID> <TEXT_PROMPT> <WAV_OUT> [IMAGE_PATH] [AUDIO_PATH] [DEVICE] [MAX_NEW_TOKENS] [PRECISION] [MODEL_SAVE_DIR] [IS_SAVE_MODEL] [VIDEO_FRAMES_DIR]\n";
         return 1;
     }
 
@@ -1560,20 +1659,36 @@ int main(int argc, char* argv[]) try {
     const std::string device = (argc > 7) ? argv[7] : "CPU";
     const int max_new_tokens = (argc > 8) ? std::stoi(argv[8]) : 64;
     const PrecisionMode precision = (argc > 9) ? parse_precision_mode(argv[9]) : PrecisionMode::kFP32;
-    const std::filesystem::path video_path = (argc > 10) ? std::filesystem::path(argv[10]) : std::filesystem::path();
+    const std::filesystem::path output_dir = (argc > 10) ? std::filesystem::path(argv[10]) : model_dir;
+    const bool save_ov_models = (argc > 11) ? (std::string(argv[11]) == "1") : false;
+    const std::filesystem::path video_path = (argc > 12) ? std::filesystem::path(argv[12]) : std::filesystem::path();
 
     auto st_data = ov::genai::safetensors::load_safetensors(model_dir);
     ov::genai::safetensors::SafetensorsWeightSource source(std::move(st_data));
-    ov::genai::safetensors::SafetensorsWeightFinalizer finalizer;
+    const auto quant_config = ov::genai::modeling::weights::parse_quantization_config_from_env();
+    if (quant_config.enabled() && quant_config.group_size <= 0) {
+        throw std::runtime_error(
+            "OV_GENAI_INFLIGHT_QUANT_GROUP_SIZE must be > 0 when OV_GENAI_INFLIGHT_QUANT_MODE is enabled");
+    }
+    ov::genai::safetensors::SafetensorsWeightFinalizer finalizer(quant_config);
+    std::cout << "[quant] mode=" << quant_mode_cache_token(quant_config.mode)
+              << " backup=" << quant_mode_cache_token(quant_config.backup_mode)
+              << " group_size=" << quant_config.group_size << std::endl;
     Qwen3OmniConfig cfg = Qwen3OmniConfig::from_json_file(model_dir);
 
     ov::Core core;
+
+    std::filesystem::create_directories(output_dir);
+    std::cout << "[save] Output directory: " << output_dir.string() << std::endl;
 
     const auto start = std::chrono::high_resolution_clock::now();
     auto text_gen = run_text_generation(model_dir,
                                                     core,
                                                     source,
                                                     finalizer,
+                                                    save_ov_models,
+                                                    quant_config,
+                                                    output_dir,
                                                     cfg,
                                                     text_prompt,
                                                     image_path,
@@ -1587,6 +1702,9 @@ int main(int argc, char* argv[]) try {
                                    core,
                                    source,
                                    finalizer,
+                                   save_ov_models,
+                                   quant_config,
+                                   output_dir,
                                    cfg,
                                    text_gen.text.empty() ? text_prompt : text_gen.text,
                                    wav_out,
