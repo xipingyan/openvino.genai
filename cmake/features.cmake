@@ -11,7 +11,7 @@ option(ENABLE_TOOLS "Enable tools build" ON)
 option(ENABLE_GGUF "Enable support for GGUF format" ON)
 option(ENABLE_SAFETENSORS "Enable support for Safetensors format" ON)
 option(ENABLE_XGRAMMAR "Enable support for structured output generation with xgrammar backend" ON)
-option(ENABLE_MODELING_PRIVATE "Enable private submodule: https://github.com/xipingyan/modeling_private.git" OFF)
+option(ENABLE_MODELING_PRIVATE "Enable private modeling submodule (see .gitmodules for repository URL)" OFF)
 
 # Disable building samples for NPM package
 if(CPACK_GENERATOR STREQUAL "NPM")
