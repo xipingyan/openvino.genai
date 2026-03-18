@@ -28,7 +28,7 @@ LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModule
         m_models_ir = m_models_path / "qwen3_omni_text_model.xml";
     }
 
-    ov::AnyMap properties = {ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY), ov::hint::num_requests(1)};
+    ov::AnyMap properties;// = {ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY), ov::hint::num_requests(1)};
     if (!m_cache_dir.empty()) {
         properties.insert({ov::cache_dir.name(), m_cache_dir});
     }

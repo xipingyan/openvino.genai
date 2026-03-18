@@ -368,7 +368,16 @@ void apply_gather_before_matmul_transformation(std::shared_ptr<ov::Model> model)
 }
 
 ov::Core& singleton_core() {
-    static ov::Core core;
+    static ov::Core core = [] {
+        ov::Core c;
+        // Force CPU plugin loading so ie_internal_opset OpExtensions (e.g. RoPE, RMS)
+        // are available for read_model() deserialization of models containing internal ops.
+        try {
+            c.get_versions("CPU");
+        } catch (...) {
+        }
+        return c;
+    }();
     return core;
 }
 
