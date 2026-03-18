@@ -32,7 +32,7 @@ private:
         const std::vector<ov::Tensor> &rotary_sin,
         const ov::Tensor &input_ids,
         const ov::Tensor &attention_mask);
-#ifdef ENABLE_OPENVINO_NEW_ARCH
+// #ifdef ENABLE_OPENVINO_NEW_ARCH
     // Qwen 3-Omni
     Qwen3OmniVisionEmbeddingResult embed(
         const ov::Tensor &input_ids,
@@ -40,7 +40,7 @@ private:
         std::optional<Qwen3OmniVisionInput> &vision_image_input,
         std::optional<Qwen3OmniVisionInput> &vision_video_input,
         std::optional<Qwen3OmniAudioInput> &audio_input);
-#endif
+// #endif
     ov::Tensor get_rotary_pos_emb(const std::vector<std::array<size_t, 3>>& grids_thw);
     size_t calc_vec_tokens_num(const std::vector<std::array<size_t, 3UL>>& vec_grid_thw) const;
     size_t calc_tokens_num(size_t grid_t, size_t grid_h, size_t grid_w) const;
