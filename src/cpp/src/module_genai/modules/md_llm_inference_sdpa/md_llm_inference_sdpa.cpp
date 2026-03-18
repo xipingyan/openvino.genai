@@ -48,7 +48,7 @@ LLMInferenceSDPAModule::PTR LLMInferenceSDPAModule::create(const IBaseModuleDesc
     default:
         break;
     }
-    GENAI_INFO("Model type '", desc->model_type, "' falls back to default LLMInferenceSDPAModule implementation.");
+    GENAI_INFO("Model type '" + desc->model_type + "' falls back to default LLMInferenceSDPAModule implementation.");
     return PTR(new LLMInferenceSDPAModule(desc, pipeline_desc, model_type));
 }
 

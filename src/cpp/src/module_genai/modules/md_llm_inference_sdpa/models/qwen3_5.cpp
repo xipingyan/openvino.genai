@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "qwen3_5.hpp"
+#include "utils.hpp"
+#include "module_genai/utils/profiler.hpp"
 #ifdef ENABLE_OPENVINO_NEW_ARCH
 namespace ov::genai::module {
 
@@ -13,9 +15,9 @@ LLMInferenceSDPAModule::InputsParams::PTR LLMInferenceSDPAImpl_Qwen3_5::parse_in
     } else {
         cur_inputs = std::static_pointer_cast<InputsParamsQwen3_5>(inputs_params);
     }
-    cur_inputs = LLMInferenceSDPAModule::parse_inputs(cur_inputs);
+    cur_inputs = std::dynamic_pointer_cast<InputsParamsQwen3_5>(LLMInferenceSDPAModule::parse_inputs(cur_inputs));
 
-    cur_inputs->attention_mask = LLMInferenceSDPAModule::Utils::build_attention_mask(cur_inputs->position_ids);
+    cur_inputs->attention_mask = LLMInferenceSDPAModule_Utils::build_attention_mask(cur_inputs->position_ids);
 
     cur_inputs->is_vl = (exists_input("visual_embeds") && exists_input("visual_pos_mask") && exists_input("grid_thw") &&
                          exists_input("position_ids") && exists_input("rope_delta"));
@@ -79,16 +81,15 @@ LLMInferenceSDPAImpl_Qwen3_5::LLMInferenceSDPAImpl_Qwen3_5(const IBaseModuleDesc
             GENAI_INFO("VL text IR not found; using text-only IR (VL mode will not be available)");
         } else {
             GENAI_ERR("No text IR found. Expected: " + text_vl_xml.string() + " or " + text_xml.string());
-            return false;
         }
 
         // Compile the text model
         GENAI_INFO("LLMInferenceSDPAModule: loading text IR: " + chosen_text_xml.string());
-        llm_model = m_core.read_model(chosen_text_xml.string(), chosen_text_bin.string());
+        llm_model = ov::genai::utils::singleton_core().read_model(chosen_text_xml.string(), chosen_text_bin.string());
     }
     else {
         GENAI_INFO("LLMInferenceSDPAModule: using user-provided IR: " + m_models_ir.string());
-        llm_model = utils::singleton_core().read_model(m_models_ir);
+        llm_model = ov::genai::utils::singleton_core().read_model(m_models_ir);
     }
 
     // Verify VL inputs when using VL IR
@@ -104,7 +105,7 @@ LLMInferenceSDPAImpl_Qwen3_5::LLMInferenceSDPAImpl_Qwen3_5(const IBaseModuleDesc
         properties.insert({ov::cache_dir.name(), m_cache_dir});
     }
 
-    m_compiled_text = utils::singleton_core().compile_model(llm_model, m_device, properties);
+    m_compiled_text = ov::genai::utils::singleton_core().compile_model(llm_model, m_device, properties);
 }
 
 void LLMInferenceSDPAImpl_Qwen3_5::run() {
@@ -112,7 +113,7 @@ void LLMInferenceSDPAImpl_Qwen3_5::run() {
     std::string generated_text;
 
     prepare_inputs();
-    auto inputs_params = parse_inputs();
+    auto inputs_params = std::dynamic_pointer_cast<InputsParamsQwen3_5>(parse_inputs());
 
     if (inputs_params->is_vl) {
         generated_text = run_vl_decode(inputs_params->input_ids,
@@ -139,12 +140,11 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
                                                           const ov::Tensor& position_ids,
                                                           const ov::Tensor& rope_deltas) {
     using TIO = ov::genai::modeling::models::Qwen3_5TextIO;
-    const auto& model_config = std::get<modeling::models::Qwen3_5Config>(m_model_config);
 
     const size_t batch = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
 
-    auto beam_idx = make_beam_idx(batch);
+    auto beam_idx = LLMInferenceSDPAModule_Utils::make_beam_idx(batch);
     auto text_req = m_compiled_text->create_infer_request();
     text_req.reset_state();
 
@@ -158,10 +158,10 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
         // Feed zero visual inputs for text-only usage of VL IR
         text_req.set_tensor(
             TIO::kVisualEmbeds,
-            make_zeros(ov::element::f32,
-                       {batch, static_cast<size_t>(prompt_len), static_cast<size_t>(model_config.text.hidden_size)}));
+            LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32,
+                       {batch, static_cast<size_t>(prompt_len), static_cast<size_t>(m_model_config.text.hidden_size)}));
         text_req.set_tensor(TIO::kVisualPosMask,
-                            make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)}));
+                            LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)}));
     }
 
     const auto t_prefill0 = std::chrono::steady_clock::now();
@@ -170,19 +170,19 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
         text_req.infer();
     }
     const auto t_prefill1 = std::chrono::steady_clock::now();
-    int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+    int64_t next_id = LLMInferenceSDPAModule_Utils::argmax_last(text_req.get_tensor(TIO::kLogits));
 
     // --- Decode loop ---
     std::vector<int64_t> generated{next_id};
     ov::Tensor step_ids(ov::element::i64, {batch, 1});
-    ov::Tensor step_mask = make_zeros(ov::element::i64, {batch, 1});
+    ov::Tensor step_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::i64, {batch, 1});
     for (size_t b = 0; b < batch; ++b)
         step_mask.data<int64_t>()[b] = 1;
 
     ov::Tensor dec_vis, dec_vis_mask;
     if (m_text_uses_vl_ir) {
-        dec_vis = make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
-        dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
+        dec_vis = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+        dec_vis_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, 1});
     }
 
     int64_t past_len = prompt_len;
@@ -214,7 +214,7 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
             text_req.infer();
         }
 
-        next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+        next_id = LLMInferenceSDPAModule_Utils::argmax_last(text_req.get_tensor(TIO::kLogits));
         generated.push_back(next_id);
         ++decode_steps;
         ++past_len;
@@ -222,9 +222,9 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
 
     const auto t_dec1 = std::chrono::steady_clock::now();
 
-    if (dump_performance_enabled()) {
-        const double ttft_ms = elapsed_ms(t_prefill0, t_prefill1);
-        const double decode_ms = elapsed_ms(t_dec0, t_dec1);
+    if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput =
             decode_steps > 0 && decode_ms > 0.0 ? static_cast<double>(decode_steps) * 1000.0 / decode_ms : 0.0;
@@ -268,12 +268,11 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
     const ov::Tensor& visual_pos_mask,
     const std::optional<std::vector<ov::Tensor>>& deepstack_embeds) {
     using TIO = ov::genai::modeling::models::Qwen3_5TextIO;
-    const auto& model_config = std::get<modeling::models::Qwen3_5Config>(m_model_config);
 
     const size_t batch = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
 
-    auto beam_idx = make_beam_idx(batch);
+    auto beam_idx = LLMInferenceSDPAModule_Utils::make_beam_idx(batch);
     auto text_req = m_compiled_text->create_infer_request();
     text_req.reset_state();
 
@@ -286,13 +285,13 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
     text_req.set_tensor(TIO::kVisualPosMask, visual_pos_mask);
     if (deepstack_embeds.has_value()) {
         for (size_t i = 0; i < deepstack_embeds->size(); i++) {
-            const std::string name = std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) +
+            const std::string name = std::string(ov::genai::modeling::models::Qwen3_5TextIO::kDeepstackEmbedsPrefix) +
                                      "." + std::to_string(i);
             text_req.set_tensor(name, deepstack_embeds.value()[i]);
         }
         ov::Tensor prefill_audio_features(
             ov::element::f32,
-            {batch, input_ids.get_shape()[1], static_cast<size_t>(model_config.text.hidden_size)});
+            {batch, input_ids.get_shape()[1], static_cast<size_t>(m_model_config.text.hidden_size)});
         std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
         text_req.set_tensor("audio_features", prefill_audio_features);
         ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
@@ -306,26 +305,26 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
         text_req.infer();
     }
     const auto t_prefill1 = std::chrono::steady_clock::now();
-    int64_t next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+    int64_t next_id = LLMInferenceSDPAModule_Utils::argmax_last(text_req.get_tensor(TIO::kLogits));
 
     // --- Decode loop ---
     std::vector<int64_t> generated{next_id};
     ov::Tensor step_ids(ov::element::i64, {batch, 1});
-    ov::Tensor step_mask = make_zeros(ov::element::i64, {batch, 1});
+    ov::Tensor step_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::i64, {batch, 1});
     for (size_t b = 0; b < batch; ++b)
         step_mask.data<int64_t>()[b] = 1;
 
-    ov::Tensor dec_vis = make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
-    ov::Tensor dec_vis_mask = make_zeros(ov::element::boolean, {batch, 1});
+    ov::Tensor dec_vis = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor dec_vis_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, 1});
     ov::Tensor decode_audio_features =
-        make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)});
-    ov::Tensor decode_audio_pos_mask = make_zeros(ov::element::boolean, {batch, 1});
+        LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)});
+    ov::Tensor decode_audio_pos_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, 1});
     std::vector<ov::Tensor> decode_deepstack;
     if (deepstack_embeds.has_value()) {
         decode_deepstack.reserve(deepstack_embeds.value().size());
         for (size_t i = 0; i < deepstack_embeds.value().size(); ++i) {
             decode_deepstack.push_back(
-                make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.text.hidden_size)}));
+                LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(m_model_config.text.hidden_size)}));
         }
     }
 
@@ -345,12 +344,12 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
         if (!deepstack_embeds.has_value()) {
             pos = ov::genai::modeling::models::Qwen3_5InputPlanner::build_decode_position_ids(rope_deltas, past_len, 1);
         } else {
-            pos = ov::genai::modeling::models::Qwen3VLInputPlanner::build_decode_position_ids(rope_deltas, past_len, 1);
+            pos = ov::genai::modeling::models::Qwen3_5InputPlanner::build_decode_position_ids(rope_deltas, past_len, 1);
             text_req.set_tensor("audio_features", decode_audio_features);
             text_req.set_tensor("audio_pos_mask", decode_audio_pos_mask);
             for (size_t i = 0; i < decode_deepstack.size(); ++i) {
                 const std::string name =
-                    std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
+                    std::string(ov::genai::modeling::models::Qwen3_5TextIO::kDeepstackEmbedsPrefix) + "." +
                     std::to_string(i);
                 text_req.set_tensor(name, decode_deepstack[i]);
             }
@@ -367,7 +366,7 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
             PROFILE(pm, "LLMInferenceSDPAModule::run_vl_decode step infer");
             text_req.infer();
         }
-        next_id = argmax_last(text_req.get_tensor(TIO::kLogits));
+        next_id = LLMInferenceSDPAModule_Utils::argmax_last(text_req.get_tensor(TIO::kLogits));
         generated.push_back(next_id);
         ++decode_steps;
         ++past_len;
@@ -375,9 +374,9 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
 
     const auto t_dec1 = std::chrono::steady_clock::now();
 
-    if (dump_performance_enabled()) {
-        const double ttft_ms = elapsed_ms(t_prefill0, t_prefill1);
-        const double decode_ms = elapsed_ms(t_dec0, t_dec1);
+    if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput =
             decode_steps > 0 && decode_ms > 0.0 ? static_cast<double>(decode_steps) * 1000.0 / decode_ms : 0.0;
@@ -413,7 +412,7 @@ namespace LLMInferenceSDPAModule_Utils {
 // Helpers (ported from md_qwen3_5_modeling.cpp)
 // ============================================================================
 
-std::string quant_suffix() const {
+std::string quant_suffix() {
     using namespace ov::genai::modeling::weights;
     auto cfg = parse_quantization_config_from_env();
     if (!cfg.enabled()) {
