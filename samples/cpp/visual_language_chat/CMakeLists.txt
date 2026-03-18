@@ -25,10 +25,6 @@ add_executable(visual_language_chat visual_language_chat.cpp load_image.cpp)
 target_include_directories(visual_language_chat PRIVATE "${CMAKE_BINARY_DIR}")
 target_link_libraries(visual_language_chat PRIVATE openvino::genai)
 
-if(CURL_FOUND)
-    target_link_libraries(visual_language_chat PRIVATE CURL::libcurl)
-endif()
-
 set_target_properties(visual_language_chat PROPERTIES
     # Ensure out of box LC_RPATH on macOS with SIP
     INSTALL_RPATH_USE_LINK_PATH ON)
