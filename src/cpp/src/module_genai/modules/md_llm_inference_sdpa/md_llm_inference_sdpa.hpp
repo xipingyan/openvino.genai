@@ -79,7 +79,7 @@ protected:
     size_t m_max_new_tokens = 256;
 
     // Device used for the text model (for profiling output)
-    std::string m_device;
+    std::string m_device = "CPU";
     VLMModelType m_model_type;
     std::filesystem::path m_models_ir;
     std::filesystem::path m_models_path;
