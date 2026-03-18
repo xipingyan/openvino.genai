@@ -3,9 +3,9 @@
 #
 
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
-file(GLOB modeling_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/samples/*.cpp")
+file(GLOB_RECURSE modeling_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling/samples/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES ${modeling_samples_src})
-file(GLOB modeling_private_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling_private/samples/*.cpp")
+file(GLOB_RECURSE modeling_private_samples_src "${CMAKE_CURRENT_SOURCE_DIR}/src/modeling_private/samples/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES ${modeling_private_samples_src})
 list(FILTER SOURCE_FILES EXCLUDE REGEX ".*[/\\]safetensors_utils[/\\].*")
 if(NOT ENABLE_MODELING_PRIVATE)

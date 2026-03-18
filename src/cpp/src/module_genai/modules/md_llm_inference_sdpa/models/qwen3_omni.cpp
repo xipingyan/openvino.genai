@@ -8,12 +8,14 @@
 #include <openvino/op/constant.hpp>
 #include <openvino/openvino.hpp>
 
-#include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
-#include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
-#include "module_genai/utils/com_utils.hpp"
-#include "module_genai/utils/profiler.hpp"
-#include "openvino/genai/chat_history.hpp"
-#include "utils.hpp"
+#if defined(ENABLE_MODELING_PRIVATE)
+
+#    include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
+#    include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
+#    include "module_genai/utils/com_utils.hpp"
+#    include "module_genai/utils/profiler.hpp"
+#    include "openvino/genai/chat_history.hpp"
+#    include "utils.hpp"
 
 namespace ov::genai::module {
 LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModuleDesc::PTR& desc,
@@ -28,7 +30,8 @@ LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModule
         m_models_ir = m_models_path / "qwen3_omni_text_model.xml";
     }
 
-    ov::AnyMap properties;// = {ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY), ov::hint::num_requests(1)};
+    ov::AnyMap
+        properties;  // = {ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY), ov::hint::num_requests(1)};
     if (!m_cache_dir.empty()) {
         properties.insert({ov::cache_dir.name(), m_cache_dir});
     }
@@ -46,7 +49,7 @@ LLMInferenceSDPAModule::InputsParams::PTR LLMInferenceSDPAImpl_Qwen3Omni::parse_
         cur_inputs = std::static_pointer_cast<InputsParamsQwen3Omni>(inputs_params);
     }
     cur_inputs = std::dynamic_pointer_cast<InputsParamsQwen3Omni>(LLMInferenceSDPAModule::parse_inputs(cur_inputs));
-    
+
     // position_ids required.
     cur_inputs->position_ids = get_input("position_ids").as<ov::Tensor>();
     // rope_deltas required.
@@ -69,7 +72,7 @@ LLMInferenceSDPAModule::InputsParams::PTR LLMInferenceSDPAImpl_Qwen3Omni::parse_
         cur_inputs->deepstack_embeds = inputs["deepstack_embeds"].data.as<std::vector<ov::Tensor>>();
     }
     // cast to return type
-     return std::static_pointer_cast<InputsParams>(cur_inputs);
+    return std::static_pointer_cast<InputsParams>(cur_inputs);
 }
 
 void LLMInferenceSDPAImpl_Qwen3Omni::run() {
@@ -102,9 +105,9 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
     const std::optional<ov::Tensor>& audio_embeds,
     const std::optional<ov::Tensor>& audio_pos_mask) {
     using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
-    const auto &model_config = m_model_config;
+    const auto& model_config = m_model_config;
 
-    const size_t  batch      = input_ids.get_shape()[0];
+    const size_t batch = input_ids.get_shape()[0];
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
 
     auto beam_idx = LLMInferenceSDPAModule_Utils::make_beam_idx(batch);
@@ -112,18 +115,21 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
     text_req.reset_state();
 
     // --- Prefill ---
-    text_req.set_tensor(TIO::kInputIds,      input_ids);
+    text_req.set_tensor(TIO::kInputIds, input_ids);
     text_req.set_tensor(TIO::kAttentionMask, attention_mask);
-    text_req.set_tensor(TIO::kPositionIds,   position_ids);
-    text_req.set_tensor(TIO::kBeamIdx,       beam_idx);
+    text_req.set_tensor(TIO::kPositionIds, position_ids);
+    text_req.set_tensor(TIO::kBeamIdx, beam_idx);
     if (visual_embeds.has_value() && visual_pos_mask.has_value()) {
-        text_req.set_tensor(TIO::kVisualEmbeds,  visual_embeds.value());
+        text_req.set_tensor(TIO::kVisualEmbeds, visual_embeds.value());
         text_req.set_tensor(TIO::kVisualPosMask, visual_pos_mask.value());
-    } else{
-        text_req.set_tensor(TIO::kVisualEmbeds,
-            LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, static_cast<size_t>(prompt_len),
-                       static_cast<size_t>(model_config.thinker.text.hidden_size)}));
-        text_req.set_tensor(TIO::kVisualPosMask,
+    } else {
+        text_req.set_tensor(
+            TIO::kVisualEmbeds,
+            LLMInferenceSDPAModule_Utils::make_zeros(
+                ov::element::f32,
+                {batch, static_cast<size_t>(prompt_len), static_cast<size_t>(model_config.thinker.text.hidden_size)}));
+        text_req.set_tensor(
+            TIO::kVisualPosMask,
             LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)}));
     }
     if (deepstack_embeds.has_value()) {
@@ -150,7 +156,9 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
         text_req.set_tensor(TIO::kAudioFeatures, audio_embeds.value());
         text_req.set_tensor(TIO::kAudioPosMask, audio_pos_mask.value());
     } else {
-        ov::Tensor prefill_audio_features(ov::element::f32, {batch, input_ids.get_shape()[1], static_cast<size_t>(model_config.thinker.text.hidden_size)});
+        ov::Tensor prefill_audio_features(
+            ov::element::f32,
+            {batch, input_ids.get_shape()[1], static_cast<size_t>(model_config.thinker.text.hidden_size)});
         std::memset(prefill_audio_features.data(), 0, prefill_audio_features.get_byte_size());
         text_req.set_tensor(TIO::kAudioFeatures, prefill_audio_features);
         ov::Tensor prefill_audio_pos_mask(ov::element::boolean, {batch, input_ids.get_shape()[1]});
@@ -170,46 +178,51 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
     std::vector<int64_t> generated{next_id};
     ov::Tensor step_ids(ov::element::i64, {batch, 1});
     ov::Tensor step_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::i64, {batch, 1});
-    for (size_t b = 0; b < batch; ++b) step_mask.data<int64_t>()[b] = 1;
+    for (size_t b = 0; b < batch; ++b)
+        step_mask.data<int64_t>()[b] = 1;
 
-    ov::Tensor dec_vis      = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32,     {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
+    ov::Tensor dec_vis = LLMInferenceSDPAModule_Utils::make_zeros(
+        ov::element::f32,
+        {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
     ov::Tensor dec_vis_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, 1});
-    ov::Tensor decode_audio_features =
-        LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
+    ov::Tensor decode_audio_features = LLMInferenceSDPAModule_Utils::make_zeros(
+        ov::element::f32,
+        {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)});
     ov::Tensor decode_audio_pos_mask = LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, 1});
     std::vector<ov::Tensor> decode_deepstack;
     decode_deepstack.reserve(model_config.thinker.vision.deepstack_visual_indexes.size());
     for (size_t i = 0; i < model_config.thinker.vision.deepstack_visual_indexes.size(); ++i) {
-        decode_deepstack.push_back(
-            LLMInferenceSDPAModule_Utils::make_zeros(ov::element::f32, {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)}));
+        decode_deepstack.push_back(LLMInferenceSDPAModule_Utils::make_zeros(
+            ov::element::f32,
+            {batch, 1, static_cast<size_t>(model_config.thinker.text.hidden_size)}));
     }
 
-    int64_t past_len     = prompt_len;
+    int64_t past_len = prompt_len;
 
     size_t decode_steps = 0;
     const auto t_dec0 = std::chrono::steady_clock::now();
 
     for (size_t step = 1; step < m_max_new_tokens; ++step) {
-        if (!m_stop_ids.empty() && m_stop_ids.count(next_id)) break;
+        if (!m_stop_ids.empty() && m_stop_ids.count(next_id))
+            break;
 
         for (size_t b = 0; b < batch; ++b)
             step_ids.data<int64_t>()[b] = next_id;
 
-        ov::Tensor pos = ov::genai::modeling::models::Qwen3OmniInputPlanner::build_decode_position_ids(
-            rope_deltas, past_len, 1);
+        ov::Tensor pos =
+            ov::genai::modeling::models::Qwen3OmniInputPlanner::build_decode_position_ids(rope_deltas, past_len, 1);
 
-        text_req.set_tensor(TIO::kInputIds,      step_ids);
+        text_req.set_tensor(TIO::kInputIds, step_ids);
         text_req.set_tensor(TIO::kAttentionMask, step_mask);
-        text_req.set_tensor(TIO::kPositionIds,   pos);
-        text_req.set_tensor(TIO::kBeamIdx,       beam_idx);
-        text_req.set_tensor(TIO::kVisualEmbeds,  dec_vis);
+        text_req.set_tensor(TIO::kPositionIds, pos);
+        text_req.set_tensor(TIO::kBeamIdx, beam_idx);
+        text_req.set_tensor(TIO::kVisualEmbeds, dec_vis);
         text_req.set_tensor(TIO::kVisualPosMask, dec_vis_mask);
         text_req.set_tensor(TIO::kAudioFeatures, decode_audio_features);
         text_req.set_tensor(TIO::kAudioPosMask, decode_audio_pos_mask);
         for (size_t i = 0; i < decode_deepstack.size(); ++i) {
-            const std::string name =
-                std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) + "." +
-                std::to_string(i);
+            const std::string name = std::string(ov::genai::modeling::models::Qwen3VLTextIO::kDeepstackEmbedsPrefix) +
+                                     "." + std::to_string(i);
             text_req.set_tensor(name, decode_deepstack[i]);
         }
 
@@ -227,12 +240,11 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
-        const double ttft_ms    = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
-        const double decode_ms  = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
-        const double tpot_ms    = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
-        const double throughput = decode_steps > 0 && decode_ms > 0.0
-                                   ? static_cast<double>(decode_steps) * 1000.0 / decode_ms
-                                   : 0.0;
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
+        const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
+        const double throughput =
+            decode_steps > 0 && decode_ms > 0.0 ? static_cast<double>(decode_steps) * 1000.0 / decode_ms : 0.0;
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "Mode: sdpa / vl\n"
                   << "Device: " << m_device << "\n"
@@ -253,9 +265,12 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
         return m_tokenizer->decode(generated, ov::genai::skip_special_tokens(true));
     } else {
         std::ostringstream oss;
-        for (auto id : generated) oss << id << ' ';
+        for (auto id : generated)
+            oss << id << ' ';
         return oss.str();
     }
 }
 
 }  // namespace ov::genai::module
+
+#endif  // ENABLE_MODELING_PRIVATE

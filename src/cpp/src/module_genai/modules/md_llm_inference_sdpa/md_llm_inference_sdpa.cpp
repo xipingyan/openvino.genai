@@ -24,7 +24,7 @@
 #include "openvino/genai/chat_history.hpp"
 #include "module_genai/utils/com_utils.hpp"
 #include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
-#include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
+// #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 #include "module_genai/utils/profiler.hpp"
 
 #include "module_genai/modules/md_llm_inference_sdpa/models/qwen3_omni.hpp"

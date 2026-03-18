@@ -8,15 +8,15 @@
 #include "visual_language/processor_config.hpp"
 #include "visual_language/vision_encoder.hpp"
 #include "visual_language/vlm_config.hpp"
+
+#if defined(ENABLE_MODELING_PRIVATE)
+
 #include "module_genai/modules/models/qwen3_5/qwen3_5config.hpp"
 #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 #include "models/qwen3_omni/qwen3_omni_config.hpp"
-// #ifdef ENABLE_OPENVINO_NEW_ARCH
 #include "modeling/models/qwen3_5/processing_qwen3_5.hpp"
-// #endif
-namespace ov {
-namespace genai {
-namespace module {
+
+namespace ov::genai::module {
 
 class VisionEncoderModule : public IBaseModule {
     DeclareModuleConstructor(VisionEncoderModule);
@@ -74,6 +74,6 @@ private:
 
 REGISTER_MODULE_CONFIG(VisionEncoderModule) ;
 
-}
-}
-}
+}   // namespace ov::genai::module
+
+#endif  // ENABLE_MODELING_PRIVATE

@@ -1,5 +1,7 @@
 #include "md_vision_encoder.hpp"
 
+#if defined(ENABLE_MODELING_PRIVATE)
+
 #include "module_genai/pipeline/module_factory.hpp"
 #include <array>
 #include <cstddef>
@@ -935,3 +937,5 @@ ov::Tensor VisionEncoderModule::build_vision_attention_mask(const ov::Tensor& gr
 }
 }
 }
+
+#endif  // ENABLE_MODELING_PRIVATE

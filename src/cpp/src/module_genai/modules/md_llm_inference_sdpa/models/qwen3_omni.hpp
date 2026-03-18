@@ -8,12 +8,10 @@
 #include <string>
 
 #include "module_genai/modules/md_llm_inference_sdpa/md_llm_inference_sdpa.hpp"
-#include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 
-#ifndef ENABLE_MODELING_PRIVATE
-#    define ENABLE_MODELING_PRIVATE 1
-#endif
-#ifdef ENABLE_MODELING_PRIVATE
+#if defined(ENABLE_MODELING_PRIVATE)
+
+#    include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 
 namespace ov::genai::module {
 
@@ -57,9 +55,15 @@ protected:
 }  // namespace ov::genai::module
 #else   // ENABLE_MODELING_PRIVATE not defined
 namespace ov::genai::module {
-class LLMInferenceSDPAImpl_Qwen3Omni {
+class LLMInferenceSDPAImpl_Qwen3Omni : public LLMInferenceSDPAModule {
 public:
-    LLMInferenceSDPAImpl_Qwen3Omni(const std::filesystem::path& /*model_path*/, const std::string& /*device*/) {
+    LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModuleDesc::PTR& desc,
+                                   const PipelineDesc::PTR& pipeline_desc,
+                                   const VLMModelType& model_type)
+        : LLMInferenceSDPAModule(desc, pipeline_desc, model_type) {
+        OPENVINO_THROW("LLMInferenceSDPAImpl_Qwen3Omni is not implemented in open source build");
+    }
+    void run() override {
         OPENVINO_THROW("LLMInferenceSDPAImpl_Qwen3Omni is not implemented in open source build");
     }
 };
