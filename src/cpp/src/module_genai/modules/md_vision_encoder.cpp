@@ -208,15 +208,10 @@ bool VisionEncoderModule::initialize() {
     }
 
     if (model_type == VLMModelType::QWEN3_OMNI) {
-#ifdef ENABLE_OPENVINO_NEW_ARCH
-        modeling::models::Qwen3OmniConfig omni_config = modeling::models::Qwen3OmniConfig::from_json_file(model_path / "config.json");
+        modeling::models::Qwen3OmniProcessingConfig omni_config = modeling::models::Qwen3OmniProcessingConfig::from_json_file(model_path / "config.json");
         // modeling::models::Qwen3VLConfig vl_config = get_qwen3_omni_vl_config(model_path / "config.json");
         m_config = omni_config;
         m_input_planner = modeling::models::Qwen3OmniInputPlanner(omni_config.thinker);
-#else
-        GENAI_ERR("Qwen 3 Omni vision encoder requires ENABLE_OPENVINO_NEW_ARCH to be enabled");
-        return false;
-#endif
     } else if (model_type == VLMModelType::QWEN3_5) {
 #ifdef ENABLE_OPENVINO_NEW_ARCH
         modeling::models::Qwen3_5Config qwen3_5config = modeling::models::Qwen3_5Config::from_json_file(model_path / "config.json");
