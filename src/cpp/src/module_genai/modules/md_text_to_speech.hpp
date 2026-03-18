@@ -5,8 +5,8 @@
 
 #ifdef ENABLE_OPENVINO_NEW_ARCH
 
-#include "module_genai/module.hpp"
-#include "module_genai/pipeline_impl.hpp"
+#include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/pipeline_impl.hpp"
 #include "openvino/genai/tokenizer.hpp"
 #include "modeling/models/qwen3_omni/processing_qwen3_omni.hpp"
 #include <memory>
@@ -19,7 +19,7 @@
 
 namespace ov::genai::module {
 
-using Qwen3OmniConfig = modeling::models::Qwen3OmniConfig;
+using Qwen3OmniProcessingConfig = modeling::models::Qwen3OmniProcessingConfig;
 
 class TextToSpeechModule : public IBaseModule {
     DeclareModuleConstructor(TextToSpeechModule)
@@ -49,7 +49,7 @@ private:
     std::unique_ptr<ov::InferRequest> m_code_predictor_single_codec_embedding_infer;
     std::unique_ptr<ov::InferRequest> m_speech_decoder_infer;
     std::unique_ptr<Tokenizer> m_tokenizer;
-    std::variant<Qwen3OmniConfig> m_config;
+    std::variant<Qwen3OmniProcessingConfig> m_config;
 };
 
 }

@@ -4,7 +4,7 @@
 #ifdef ENABLE_OPENVINO_NEW_ARCH
 
 #include "md_text_to_speech.hpp"
-#include "module_genai/module_factory.hpp"
+#include "module_genai/pipeline/module_factory.hpp"
 #include "module_genai/utils/profiler.hpp"
 #include "utils.hpp"
 #include <random>
@@ -64,7 +64,7 @@ bool TextToSpeechModule::initialize() {
             GENAI_ERR("TextToSpeechModule[" + module_desc->name + "]: 'config_path' param is required for Qwen3-Omni");
             return false;
         }
-        m_config = Qwen3OmniConfig::from_json_file(config_path.value());
+        m_config = Qwen3OmniProcessingConfig::from_json_file(config_path.value());
 
         // All TTS models must run at fp32 precision regardless of device.
         // Using reduced precision (fp16/bf16) for the talker causes audio quality
@@ -297,7 +297,7 @@ std::shared_ptr<ov::Model> TextToSpeechModule::load_model(const std::filesystem:
 }
 
 std::pair<ov::Tensor, int> TextToSpeechModule::qwen3_omni_text_to_speech(const std::string& text) {
-    Qwen3OmniConfig cfg = std::get<Qwen3OmniConfig>(m_config);
+    Qwen3OmniProcessingConfig cfg = std::get<Qwen3OmniProcessingConfig>(m_config);
     auto talker_cfg = to_qwen3_omni_talker_config(cfg);
     auto cp_cfg = to_qwen3_omni_code_predictor_config(cfg);
     auto speech_decoder_cfg = to_qwen3_omni_speech_decoder_config(cfg);
