@@ -62,19 +62,26 @@ inline ov::AnyMap parse_inputs_for_omni(const utils::OmniInputParams& params) {
 
 int main(int argc, char* argv[]) {
     try {
+        auto usage_prompts = std::string{"Usage: "} + argv[0] +
+                             "\n"
+                             "  -h or --help for more details\n"
+                             "  -cfg config.yaml \n"
+                             "  -cache_dir: [Optional] string path, default empty\n"
+                             "  -prompt: input prompt\n"
+                             "  -img: [Optional] image path\n"
+                             "  -video: [Optional] video path\n"
+                             "  -audio: [Optional] audio path\n"
+                             "  -use_audio_in_video: [Optional] set to 1 if the video contains audio and you want to "
+                             "use the audio, default 0\n"
+                             "  -tts: [Optional] set to 1 to use tts, default 0\n"
+                             "  -warmup: [Optional] number of warmup runs, default 0\n"
+                             "  -perf: [Optional] set to 1 to print performance metrics, default 0\n";
         if (argc <= 1) {
-            throw std::runtime_error(std::string{"Usage: "} + argv[0] +
-                                     "\n"
-                                     "  -cfg config.yaml \n"
-                                     "  -cache_dir: [Optional] string path, default empty\n"
-                                     "  -prompt: input prompt\n"
-                                     "  -img: [Optional] image path\n"
-                                     "  -video: [Optional] video path\n"
-                                     "  -audio: [Optional] audio path\n"
-                                     "  -use_audio_in_video: [Optional] set to 1 if the video contains audio and you want to use the audio, default 0\n"
-                                     "  -tts: [Optional] set to 1 to use tts, default 0\n"
-                                     "  -warmup: [Optional] number of warmup runs, default 0\n"
-                                     "  -perf: [Optional] set to 1 to print performance metrics, default 0\n");
+            throw std::runtime_error(usage_prompts);
+        } else if (utils::contains_key("-h", {argv, argv + argc}) ||
+                   utils::contains_key("--help", {argv, argv + argc})) {
+            std::cout << usage_prompts << std::endl;
+            return EXIT_SUCCESS;
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg", std::string{});

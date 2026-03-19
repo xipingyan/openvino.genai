@@ -138,21 +138,26 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_video_generation(const std::fil
 
 int main(int argc, char* argv[]) {
     try {
+        auto usage_prompts = std::string{"Usage: "} + argv[0] +
+                             "  -cfg <config.yaml>\n"
+                             "  -cache_dir <path> [Optional] (default: empty)\n"
+                             "  -prompt <text>\n"
+                             "  --negative_prompt <text>\n"
+                             "  --height <int> (default 480)\n"
+                             "  --width <int> (default 480)\n"
+                             "  --num_frames <int> (default 40)\n"
+                             "  --num_inference_steps <int> (default 50)\n"
+                             "  --guidance_scale <float> (default 5.0)\n"
+                             "  --max_sequence_length <int> (default 512)\n"
+                             "  --batch_size <int> (default 1)\n"
+                             "  --num_videos_per_prompt <int> (default 1)\n"
+                             "  --seed <int> (default 42)\n";
         if (argc <= 1) {
-            throw std::runtime_error(std::string{"Usage: "} + argv[0] + "\n"
-                                     "  -cfg <config.yaml>\n"
-                                     "  -cache_dir <path> [Optional] (default: empty)\n"
-                                     "  -prompt <text>\n"
-                                     "  --negative_prompt <text>\n"
-                                     "  --height <int> (default 480)\n"
-                                     "  --width <int> (default 480)\n"
-                                     "  --num_frames <int> (default 40)\n"
-                                     "  --num_inference_steps <int> (default 50)\n"
-                                     "  --guidance_scale <float> (default 5.0)\n"
-                                     "  --max_sequence_length <int> (default 512)\n"
-                                     "  --batch_size <int> (default 1)\n"
-                                     "  --num_videos_per_prompt <int> (default 1)\n"
-                                     "  --seed <int> (default 42)\n");
+            throw std::runtime_error(usage_prompts);
+        } else if (utils::contains_key("-h", {argv, argv + argc}) ||
+                   utils::contains_key("--help", {argv, argv + argc})) {
+            std::cout << usage_prompts << std::endl;
+            return EXIT_SUCCESS;
         }
 
         std::filesystem::path config_path = utils::get_input_arg(argc, argv, "-cfg");
