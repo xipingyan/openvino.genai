@@ -65,8 +65,9 @@ protected:
 protected:    
     bool initialize(const VLMModelType& model_type);
 
-    // Compiled text model + infer request
-    std::optional<ov::CompiledModel> m_compiled_text;
+    // LLM infer request.
+    ov::InferRequest m_infer_request;
+
     bool m_text_uses_vl_ir = false;
 
     // Stop token tracking
