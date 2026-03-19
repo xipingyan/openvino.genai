@@ -1,8 +1,6 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef ENABLE_OPENVINO_NEW_ARCH
-
 #include "../utils/ut_modules_base.hpp"
 #include "../utils/utils.hpp"
 
@@ -147,7 +145,4 @@ INSTANTIATE_TEST_SUITE_P(ModuleTestSuite,
     ::testing::Combine(::testing::ValuesIn(test_datas),
     ::testing::ValuesIn(test_devices)),
     TextToSpeechModuleTest::get_test_case_name);
-
-
 }
-#endif
