@@ -426,7 +426,7 @@ std::string LLMInferenceSDPAModule::run_text_decode(const ov::Tensor& input_ids,
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (dump_performance_enabled()) {
-        const double ttft_ms    = elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms    = elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms  = elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms    = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput = decode_steps > 0 && decode_ms > 0.0
@@ -577,7 +577,7 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (dump_performance_enabled()) {
-        const double ttft_ms    = elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms    = elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms  = elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms    = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput = decode_steps > 0 && decode_ms > 0.0
@@ -738,7 +738,7 @@ std::string LLMInferenceSDPAModule::run_vl_decode(const ov::Tensor& input_ids,
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (dump_performance_enabled()) {
-        const double ttft_ms    = elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms    = elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms  = elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms    = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput = decode_steps > 0 && decode_ms > 0.0
