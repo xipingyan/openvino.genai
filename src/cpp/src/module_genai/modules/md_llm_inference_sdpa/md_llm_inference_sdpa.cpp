@@ -122,7 +122,7 @@ LLMInferenceSDPAModule::~LLMInferenceSDPAModule() {}
 
 bool LLMInferenceSDPAModule::initialize(const VLMModelType& model_type) {
     const auto& params = module_desc->params;
-
+    m_device = module_desc->device.empty() ? "CPU" : module_desc->device;
     // Required model_path param.
     std::filesystem::path models_path = get_param("model_path");
     if (models_path.extension() == ".xml") {

@@ -223,7 +223,7 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_text_decode(const ov::Tensor& inpu
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
-        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput =
@@ -375,7 +375,7 @@ std::string LLMInferenceSDPAImpl_Qwen3_5::run_vl_decode(
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
-        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput =

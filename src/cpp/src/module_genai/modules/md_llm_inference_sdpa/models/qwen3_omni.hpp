@@ -11,7 +11,7 @@
 
 #if defined(ENABLE_MODELING_PRIVATE)
 
-#    include "modeling_private/models/qwen3_omni/processing_qwen3_omni.hpp"
+#include "modeling_private/models/qwen3_omni/processing_qwen3_omni.hpp"
 
 namespace ov::genai::module {
 

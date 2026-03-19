@@ -9,6 +9,7 @@
 #include "openvino/core/any.hpp"
 #include "openvino/genai/visibility.hpp"
 #include "visual_language/vision_encoder.hpp"
+#include <chrono>
 
 namespace ov {
 namespace genai {
@@ -64,11 +65,14 @@ public:
     std::string get_param(const std::string& param_item);
     std::string get_optional_param(const std::string& param_item);
     size_t str_to_size_t(const std::string& param_item);
+    static void start_generate() {
+        m_generate_start_time = std::chrono::steady_clock::now();
+    }
 
 protected:
     bool is_input_module = false;
     bool is_output_module = false;
-
+    static thread_local std::chrono::steady_clock::time_point m_generate_start_time;
     bool m_dynamic_load_weights = false;  // After inference with larger models, the weights need to be released to free
                                           // up space for inference with other models.
     void check_dynamic_load_weights();    // "dynamic_load_weights" depends on params: "cache_dir"

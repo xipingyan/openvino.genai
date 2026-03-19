@@ -10,12 +10,12 @@
 
 #if defined(ENABLE_MODELING_PRIVATE)
 
-#    include "modeling_private/models/qwen3_omni/processing_qwen3_omni.hpp"
-#    include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
-#    include "module_genai/utils/com_utils.hpp"
-#    include "module_genai/utils/profiler.hpp"
-#    include "openvino/genai/chat_history.hpp"
-#    include "utils.hpp"
+#include "modeling_private/models/qwen3_omni/processing_qwen3_omni.hpp"
+#include "modeling/models/qwen3_vl/processing_qwen3_vl.hpp"
+#include "module_genai/utils/com_utils.hpp"
+#include "module_genai/utils/profiler.hpp"
+#include "openvino/genai/chat_history.hpp"
+#include "utils.hpp"
 
 namespace ov::genai::module {
 LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModuleDesc::PTR& desc,
@@ -240,7 +240,7 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
     const auto t_dec1 = std::chrono::steady_clock::now();
 
     if (LLMInferenceSDPAModule_Utils::dump_performance_enabled()) {
-        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_prefill0, t_prefill1);
+        const double ttft_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(m_generate_start_time, t_prefill1);
         const double decode_ms = LLMInferenceSDPAModule_Utils::elapsed_ms(t_dec0, t_dec1);
         const double tpot_ms = decode_steps > 0 ? decode_ms / static_cast<double>(decode_steps) : 0.0;
         const double throughput =

@@ -12,6 +12,8 @@ namespace module {
 
 namespace fs = std::filesystem;
 
+thread_local std::chrono::steady_clock::time_point IBaseModule::m_generate_start_time {};
+
 IBaseModule::IBaseModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : module_desc(desc),
       pipeline_desc(pipeline_desc) {

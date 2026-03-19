@@ -44,3 +44,5 @@ __pycache__
 
 # CodeQL artifacts
 _codeql_detected_source_root
+profile_*.json
+output_*.wav
