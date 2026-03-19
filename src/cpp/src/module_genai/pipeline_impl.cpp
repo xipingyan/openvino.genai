@@ -31,6 +31,9 @@ ModulePipelineImpl::~ModulePipelineImpl() {}
 // "video": video ov::Tensor
 void ModulePipelineImpl::generate(ov::AnyMap& inputs, StreamerVariant streamer) {
     PROFILE(p, "generate");
+    if (!m_modules.empty()) {
+        m_modules[0]->start_generate();
+    }
     for (auto& module : m_modules) {
         PROFILE(pm, module->module_desc->name);
         if (module->is_input()) {
@@ -47,6 +50,10 @@ void ModulePipelineImpl::generate(ov::AnyMap& inputs, StreamerVariant streamer) 
 void ModulePipelineImpl::generate_async(ov::AnyMap& inputs, StreamerVariant streamer) {
     PROFILE(p, "generate_async");
     using namespace oneapi::tbb::flow;
+
+    if (!m_modules.empty()) {
+        m_modules[0]->start_generate();
+    }
 
     if (_flow_nodes.empty()) {
         init_onetbb_threading();
