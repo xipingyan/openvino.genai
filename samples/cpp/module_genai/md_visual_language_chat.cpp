@@ -56,6 +56,7 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_vlm(const std::filesystem::path
 
 int main(int argc, char* argv[]) {
     try {
+        std::vector<std::string> args(argv, argv + argc);
         auto usage_prompts = std::string{"Usage: "} + argv[0] +
                              "\n"
                              "  -cfg config.yaml \n"
@@ -68,8 +69,8 @@ int main(int argc, char* argv[]) {
 
         if (argc <= 1) {
             throw std::runtime_error(usage_prompts);
-        } else if (utils::contains_key("-h", {argv, argv + argc}) ||
-                   utils::contains_key("--help", {argv, argv + argc})) {
+        } else if (utils::contains_key("-h", args) ||
+                   utils::contains_key("--help", args)) {
             std::cout << usage_prompts << std::endl;
             return EXIT_SUCCESS;
         }

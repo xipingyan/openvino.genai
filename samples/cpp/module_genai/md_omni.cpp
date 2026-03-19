@@ -62,6 +62,7 @@ inline ov::AnyMap parse_inputs_for_omni(const utils::OmniInputParams& params) {
 
 int main(int argc, char* argv[]) {
     try {
+        std::vector<std::string> args(argv, argv + argc);
         auto usage_prompts = std::string{"Usage: "} + argv[0] +
                              "\n"
                              "  -h or --help for more details\n"
@@ -78,8 +79,8 @@ int main(int argc, char* argv[]) {
                              "  -perf: [Optional] set to 1 to print performance metrics, default 0\n";
         if (argc <= 1) {
             throw std::runtime_error(usage_prompts);
-        } else if (utils::contains_key("-h", {argv, argv + argc}) ||
-                   utils::contains_key("--help", {argv, argv + argc})) {
+        } else if (utils::contains_key("-h", args) ||
+                   utils::contains_key("--help", args)) {
             std::cout << usage_prompts << std::endl;
             return EXIT_SUCCESS;
         }

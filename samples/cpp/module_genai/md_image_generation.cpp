@@ -82,7 +82,6 @@ inline ov::AnyMap parse_inputs_from_yaml_cfg_for_image_generation(const std::fil
 int main(int argc, char* argv[]) {
     try {
         std::vector<std::string> args(argv, argv + argc);
-
         auto usage_prompts = std::string{"Usage: "} + argv[0] +
                              "  -cfg config.yaml \n"
                              "  -cache_dir: [Optional] string path, default empty\n"
