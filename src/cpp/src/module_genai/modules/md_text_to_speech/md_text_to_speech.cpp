@@ -98,7 +98,7 @@ std::optional<std::filesystem::path> TextToSpeechModule::get_model_path(const st
     if (it == module_desc->params.end() || it->second.empty()) {
         return std::nullopt;
     }
-    return it->second;
+    return module_desc->get_full_path(it->second);
 }
 
 std::shared_ptr<ov::Model> TextToSpeechModule::load_model(const std::filesystem::path& model_path,
