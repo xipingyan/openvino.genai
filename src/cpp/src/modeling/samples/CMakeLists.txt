@@ -19,7 +19,8 @@ target_include_directories(modeling_qwen3_vl PRIVATE
     $<TARGET_PROPERTY:openvino::genai,INTERFACE_INCLUDE_DIRECTORIES>)
 
 target_link_libraries(modeling_qwen3_vl PRIVATE
-    $<TARGET_PROPERTY:openvino_genai_obj,LINK_LIBRARIES>)
+    $<TARGET_PROPERTY:openvino_genai_obj,LINK_LIBRARIES>
+    ${YAML_CPP_TARGET})
 
 target_compile_definitions(modeling_qwen3_vl PRIVATE
     openvino_genai_EXPORTS)

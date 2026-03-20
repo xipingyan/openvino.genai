@@ -134,8 +134,8 @@ std::pair<int, int> smart_resize_video(int height, int width,
 int smart_nframes(int total_frames, double video_fps,
                   float target_fps = 2.0f, int min_frames = 4, int max_frames = 768) {
     constexpr int FRAME_FACTOR = 2;
-    auto floor2 = [](double v) { return (int)(std::floor(v / FRAME_FACTOR) * FRAME_FACTOR); };
-    auto ceil2  = [](double v) { return (int)(std::ceil(v  / FRAME_FACTOR) * FRAME_FACTOR); };
+    auto floor2 = [FRAME_FACTOR](double v) { return (int)(std::floor(v / FRAME_FACTOR) * FRAME_FACTOR); };
+    auto ceil2  = [FRAME_FACTOR](double v) { return (int)(std::ceil(v  / FRAME_FACTOR) * FRAME_FACTOR); };
 
     int min_f   = std::max(FRAME_FACTOR, ceil2(min_frames));
     int max_f   = std::max(FRAME_FACTOR, floor2(std::min(max_frames, total_frames)));
