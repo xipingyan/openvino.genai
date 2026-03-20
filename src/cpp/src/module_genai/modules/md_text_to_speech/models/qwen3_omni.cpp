@@ -178,6 +178,9 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
 		return false;
 	}
 
+	// --- Pre-compute tts_pad embedding ---
+	calc_tts_pad_embed();
+
 	return true;
 }
 
@@ -201,6 +204,32 @@ void TextToSpeechImpl_Qwen3Omni::run() {
 	outputs["audios"].data = audios;
 	outputs["sample_rates"].data = sample_rates;
 	outputs["generated_texts"].data = texts;
+}
+
+ov::Tensor TextToSpeechImpl_Qwen3Omni::text_embedding(ov::Tensor text_input_ids,
+                                                      ov::Tensor codec_input_ids,
+                                                      ov::Tensor codec_mask) {
+    m_embedding_infer->set_tensor("text_input_ids", text_input_ids);
+    m_embedding_infer->set_tensor("codec_input_ids", codec_input_ids);
+    m_embedding_infer->set_tensor("codec_mask", codec_mask);
+    {
+        PROFILE(pm, "TextToSpeechImpl_Qwen3Omni::embedding_model infer");
+        m_embedding_infer->infer();
+    }
+    return m_embedding_infer->get_tensor("inputs_embeds");
+}
+
+void TextToSpeechImpl_Qwen3Omni::calc_tts_pad_embed() {
+    const int64_t tts_pad_id = m_config.tts_pad_token_id;
+    std::vector<int64_t> tp_text = {tts_pad_id};
+    std::vector<int64_t> tp_codec = {0};
+    std::vector<float> tp_mask = {0.0f};
+
+	ov::Tensor embed = text_embedding(ov::Tensor(ov::element::i64, {1, 1}, tp_text.data()),
+									 ov::Tensor(ov::element::i64, {1, 1}, tp_codec.data()),
+									 ov::Tensor(ov::element::f32, {1, 1}, tp_mask.data()));
+	m_tts_pad_embed.resize(embed.get_shape()[2]);
+	std::copy(embed.data<float>(), embed.data<float>() + embed.get_shape()[2], m_tts_pad_embed.begin()); 
 }
 
 std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech(const std::string& text) {
@@ -232,25 +261,6 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
 	const int64_t codec_nothink = m_config.talker_config_raw.value("codec_nothink_id", 2155);
 	const int64_t codec_think_bos = m_config.talker_config_raw.value("codec_think_bos_id", 2156);
 	const int64_t codec_think_eos = m_config.talker_config_raw.value("codec_think_eos_id", 2157);
-
-	// --- Pre-compute tts_pad embedding ---
-	{
-		std::vector<int64_t> tp_text = {tts_pad_id};
-		std::vector<int64_t> tp_codec = {0};
-		std::vector<float> tp_mask = {0.0f};
-		m_embedding_infer->set_tensor("text_input_ids", ov::Tensor(ov::element::i64, {1, 1}, tp_text.data()));
-		m_embedding_infer->set_tensor("codec_input_ids", ov::Tensor(ov::element::i64, {1, 1}, tp_codec.data()));
-		m_embedding_infer->set_tensor("codec_mask", ov::Tensor(ov::element::f32, {1, 1}, tp_mask.data()));
-		{
-			PROFILE(pm, "embedding_model infer");
-			m_embedding_infer->infer();
-		}
-	}
-	auto tts_pad_embed_tensor = m_embedding_infer->get_tensor("inputs_embeds");
-	std::vector<float> tts_pad_embed(hidden_size);
-	std::copy(tts_pad_embed_tensor.data<float>(),
-			  tts_pad_embed_tensor.data<float>() + hidden_size,
-			  tts_pad_embed.begin());
 
 	// --- Resolve speaker ID (default: "f245") ---
 	int64_t speaker_id = 2301;  // f245
@@ -306,14 +316,7 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
 		ov::Tensor t_text_ids(ov::element::i64, {1, trailing_len}, trailing_text_ids.data());
 		ov::Tensor t_codec_ids(ov::element::i64, {1, trailing_len}, batched_codec_ids.data());
 		ov::Tensor t_codec_mask(ov::element::f32, {1, trailing_len}, batched_codec_mask.data());
-		m_embedding_infer->set_tensor("text_input_ids", t_text_ids);
-		m_embedding_infer->set_tensor("codec_input_ids", t_codec_ids);
-		m_embedding_infer->set_tensor("codec_mask", t_codec_mask);
-		{
-			PROFILE(pm, "embedding_model infer");
-			m_embedding_infer->infer();
-		}
-		auto embeddings = m_embedding_infer->get_tensor("inputs_embeds");
+		auto embeddings = text_embedding(t_text_ids, t_codec_ids, t_codec_mask);
 		const float* embeddings_data = embeddings.data<float>();
 		const size_t trailing_hidden_size = embeddings.get_shape().back();
 		for (size_t token_index = 0; token_index < trailing_len; ++token_index) {
@@ -323,19 +326,13 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
 	}
 
 	// --- Get prefill embeddings ---
+	ov::Tensor prefill_embeds;
 	{
 		ov::Tensor text_tensor(ov::element::i64, {batch, prefill_len}, full_text_ids.data());
 		ov::Tensor codec_tensor(ov::element::i64, {batch, prefill_len}, full_codec_ids.data());
 		ov::Tensor mask_tensor(ov::element::f32, {batch, prefill_len}, full_codec_mask.data());
-		m_embedding_infer->set_tensor("text_input_ids", text_tensor);
-		m_embedding_infer->set_tensor("codec_input_ids", codec_tensor);
-		m_embedding_infer->set_tensor("codec_mask", mask_tensor);
-		{
-			PROFILE(pm, "embedding_model infer");
-			m_embedding_infer->infer();
-		}
+		prefill_embeds = text_embedding(text_tensor, codec_tensor, mask_tensor);
 	}
-	auto prefill_embeds = m_embedding_infer->get_tensor("inputs_embeds");
 
 	auto pos_data = make_mrope_positions(0, prefill_len, batch);
 	ov::Tensor position_ids(ov::element::i64, {3, batch, prefill_len}, pos_data.data());
@@ -503,7 +500,7 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
 		}
 
 		const auto& text_conditioning =
-			(static_cast<size_t>(frame) < trailing_text_embeds.size()) ? trailing_text_embeds[frame] : tts_pad_embed;
+			(static_cast<size_t>(frame) < trailing_text_embeds.size()) ? trailing_text_embeds[frame] : m_tts_pad_embed;
 		std::vector<float> step_embed_data(hidden_size);
 		for (size_t i = 0; i < hidden_size; ++i) {
 			step_embed_data[i] = codec_sum[i] + text_conditioning[i];

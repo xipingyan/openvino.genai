@@ -24,6 +24,12 @@ public:
 
 private:
 	bool initialize();
+
+	ov::Tensor text_embedding(ov::Tensor text_input_ids, ov::Tensor codec_input_ids, ov::Tensor codec_mask);
+
+	std::vector<float> m_tts_pad_embed;
+	void calc_tts_pad_embed();
+
 	std::pair<ov::Tensor, int> qwen3_omni_text_to_speech(const std::string& text);
 
 private:
