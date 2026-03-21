@@ -47,6 +47,9 @@ protected:
                                const std::vector<int64_t>* history,
                                const std::vector<int64_t>* suppress_tokens,
                                std::mt19937& rng);
+    //    sample_codec_token's special case when temperature=0 or top_k=1 or top_p=0, which means greedy decoding.
+    int64_t sample_codec_token_greedy(const float* logits, size_t vocab_size);
+
     ov::Tensor make_decode_mask(size_t past_len, size_t batch);
     std::pair<ov::Tensor, int> synthesize_fallback_tone(const std::string& text);
 

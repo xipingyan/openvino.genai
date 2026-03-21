@@ -265,6 +265,9 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
         }
 
         auto step_logits = m_code_predictor_ar_infers[step]->get_tensor("logits");
+#    if 0  // Greedy decoding for debugging
+        int64_t layer_token = sample_codec_token_greedy(step_logits.data<float>(), cp_vocab_size);
+#    else
         int64_t layer_token = sample_codec_token(step_logits.data<float>(),
                                                  cp_vocab_size,
                                                  temperature,
@@ -274,6 +277,7 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
                                                  nullptr,
                                                  nullptr,
                                                  rng);
+#    endif
 
         if (step + 1 < num_layers_total) {
             all_layer_tokens[step + 1].push_back(layer_token);

@@ -233,6 +233,18 @@ int64_t TextToSpeechModule::sample_codec_token(const float* logits,
     return static_cast<int64_t>(index[0]);
 }
 
+int64_t TextToSpeechModule::sample_codec_token_greedy(const float* logits, size_t vocab_size) {
+    size_t max_index = 0;
+    float max_logit = logits[0];
+    for (size_t i = 1; i < vocab_size; ++i) {
+        if (logits[i] > max_logit) {
+            max_logit = logits[i];
+            max_index = i;
+        }
+    }
+    return static_cast<int64_t>(max_index);
+}
+
 ov::Tensor TextToSpeechModule::make_decode_mask(size_t past_len, size_t batch) {
     const size_t total = past_len + 1;
     ov::Tensor mask(ov::element::f32, {batch, 1, 1, total});
