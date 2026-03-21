@@ -186,7 +186,16 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
     // --- Pre-compute tts_pad embedding ---
     calc_tts_pad_embed();
 
+    // Configs
+    m_talker_cfg = to_qwen3_omni_talker_config(m_config);
+    m_cp_cfg = to_qwen3_omni_code_predictor_config(m_config);
+    m_cp_steps = std::max(1, m_cp_cfg.num_code_groups - 1);
+
     return true;
+}
+
+void TextToSpeechImpl_Qwen3Omni::merge_ov_models() {
+
 }
 
 void TextToSpeechImpl_Qwen3Omni::run() {
@@ -237,6 +246,31 @@ void TextToSpeechImpl_Qwen3Omni::calc_tts_pad_embed() {
     std::copy(embed.data<float>(), embed.data<float>() + embed.get_shape()[2], m_tts_pad_embed.begin());
 }
 
+std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers_merged_ov(
+    int cp_steps,
+    std::vector<float>& autoregressive_sequence,
+    size_t batch,
+    size_t hidden_size,
+    size_t cp_vocab_size,
+    float temperature,
+    size_t top_k,
+    float top_p,
+    std::mt19937& rng,
+    std::vector<std::vector<int64_t>>& all_layer_tokens,
+    int num_layers_total) {
+    return code_predictor_ar_infers(cp_steps,
+                                    autoregressive_sequence,
+                                    batch,
+                                    hidden_size,
+                                    cp_vocab_size,
+                                    temperature,
+                                    top_k,
+                                    top_p,
+                                    rng,
+                                    all_layer_tokens,
+                                    num_layers_total);
+}
+
 std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
     int cp_steps,
     std::vector<float>& autoregressive_sequence,
@@ -265,19 +299,21 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
         }
 
         auto step_logits = m_code_predictor_ar_infers[step]->get_tensor("logits");
-#    if 0  // Greedy decoding for debugging
-        int64_t layer_token = sample_codec_token_greedy(step_logits.data<float>(), cp_vocab_size);
-#    else
-        int64_t layer_token = sample_codec_token(step_logits.data<float>(),
-                                                 cp_vocab_size,
-                                                 temperature,
-                                                 top_k,
-                                                 top_p,
-                                                 1.0f,
-                                                 nullptr,
-                                                 nullptr,
-                                                 rng);
-#    endif
+
+        int64_t layer_token;
+        if (m_sample_codec_token_greedy_search) {
+            layer_token = sample_codec_token_greedy(step_logits.data<float>(), cp_vocab_size);
+        } else {
+            layer_token = sample_codec_token(step_logits.data<float>(),
+                                             cp_vocab_size,
+                                             temperature,
+                                             top_k,
+                                             top_p,
+                                             1.0f,
+                                             nullptr,
+                                             nullptr,
+                                             rng);
+        }
 
         if (step + 1 < num_layers_total) {
             all_layer_tokens[step + 1].push_back(layer_token);
@@ -294,6 +330,7 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
         }
 
         auto layer_embed = m_code_predictor_single_codec_embed_infers[step]->get_tensor("codec_embed");
+        std::cout << "Step " << step << " : layer_embed shape: " << layer_embed.get_shape() << std::endl;
         autoregressive_sequence.insert(autoregressive_sequence.end(),
                                        layer_embed.data<float>(),
                                        layer_embed.data<float>() + hidden_size);
@@ -302,9 +339,7 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
 }
 
 std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech(const std::string& text) {
-    const auto talker_cfg = to_qwen3_omni_talker_config(m_config);
-    const auto cp_cfg = to_qwen3_omni_code_predictor_config(m_config);
-    const int cp_steps = std::max(1, cp_cfg.num_code_groups - 1);
+
 
     // --- Tokenize text ---
     auto tok_result = m_tokenizer->encode(text, ov::genai::add_special_tokens(false));
@@ -315,18 +350,18 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
 
     // --- Config values ---
     constexpr size_t batch = 1;
-    const size_t hidden_size = static_cast<size_t>(talker_cfg.hidden_size);
-    const size_t num_layers = static_cast<size_t>(talker_cfg.num_hidden_layers);
-    const size_t num_kv_heads = static_cast<size_t>(talker_cfg.num_key_value_heads);
-    const size_t head_dim = static_cast<size_t>(talker_cfg.head_dim);
-    const size_t vocab_size = static_cast<size_t>(talker_cfg.vocab_size);
-    const size_t cp_vocab_size = static_cast<size_t>(cp_cfg.vocab_size);
+    const size_t hidden_size = static_cast<size_t>(m_talker_cfg.hidden_size);
+    const size_t num_layers = static_cast<size_t>(m_talker_cfg.num_hidden_layers);
+    const size_t num_kv_heads = static_cast<size_t>(m_talker_cfg.num_key_value_heads);
+    const size_t head_dim = static_cast<size_t>(m_talker_cfg.head_dim);
+    const size_t vocab_size = static_cast<size_t>(m_talker_cfg.vocab_size);
+    const size_t cp_vocab_size = static_cast<size_t>(m_cp_cfg.vocab_size);
 
     const int64_t tts_pad_id = m_config.tts_pad_token_id;
     const int64_t tts_eos_id = m_config.tts_eos_token_id;
-    const int64_t codec_bos = talker_cfg.codec_bos_token_id;
-    const int64_t codec_eos = talker_cfg.codec_eos_token_id;
-    const int64_t codec_pad = talker_cfg.codec_pad_token_id;
+    const int64_t codec_bos = m_talker_cfg.codec_bos_token_id;
+    const int64_t codec_eos = m_talker_cfg.codec_eos_token_id;
+    const int64_t codec_pad = m_talker_cfg.codec_pad_token_id;
     const int64_t codec_nothink = m_config.talker_config_raw.value("codec_nothink_id", 2155);
     const int64_t codec_think_bos = m_config.talker_config_raw.value("codec_think_bos_id", 2156);
     const int64_t codec_think_eos = m_config.talker_config_raw.value("codec_think_eos_id", 2157);
@@ -454,7 +489,7 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
     const int min_frames = static_cast<int>(trailing_text_embeds.size()) + 5;
     constexpr int max_frames = 1000;
 
-    const int num_layers_total = cp_steps + 1;
+    const int num_layers_total = m_cp_steps + 1;
     std::vector<std::vector<int64_t>> all_layer_tokens(num_layers_total);
 
     const float* logits_data = logits_tensor.data<float>() + (prefill_len - 1) * vocab_size;
@@ -491,13 +526,13 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
         autoregressive_sequence.insert(autoregressive_sequence.end(), past_hidden.begin(), past_hidden.end());
         autoregressive_sequence.insert(autoregressive_sequence.end(), layer0_embed.begin(), layer0_embed.end());
 
-        if (m_code_predictor_ar_infers.size() < static_cast<size_t>(cp_steps) ||
-            m_code_predictor_single_codec_embed_infers.size() < static_cast<size_t>(cp_steps)) {
+        if (m_code_predictor_ar_infers.size() < static_cast<size_t>(m_cp_steps) ||
+            m_code_predictor_single_codec_embed_infers.size() < static_cast<size_t>(m_cp_steps)) {
             OPENVINO_THROW("TextToSpeechModule: insufficient code predictor steps loaded for code predictor models");
         }
 
         // Run AR infer for each step to get intermediate hidden states.
-        std::vector<int64_t> current_layer_tokens = code_predictor_ar_infers(cp_steps,
+        std::vector<int64_t> current_layer_tokens = code_predictor_ar_infers(m_cp_steps,
                                                                              autoregressive_sequence,
                                                                              batch,
                                                                              hidden_size,
@@ -514,9 +549,9 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
             codec_sum[i] += layer0_embed[i];
         }
 
-        std::vector<std::vector<int64_t>> layer_tokens_vec(cp_steps);
-        std::vector<ov::Tensor> layer_tensors(cp_steps);
-        for (int layer = 0; layer < cp_steps; ++layer) {
+        std::vector<std::vector<int64_t>> layer_tokens_vec(m_cp_steps);
+        std::vector<ov::Tensor> layer_tensors(m_cp_steps);
+        for (int layer = 0; layer < m_cp_steps; ++layer) {
             layer_tokens_vec[layer] = {current_layer_tokens[layer]};
             layer_tensors[layer] = ov::Tensor(ov::element::i64, {batch, 1}, layer_tokens_vec[layer].data());
             m_code_predictor_single_codec_embedding_infer->set_tensor("codec_input_" + std::to_string(layer),

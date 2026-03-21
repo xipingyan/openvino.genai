@@ -66,6 +66,10 @@ protected:
     std::unique_ptr<ov::InferRequest> m_code_predictor_single_codec_embedding_infer;
     std::unique_ptr<ov::InferRequest> m_speech_decoder_infer;
     std::unique_ptr<Tokenizer> m_tokenizer;
+
+    bool m_sample_codec_token_greedy_search =
+        false;  // Eanble greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU
+                // inference since random sampling is not easy to implement on GPU.
 };
 
 }

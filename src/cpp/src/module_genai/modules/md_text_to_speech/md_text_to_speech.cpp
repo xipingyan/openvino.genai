@@ -58,11 +58,11 @@ void TextToSpeechModule::print_static_config() {
         decode_model_path: "decode_model.xml"                                                                 # decode model IR xml path
         codec_embedding_model_path: "codec_embedding_model.xml"                                               # codec embedding model IR xml path
         code_predictor_ar_model_path: "code_predictor_ar_model"                                               # code predictor autoregressive model directory path
+        sample_codec_token_greedy_search: false                                                               # Eanble greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
         code_predictor_single_codec_embed_model_path: "code_predictor_single_codec_embed_model"               # code predictor single codec embedding model directory path
         code_predictor_single_codec_embedding_model_path: "code_predictor_single_codec_embedding_model.xml"   # code predictor single codec embedding model IR xml path
         speech_decoder_model_path: "speech_decoder_model.xml"                                                 # speech decoder model IR xml path
-     )"
-              << std::endl;
+     )" << std::endl;
 }
 
 TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
@@ -71,6 +71,10 @@ TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type),
       m_device(desc->device.empty() ? "CPU" : desc->device) {
+    auto sample_codec_token_greedy_search_str = get_optional_param("sample_codec_token_greedy_search");
+    if (!sample_codec_token_greedy_search_str.empty()) {
+        m_sample_codec_token_greedy_search = str_to_bool(sample_codec_token_greedy_search_str);
+    }
 }
 
 TextToSpeechModule::~TextToSpeechModule() = default;
@@ -220,6 +224,7 @@ int64_t TextToSpeechModule::sample_codec_token(const float* logits,
         top_sum += probs[i];
     }
 
+    // Random is not easy to implment for GPU. For simplicity, we only support random sampling on CPU. When running on GPU, we will do greedy decoding instead.
     std::uniform_real_distribution<float> distribution(0.0f, top_sum);
     const float random_value = distribution(rng);
     cumulative_sum = 0.0f;

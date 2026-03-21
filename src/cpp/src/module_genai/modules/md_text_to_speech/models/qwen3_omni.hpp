@@ -47,6 +47,25 @@ private:
 
 private:
     modeling::models::Qwen3OmniProcessingConfig m_config;
+
+    modeling::models::Qwen3TTSTalkerConfig m_talker_cfg;
+    modeling::models::Qwen3TTSCodePredictorConfig m_cp_cfg;
+    int m_cp_steps = 15;
+
+    bool m_merge_ov_models = false;
+    ov::InferRequest* m_merged_infer_request = nullptr;  // Only used when m_merge_ov_models is true
+    void merge_ov_models();
+    std::vector<int64_t> code_predictor_ar_infers_merged_ov(int cp_steps,
+                                                            std::vector<float>& autoregressive_sequence,
+                                                            size_t batch,
+                                                            size_t hidden_size,
+                                                            size_t cp_vocab_size,
+                                                            float temperature,
+                                                            size_t top_k,
+                                                            float top_p,
+                                                            std::mt19937& rng,
+                                                            std::vector<std::vector<int64_t>>& all_layer_tokens,
+                                                            int num_layers_total);
 };
 
 }  // namespace ov::genai::module

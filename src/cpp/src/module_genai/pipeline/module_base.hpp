@@ -65,6 +65,9 @@ public:
     std::string get_param(const std::string& param_item);
     std::string get_optional_param(const std::string& param_item);
     size_t str_to_size_t(const std::string& param_item);
+    // Convert string to bool. String "true", "True", "TRUE", "1" will be converted to true, and string "false",
+    // "False", "FALSE", "0" will be converted to false. Other strings will throw an exception.
+    bool str_to_bool(const std::string& param_item);
     static void start_generate() {
         m_generate_start_time = std::chrono::steady_clock::now();
     }
