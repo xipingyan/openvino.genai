@@ -54,7 +54,10 @@ private:
 
     bool m_merge_ov_models = false;
     ov::InferRequest* m_merged_infer_request = nullptr;  // Only used when m_merge_ov_models is true
-    void merge_ov_models();
+
+    void load_code_predictor_models(const ov::AnyMap& tts_props);
+    void merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,
+                                        std::vector<std::shared_ptr<ov::Model>>& sce_models);
     std::vector<int64_t> code_predictor_ar_infers_merged_ov(int cp_steps,
                                                             std::vector<float>& autoregressive_sequence,
                                                             size_t batch,

@@ -27,6 +27,11 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
     }
     m_config = modeling::models::Qwen3OmniProcessingConfig::from_json_file(config_path.value());
 
+    // Configs
+    m_talker_cfg = to_qwen3_omni_talker_config(m_config);
+    m_cp_cfg = to_qwen3_omni_code_predictor_config(m_config);
+    m_cp_steps = std::max(1, m_cp_cfg.num_code_groups - 1);
+
     // All TTS models must run at fp32 precision regardless of device.
     // Using reduced precision (fp16/bf16) for the talker causes audio quality
     // degradation. The speech decoder always runs on CPU for the same reason
@@ -93,51 +98,7 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
         ::ov::genai::utils::singleton_core().compile_model(codec_embedding_model, m_device, tts_props);
     m_codec_embedding_infer = std::make_unique<ov::InferRequest>(compiled_codec_embedding_model.create_infer_request());
 
-    const std::optional<std::filesystem::path> ar_dir_param = get_model_path("code_predictor_ar_model_path");
-    if (!ar_dir_param.has_value()) {
-        GENAI_ERR("TextToSpeechModule[" + module_desc->name +
-                  "]: 'code_predictor_ar_model_path' param is required for Qwen3-Omni");
-        return false;
-    }
-    const std::filesystem::path ar_dir(ar_dir_param.value());
-    for (int step = 0;; ++step) {
-        const auto xml = ar_dir / ("qwen3_omni_code_predictor_ar_model_step_" + std::to_string(step) + ".xml");
-        if (!std::filesystem::exists(xml)) {
-            break;
-        }
-        auto model = ::ov::genai::utils::singleton_core().read_model(xml);
-        auto compiled = ::ov::genai::utils::singleton_core().compile_model(model, m_device, tts_props);
-        m_code_predictor_ar_infers.push_back(std::make_unique<ov::InferRequest>(compiled.create_infer_request()));
-    }
-    if (m_code_predictor_ar_infers.empty()) {
-        GENAI_ERR("TextToSpeechModule[" + module_desc->name + "]: No AR step models found in " + ar_dir.string());
-        return false;
-    }
-
-    const std::optional<std::filesystem::path> sce_dir_param =
-        get_model_path("code_predictor_single_codec_embed_model_path");
-    if (!sce_dir_param.has_value()) {
-        GENAI_ERR("TextToSpeechModule[" + module_desc->name +
-                  "]: 'code_predictor_single_codec_embed_model_path' param is required for Qwen3-Omni");
-        return false;
-    }
-    const std::filesystem::path sce_dir(sce_dir_param.value());
-    for (int step = 0;; ++step) {
-        const auto xml =
-            sce_dir / ("qwen3_omni_code_predictor_single_codec_embed_model_step_" + std::to_string(step) + ".xml");
-        if (!std::filesystem::exists(xml)) {
-            break;
-        }
-        auto model = ::ov::genai::utils::singleton_core().read_model(xml);
-        auto compiled = ::ov::genai::utils::singleton_core().compile_model(model, m_device, tts_props);
-        m_code_predictor_single_codec_embed_infers.push_back(
-            std::make_unique<ov::InferRequest>(compiled.create_infer_request()));
-    }
-    if (m_code_predictor_single_codec_embed_infers.empty()) {
-        GENAI_ERR("TextToSpeechModule[" + module_desc->name + "]: No single-codec-embed step models found in " +
-                  sce_dir.string());
-        return false;
-    }
+    load_code_predictor_models(tts_props);
 
     const std::optional<std::filesystem::path> sce_emb_param =
         get_model_path("code_predictor_single_codec_embedding_model_path");
@@ -186,16 +147,56 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
     // --- Pre-compute tts_pad embedding ---
     calc_tts_pad_embed();
 
-    // Configs
-    m_talker_cfg = to_qwen3_omni_talker_config(m_config);
-    m_cp_cfg = to_qwen3_omni_code_predictor_config(m_config);
-    m_cp_steps = std::max(1, m_cp_cfg.num_code_groups - 1);
-
     return true;
 }
 
-void TextToSpeechImpl_Qwen3Omni::merge_ov_models() {
+void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tts_props) {
+    const std::optional<std::filesystem::path> ar_dir_param = get_model_path("code_predictor_ar_model_path");
+    OPENVINO_ASSERT(ar_dir_param.has_value(), "code_predictor_ar_model_path param is required for Qwen3-Omni");
 
+    std::vector<std::shared_ptr<ov::Model>> ar_models;
+    const std::filesystem::path ar_dir(ar_dir_param.value());
+    for (int step = 0;; ++step) {
+        const auto xml = ar_dir / ("qwen3_omni_code_predictor_ar_model_step_" + std::to_string(step) + ".xml");
+        if (!std::filesystem::exists(xml)) {
+            break;
+        }
+        auto model = ::ov::genai::utils::singleton_core().read_model(xml);
+        auto compiled = ::ov::genai::utils::singleton_core().compile_model(model, m_device, tts_props);
+        m_code_predictor_ar_infers.push_back(std::make_unique<ov::InferRequest>(compiled.create_infer_request()));
+        ar_models.push_back(model);
+    }
+    OPENVINO_ASSERT(!m_code_predictor_ar_infers.empty(), "No AR step models found in " + ar_dir.string());
+
+    const std::optional<std::filesystem::path> sce_dir_param = get_model_path("code_predictor_single_codec_embed_model_path");
+    OPENVINO_ASSERT(sce_dir_param.has_value(), "code_predictor_single_codec_embed_model_path param is required for Qwen3-Omni");
+
+    std::vector<std::shared_ptr<ov::Model>> sce_models;
+    const std::filesystem::path sce_dir(sce_dir_param.value());
+    for (int step = 0;; ++step) {
+        const auto xml =
+            sce_dir / ("qwen3_omni_code_predictor_single_codec_embed_model_step_" + std::to_string(step) + ".xml");
+        if (!std::filesystem::exists(xml)) {
+            break;
+        }
+        auto model = ::ov::genai::utils::singleton_core().read_model(xml);
+        auto compiled = ::ov::genai::utils::singleton_core().compile_model(model, m_device, tts_props);
+        m_code_predictor_single_codec_embed_infers.push_back(
+            std::make_unique<ov::InferRequest>(compiled.create_infer_request()));
+        sce_models.push_back(model);
+    }
+    OPENVINO_ASSERT(!m_code_predictor_single_codec_embed_infers.empty(), "No single-codec-embed step models found in " + sce_dir.string());
+
+    if (m_sample_codec_token_greedy_search) {
+        GENAI_INFO("TextToSpeechModule[" + module_desc->name +
+                   "]: sample_codec_token_greedy_search is enabled, will use greedy decoding in sample_codec_token");
+        merge_code_predictor_ov_models(ar_models, sce_models);
+    }
+}
+
+void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,
+                                                                std::vector<std::shared_ptr<ov::Model>>& sce_models) {
+    // ??????????????????????
 }
 
 void TextToSpeechImpl_Qwen3Omni::run() {
