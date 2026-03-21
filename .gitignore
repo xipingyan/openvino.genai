@@ -46,3 +46,7 @@ __pycache__
 _codeql_detected_source_root
 profile_*.json
 output_*.wav
+
+cache_dir*
+samples/cpp/module_genai/config_yaml/*
+tests/module_genai/cpp/test_data/*
