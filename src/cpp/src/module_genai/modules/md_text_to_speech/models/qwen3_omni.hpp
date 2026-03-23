@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -53,7 +54,7 @@ private:
     int m_cp_steps = 15;
 
     bool m_merge_ov_models = false;
-    ov::InferRequest* m_merged_infer_request = nullptr;  // Only used when m_merge_ov_models is true
+    std::unique_ptr<ov::InferRequest> m_merged_infer_request = nullptr;  // Only used when m_merge_ov_models is true
 
     void load_code_predictor_models(const ov::AnyMap& tts_props);
     void merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,

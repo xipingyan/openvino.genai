@@ -5,6 +5,21 @@
 
 #if defined(ENABLE_MODELING_PRIVATE)
 
+#    include <openvino/op/add.hpp>
+#    include <openvino/op/broadcast.hpp>
+#    include <openvino/op/concat.hpp>
+#    include <openvino/op/constant.hpp>
+#    include <openvino/op/gather.hpp>
+#    include <openvino/op/parameter.hpp>
+#    include <openvino/op/result.hpp>
+#    include <openvino/op/range.hpp>
+#    include <openvino/op/reshape.hpp>
+#    include <openvino/op/scatter_nd_update.hpp>
+#    include <openvino/op/shape_of.hpp>
+#    include <openvino/op/slice.hpp>
+#    include <openvino/op/topk.hpp>
+#    include <openvino/op/unsqueeze.hpp>
+
 #    include "module_genai/utils/profiler.hpp"
 #    include "utils.hpp"
 
@@ -194,9 +209,141 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
     }
 }
 
+ov::Output<ov::Node> func_get_indices_for_scatter_update(const ov::Output<ov::Node>& inputs, const int& step) {
+    auto input_shape = std::make_shared<ov::op::v3::ShapeOf>(inputs);
+
+    auto batch_dim =
+        std::make_shared<ov::op::v8::Gather>(input_shape,
+                             ov::op::v0::Constant::create(element::i64, Shape{}, {0}),  // indices 0
+                             ov::op::v0::Constant::create(element::i64, Shape{}, {0})   // axis 0
+        );
+
+    auto target_shape = std::make_shared<ov::op::v0::Concat>(
+        OutputVector{batch_dim, ov::op::v0::Constant::create(element::i64, Shape{1}, {1})},
+        0);
+
+    auto result = std::make_shared<ov::op::v3::Broadcast>(
+        ov::op::v0::Constant::create(element::i64, Shape{1}, {step}),
+        target_shape,
+        ov::op::BroadcastType::NUMPY);
+    return result;
+}
+
+// TODO:
+// 1: For input_embeds with shape [batch_size, token_num, feature_dim], output position_ids with shape [batch_size, token_num].
+// 2: For position_ids, each row is [0, 1, 2, ..., token_num-1].
+ov::Output<ov::Node> build_position_ids(const ov::Output<ov::Node>& inputs_embeds) {
+    auto embeds_shape = std::make_shared<ov::op::v3::ShapeOf>(inputs_embeds);
+    auto batch_dim = std::make_shared<ov::op::v8::Gather>(
+        embeds_shape,
+        ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {0}),  // indices 0
+        ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {0})   // axis 0
+    );
+    auto token_num = std::make_shared<ov::op::v8::Gather>(
+        embeds_shape,
+        ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1}),  // indices 1
+        ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {0})   // axis 0
+    );
+
+    const int start_value = 0;
+
+    auto start = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {start_value});
+    auto step = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1});
+
+    ov::Output<ov::Node> stop;
+    if (start_value == 0) {
+        // Range stop is exclusive. With start=0, use stop=token_num to keep length == token_num.
+        stop = token_num;
+    } else {
+        // Range stop is exclusive. With start=1, use stop=token_num+start to keep length == token_num.
+        stop = std::make_shared<ov::op::v1::Add>(token_num, start);
+    }
+    auto range = std::make_shared<ov::op::v4::Range>(start, stop, step, ov::element::i64);
+
+    auto axis0 = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{1}, {0});
+    auto batch_dim_1d = std::make_shared<ov::op::v0::Unsqueeze>(batch_dim, axis0);
+    auto layer_tokens_1d = std::make_shared<ov::op::v0::Unsqueeze>(token_num, axis0);
+    auto target_shape = std::make_shared<ov::op::v0::Concat>(ov::OutputVector{batch_dim_1d, layer_tokens_1d}, 0);
+
+    auto position_ids = std::make_shared<ov::op::v3::Broadcast>(range, target_shape, ov::op::BroadcastType::NUMPY);
+
+    return position_ids;
+}
+
+// Merge AR and SCE models to a model.
+std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_model, std::shared_ptr<ov::Model>& sce_model, const int& step) {
+    auto inputs_embeds = ar_model->get_parameters().at(0);
+    auto current_layer_tokens = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1, -1});
+
+    auto all_token_ids = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1, -1});
+    auto model_index = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1});
+
+    // Remove the position_ids input of AR model and replace with generated position_ids.
+    auto position_ids = build_position_ids(inputs_embeds->output(0));
+    ar_model->inputs()[1].replace(position_ids);
+
+    // output logits
+    auto logits = ar_model->get_results()[0]->input_value(0);
+
+    // Create an OP: Find max value's id in logits.
+    auto topk_k = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1});
+    auto gready_search = std::make_shared<ov::op::v11::TopK>(logits,
+                                                           topk_k,
+                                                           1,
+                                                           ov::op::v11::TopK::Mode::MAX,
+                                                           ov::op::v11::TopK::SortType::NONE,
+                                                           ov::element::i64);
+    auto layer_token_id = gready_search->output(1);
+
+    // Get indices for scatter update, [batch_id, step_id]
+    auto indices = func_get_indices_for_scatter_update(inputs_embeds, step);
+    auto updates = layer_token_id;
+    auto scatter_nd_update_node = std::make_shared<ov::op::v15::ScatterNDUpdate>(current_layer_tokens, indices, updates);
+
+    sce_model->inputs()[0].replace(layer_token_id);
+
+    auto scatter_result = std::make_shared<ov::op::v0::Result>(scatter_nd_update_node->output(0));
+    return std::make_shared<ov::Model>(ov::ResultVector{sce_model->get_results()[0], scatter_result},
+                                       ov::ParameterVector{inputs_embeds, current_layer_tokens},
+                                       "merged_model");
+}
+
+std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& model_1, std::shared_ptr<ov::Model>& model_2) {
+    // 2 inputs: inputs_embeds, current_layer_tokens
+    // 2 outputs: Embeddings, current_layer_tokens after append new token.
+    // model_1's output[Embeddings] -> model_2's input[inputs_embeds]
+    // model_1's output[current_layer_tokens] -> model_2's input[current_layer_tokens]
+
+    auto model_1_inputs = model_1->get_parameters();
+
+    auto inputs_embeds = model_1_inputs.at(0);
+    auto input_current_layer_tokens = model_1_inputs.at(1);
+
+    model_2->inputs()[0].replace(inputs_embeds);
+    model_2->inputs()[1].replace(input_current_layer_tokens);
+
+    return std::make_shared<ov::Model>(ov::ResultVector{model_2->get_results()[0], model_2->get_results()[1]},
+                                       ov::ParameterVector{inputs_embeds, input_current_layer_tokens},
+                                       "merged_model");
+};
+
 void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,
                                                                 std::vector<std::shared_ptr<ov::Model>>& sce_models) {
-    // ??????????????????????
+    if (ar_models.size() < 2) {
+        GENAI_WARN("TextToSpeechModule[" + module_desc->name + "]: Not enough AR models to merge (found " +
+                   std::to_string(ar_models.size()) + "), will skip merging and use separate AR/SCE infer requests");
+        return;
+    }
+    OPENVINO_ASSERT(ar_models.size() == sce_models.size(), "Number of AR and SCE models must be the same for merging");
+
+    std::shared_ptr<ov::Model> merged_model = merge_ar_sce_model(ar_models[0], sce_models[0], 0);
+    for (size_t i = 1; i < ar_models.size(); ++i) {
+        auto tmp_model = merge_ar_sce_model(ar_models[i], sce_models[i], i);
+        merged_model = merge_neighbor_models(merged_model, tmp_model);
+    }
+
+    m_merged_infer_request = std::make_unique<ov::InferRequest>(
+        ::ov::genai::utils::singleton_core().compile_model(merged_model, m_device).create_infer_request());
 }
 
 void TextToSpeechImpl_Qwen3Omni::run() {
@@ -285,13 +432,14 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
     std::vector<std::vector<int64_t>>& all_layer_tokens,
     int num_layers_total) {
     std::vector<int64_t> current_layer_tokens(cp_steps);
+
     for (int step = 0; step < cp_steps; ++step) {
         const size_t current_length = autoregressive_sequence.size() / hidden_size;
         std::vector<int64_t> position_ids_vector(current_length);
         std::iota(position_ids_vector.begin(), position_ids_vector.end(), 0);
-
         ov::Tensor ar_input(ov::element::f32, {batch, current_length, hidden_size}, autoregressive_sequence.data());
         ov::Tensor ar_pos(ov::element::i64, {batch, current_length}, position_ids_vector.data());
+
         m_code_predictor_ar_infers[step]->set_tensor("inputs_embeds", ar_input);
         m_code_predictor_ar_infers[step]->set_tensor("position_ids", ar_pos);
         {
@@ -331,7 +479,7 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
         }
 
         auto layer_embed = m_code_predictor_single_codec_embed_infers[step]->get_tensor("codec_embed");
-        std::cout << "Step " << step << " : layer_embed shape: " << layer_embed.get_shape() << std::endl;
+        // std::cout << "Step " << step << " : layer_embed shape: " << layer_embed.get_shape() << std::endl;
         autoregressive_sequence.insert(autoregressive_sequence.end(),
                                        layer_embed.data<float>(),
                                        layer_embed.data<float>() + hidden_size);
