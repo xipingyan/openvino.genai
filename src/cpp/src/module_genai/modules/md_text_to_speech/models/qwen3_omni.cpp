@@ -270,7 +270,11 @@ ov::Output<ov::Node> build_position_ids(const ov::Output<ov::Node>& inputs_embed
     return position_ids;
 }
 
-// Merge AR and SCE models to a model.
+// Merge AR and SCE(single_codec_embed_model) models to a model.
+// Model AR input: inputs_embeds[b, token_num, feature_dim], position_ids[b, token_num]
+// Model AR output: logits[b, token_num, vocab_size] (from where we can get the predicted token id)
+// Model SCE input: codec_input[b, token_num] (the predicted token ids from AR)
+// Model SCE output: codec_embed[b, token_num, feature_dim] (the embedding of predicted token)
 std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_model, std::shared_ptr<ov::Model>& sce_model, const int& step) {
     auto inputs_embeds = ar_model->get_parameters().at(0);
     auto current_layer_tokens = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1, -1});
