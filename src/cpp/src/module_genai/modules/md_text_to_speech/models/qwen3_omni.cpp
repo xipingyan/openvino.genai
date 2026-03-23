@@ -11,12 +11,13 @@
 #    include <openvino/op/constant.hpp>
 #    include <openvino/op/gather.hpp>
 #    include <openvino/op/parameter.hpp>
-#    include <openvino/op/result.hpp>
 #    include <openvino/op/range.hpp>
 #    include <openvino/op/reshape.hpp>
+#    include <openvino/op/result.hpp>
 #    include <openvino/op/scatter_nd_update.hpp>
 #    include <openvino/op/shape_of.hpp>
 #    include <openvino/op/slice.hpp>
+#    include <openvino/op/squeeze.hpp>
 #    include <openvino/op/topk.hpp>
 #    include <openvino/op/unsqueeze.hpp>
 
@@ -209,24 +210,37 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
     }
 }
 
-ov::Output<ov::Node> func_get_indices_for_scatter_update(const ov::Output<ov::Node>& inputs, const int& step) {
-    auto input_shape = std::make_shared<ov::op::v3::ShapeOf>(inputs);
+// Todo
+// layer_tokens: with shape=[batch_size, token_num].
+// update_value: with shape=[batch_size], value per batch, indicating the token id to be updated at current step for all tokens in input.
+// output: with shape=[batch_size, 1], and each value in output is the token id to be predicted at current step for all tokens in input.
+ov::Output<ov::Node> func_update_layer_token_ids(const ov::Output<ov::Node>& layer_tokens,
+                                           const int& step,
+                                           const ov::Output<ov::Node>& update_value) {
+    auto input_shape = std::make_shared<ov::op::v3::ShapeOf>(layer_tokens);
 
-    auto batch_dim =
-        std::make_shared<ov::op::v8::Gather>(input_shape,
-                             ov::op::v0::Constant::create(element::i64, Shape{}, {0}),  // indices 0
-                             ov::op::v0::Constant::create(element::i64, Shape{}, {0})   // axis 0
-        );
+    auto const_zero = ov::op::v0::Constant::create(element::i64, Shape{1}, {0});
+    auto const_zero_scalar = ov::op::v0::Constant::create(element::i64, Shape{}, {0});
+    auto const_one = ov::op::v0::Constant::create(element::i64, Shape{1}, {1});
+    auto const_one_scalar = ov::op::v0::Constant::create(element::i64, Shape{}, {1});
+    auto pos_id = ov::op::v0::Constant::create(element::i64, Shape{1}, {step});
 
-    auto target_shape = std::make_shared<ov::op::v0::Concat>(
-        OutputVector{batch_dim, ov::op::v0::Constant::create(element::i64, Shape{1}, {1})},
-        0);
+    auto batch_size = std::make_shared<ov::op::v8::Gather>(input_shape, const_zero, const_zero);
+    auto batch_size_scalar = std::make_shared<ov::op::v0::Squeeze>(batch_size, ov::op::v0::Constant::create(element::i64, Shape{1}, {0}));
 
-    auto result = std::make_shared<ov::op::v3::Broadcast>(
-        ov::op::v0::Constant::create(element::i64, Shape{1}, {step}),
-        target_shape,
-        ov::op::BroadcastType::NUMPY);
-    return result;
+    auto row_idx = std::make_shared<ov::op::v4::Range>(const_zero_scalar, batch_size_scalar, const_one_scalar, element::i64);  // shape=[batch]
+    auto row_idx_2d = std::make_shared<ov::op::v0::Unsqueeze>(row_idx, const_one_scalar);  // shape=[batch,1]
+
+    auto col_idx = std::make_shared<ov::op::v3::Broadcast>(pos_id, batch_size);  // shape=[batch]
+    col_idx->set_friendly_name("col_idx");
+    auto col_idx_2d = std::make_shared<ov::op::v0::Unsqueeze>(col_idx, const_one_scalar);  // shape=[batch,1]
+
+    auto indices = std::make_shared<ov::op::v0::Concat>(OutputVector{row_idx_2d, col_idx_2d}, 1);  // shape=[batch,2]
+    auto updates = std::make_shared<ov::op::v3::Broadcast>(update_value, batch_size);  // shape=[batch], value per batch
+    updates->set_friendly_name("updates");
+
+    auto scatter_nd_update_node = std::make_shared<ov::op::v15::ScatterNDUpdate>(layer_tokens, indices, updates);  // shape=[batch, token_num]
+    return scatter_nd_update_node->output(0);
 }
 
 // TODO:
@@ -265,9 +279,31 @@ ov::Output<ov::Node> build_position_ids(const ov::Output<ov::Node>& inputs_embed
     auto layer_tokens_1d = std::make_shared<ov::op::v0::Unsqueeze>(token_num, axis0);
     auto target_shape = std::make_shared<ov::op::v0::Concat>(ov::OutputVector{batch_dim_1d, layer_tokens_1d}, 0);
 
-    auto position_ids = std::make_shared<ov::op::v3::Broadcast>(range, target_shape, ov::op::BroadcastType::NUMPY);
+    auto position_ids = std::make_shared<ov::op::v3::Broadcast>(range, target_shape);
 
     return position_ids;
+}
+
+// TODO: Get the token id with max value in logits at current step.
+// Input logits with shape=[batch, seq, vocab_size].
+// Output token_ids with shape=[batch, 1].
+ov::Output<ov::Node> get_max_token_ids(const ov::Output<ov::Node>& logits) {
+    // Get last element in axis=1, shape=[batch, fea]
+    auto gather =
+        std::make_shared<ov::op::v8::Gather>(logits,
+                                             ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {-1}),
+                                             ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1}));
+
+    // Greedy search: get the token id with max value in logits at current step.
+    auto max_token = std::make_shared<ov::op::v11::TopK>(gather,
+                                                         ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1}),  // k=1
+                                                         1,
+                                                         ov::op::v11::TopK::Mode::MAX,
+                                                         ov::op::v11::TopK::SortType::NONE,
+                                                         ov::element::i64);
+    // Max token id, shape=[batch, 1]
+    auto layer_token_id = max_token->output(1);
+    return layer_token_id;
 }
 
 // Merge AR and SCE(single_codec_embed_model) models to a model.
@@ -286,28 +322,18 @@ std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_mod
     auto position_ids = build_position_ids(inputs_embeds->output(0));
     ar_model->inputs()[1].replace(position_ids);
 
-    // output logits
+    // output logits shape[batch, seq, fea]
     auto logits = ar_model->get_results()[0]->input_value(0);
 
-    // Create an OP: Find max value's id in logits.
-    auto topk_k = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {1});
-    auto gready_search = std::make_shared<ov::op::v11::TopK>(logits,
-                                                           topk_k,
-                                                           1,
-                                                           ov::op::v11::TopK::Mode::MAX,
-                                                           ov::op::v11::TopK::SortType::NONE,
-                                                           ov::element::i64);
-    auto layer_token_id = gready_search->output(1);
+    auto layer_token_id = get_max_token_ids(logits);
 
-    // Get indices for scatter update, [batch_id, step_id]
-    auto indices = func_get_indices_for_scatter_update(inputs_embeds, step);
-    auto updates = layer_token_id;
-    auto scatter_nd_update_node = std::make_shared<ov::op::v15::ScatterNDUpdate>(current_layer_tokens, indices, updates);
+    // Get indices for scatter update -> shape=[batch_id, step_id]
+    auto new_layer_tokens = func_update_layer_token_ids(current_layer_tokens, step, layer_token_id);
 
     sce_model->inputs()[0].replace(layer_token_id);
 
-    auto scatter_result = std::make_shared<ov::op::v0::Result>(scatter_nd_update_node->output(0));
-    return std::make_shared<ov::Model>(ov::ResultVector{sce_model->get_results()[0], scatter_result},
+    auto layer_tokens_result = std::make_shared<ov::op::v0::Result>(new_layer_tokens);
+    return std::make_shared<ov::Model>(ov::ResultVector{sce_model->get_results()[0], layer_tokens_result},
                                        ov::ParameterVector{inputs_embeds, current_layer_tokens},
                                        "merged_model");
 }
