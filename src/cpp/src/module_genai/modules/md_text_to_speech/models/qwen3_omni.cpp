@@ -530,7 +530,7 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
                                                   all_layer_tokens,
                                                   num_layers_total);
     }
-    // Fallback to origianl cpp implementation if merged OV model is not available for inference.
+    // Fallback to original cpp implementation if merged OV model is not available for inference.
     return code_predictor_ar_infers_cpp(cp_steps,
                                         autoregressive_sequence,
                                         batch,
