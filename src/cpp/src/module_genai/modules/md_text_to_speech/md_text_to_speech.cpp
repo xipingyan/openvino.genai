@@ -58,7 +58,7 @@ void TextToSpeechModule::print_static_config() {
         decode_model_path: "decode_model.xml"                                                                 # decode model IR xml path
         codec_embedding_model_path: "codec_embedding_model.xml"                                               # codec embedding model IR xml path
         code_predictor_ar_model_path: "code_predictor_ar_model"                                               # code predictor autoregressive model directory path
-        sample_codec_token_greedy_search: false                                                               # Eanble greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
+        sample_codec_token_greedy_search: false                                                               # Enable greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
         merge_ar_and_sce_ov_models: false                                                                     # Merge AR and CSE models into one OV model for better performance. Requires "sample_codec_token_greedy_search=true".
         code_predictor_single_codec_embed_model_path: "code_predictor_single_codec_embed_model"               # code predictor single codec embedding model directory path
         code_predictor_single_codec_embedding_model_path: "code_predictor_single_codec_embedding_model.xml"   # code predictor single codec embedding model IR xml path
