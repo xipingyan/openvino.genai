@@ -156,22 +156,26 @@ void IBaseModule::check_splitted_model() {
     }
 }
 
-bool IBaseModule::check_bool_param(const std::string& param_name, const bool& default_value, const bool& requires) {
-    auto p = requires ? get_param(param_name) : get_optional_param(param_name);
+static bool str_to_bool(const std::string& str, bool default_value) {
+    if (str == "true" || str == "True" || str == "TRUE" || str == "1") {
+        return true;
+    } else if (str == "false" || str == "False" || str == "FALSE" || str == "0") {
+        return false;
+    }
+    return default_value;
+}
+
+bool IBaseModule::check_bool_param(const std::string& param_name) {
+    auto p = get_param(param_name);
+    return str_to_bool(p, false);
+}
+
+bool IBaseModule::check_bool_optional_param(const std::string& param_name, const bool& default_value) {
+    auto p = get_optional_param(param_name);
     if (p.empty()) {
         return default_value;
     }
-
-    if (p == "true" || p == "True" || p == "TRUE" || p == "1") {
-        GENAI_INFO("Module[" + module_desc->name + "]: " + param_name + " = true");
-        return true;
-    } else if (p == "false" || p == "False" || p == "FALSE" || p == "0") {
-        GENAI_INFO("Module[" + module_desc->name + "]: " + param_name + " = false");
-        return false;
-    }
-    GENAI_ERR("Module[" + module_desc->name + "]: Invalid bool param value for '" + param_name + "': " + p +
-              ", use default value: " + (default_value ? "true" : "false"));
-    return default_value;
+    return str_to_bool(p, default_value);
 }
 
 // PipelineDesc implementation

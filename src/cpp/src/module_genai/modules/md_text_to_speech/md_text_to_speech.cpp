@@ -72,8 +72,8 @@ TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type),
       m_device(desc->device.empty() ? "CPU" : desc->device) {
-    m_sample_codec_token_greedy_search = check_bool_param("sample_codec_token_greedy_search", false);
-    m_merge_ar_and_sce_ov_models = check_bool_param("merge_ar_and_sce_ov_models", false);
+    m_sample_codec_token_greedy_search = check_bool_optional_param("sample_codec_token_greedy_search", false);
+    m_merge_ar_and_sce_ov_models = check_bool_optional_param("merge_ar_and_sce_ov_models", false);
 }
 
 TextToSpeechModule::~TextToSpeechModule() = default;
