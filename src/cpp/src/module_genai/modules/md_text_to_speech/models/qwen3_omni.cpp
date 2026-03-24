@@ -329,9 +329,6 @@ std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_mod
     auto current_layer_tokens =
         std::make_shared<ov::op::v0::Parameter>(ov::element::i64, current_layer_tokens_shape);
 
-    auto all_token_ids = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{-1, -1});
-    auto model_index = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{-1});
-
     // Remove the position_ids input of AR model and replace with generated position_ids.
     auto position_ids = build_position_ids(inputs_embeds->output(0));
     ar_model->inputs()[1].replace(position_ids);
