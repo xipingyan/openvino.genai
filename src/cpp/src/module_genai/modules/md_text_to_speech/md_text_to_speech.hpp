@@ -70,8 +70,8 @@ protected:
     bool m_sample_codec_token_greedy_search =
         false;  // Enable greedy decoding in sample_codec_token when this flag is set.
                 // Useful for fast debugging and deterministic behavior.
-    bool m_merge_ar_and_sce_ov_models = false;  // Merge AR and CSE models into one OV model for better performance.
-                                                // Requires "sample_codec_token_greedy_search=true.
+    bool m_merge_ar_and_sce_ov_models = false;  // Merge AR and SCE models into one OV model for better performance.
+                                                // Requires "sample_codec_token_greedy_search=true".
 };
 
 }
