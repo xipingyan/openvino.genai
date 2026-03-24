@@ -207,6 +207,11 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
         GENAI_INFO("TextToSpeechModule[" + module_desc->name +
                    "]: sample_codec_token_greedy_search is enabled, will use greedy decoding in sample_codec_token");
         merge_code_predictor_ov_models(ar_models, sce_models);
+        if (m_enable_merge_ov_models) {
+            // Release original infer requests to save memory since they won't be used anymore.
+            m_code_predictor_ar_infers.clear();
+            m_code_predictor_single_codec_embed_infers.clear();
+        }
     }
 }
 
@@ -796,9 +801,12 @@ std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech
         autoregressive_sequence.insert(autoregressive_sequence.end(), past_hidden.begin(), past_hidden.end());
         autoregressive_sequence.insert(autoregressive_sequence.end(), layer0_embed.begin(), layer0_embed.end());
 
-        if (m_code_predictor_ar_infers.size() < static_cast<size_t>(m_cp_steps) ||
-            m_code_predictor_single_codec_embed_infers.size() < static_cast<size_t>(m_cp_steps)) {
-            OPENVINO_THROW("TextToSpeechModule: insufficient code predictor steps loaded for code predictor models");
+        if (!m_enable_merge_ov_models) {
+            if (m_code_predictor_ar_infers.size() < static_cast<size_t>(m_cp_steps) ||
+                m_code_predictor_single_codec_embed_infers.size() < static_cast<size_t>(m_cp_steps)) {
+                OPENVINO_THROW(
+                    "TextToSpeechModule: insufficient code predictor steps loaded for code predictor models");
+            }
         }
 
         // Run AR infer for each step to get intermediate hidden states.
