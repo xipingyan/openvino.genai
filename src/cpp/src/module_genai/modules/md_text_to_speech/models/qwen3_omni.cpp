@@ -226,7 +226,7 @@ ov::Output<ov::Node> func_update_layer_token_ids(const ov::Output<ov::Node>& lay
     auto pos_id = ov::op::v0::Constant::create(element::i64, Shape{1}, {step});
 
     auto batch_size = std::make_shared<ov::op::v8::Gather>(input_shape, const_zero, const_zero);
-    auto batch_size_scalar = std::make_shared<ov::op::v0::Squeeze>(batch_size, ov::op::v0::Constant::create(element::i64, Shape{1}, {0}));
+    auto batch_size_scalar = std::make_shared<ov::op::v0::Squeeze>(batch_size, const_zero);
 
     auto row_idx = std::make_shared<ov::op::v4::Range>(const_zero_scalar, batch_size_scalar, const_one_scalar, element::i64);  // shape=[batch]
     auto row_idx_2d = std::make_shared<ov::op::v0::Unsqueeze>(row_idx, const_one_scalar);  // shape=[batch,1]
@@ -313,10 +313,18 @@ ov::Output<ov::Node> get_max_token_ids(const ov::Output<ov::Node>& logits) {
 // Model SCE output: codec_embed[b, token_num, feature_dim] (the embedding of predicted token)
 std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_model, std::shared_ptr<ov::Model>& sce_model, const int& step) {
     auto inputs_embeds = ar_model->get_parameters().at(0);
-    auto current_layer_tokens = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1, -1});
+    const ov::PartialShape& inputs_embeds_shape = inputs_embeds->get_partial_shape();
+    OPENVINO_ASSERT(inputs_embeds_shape.rank().is_static(),
+                    "AR inputs_embeds rank must be static for merged model compilation");
+    OPENVINO_ASSERT(inputs_embeds_shape.rank().get_length() == 3,
+                    "AR inputs_embeds rank must be 3 for merged model compilation");
 
-    auto all_token_ids = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1, -1});
-    auto model_index = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::Shape{-1});
+    const ov::PartialShape current_layer_tokens_shape{inputs_embeds_shape[0], inputs_embeds_shape[1]};
+    auto current_layer_tokens =
+        std::make_shared<ov::op::v0::Parameter>(ov::element::i64, current_layer_tokens_shape);
+
+    auto all_token_ids = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{-1, -1});
+    auto model_index = std::make_shared<ov::op::v0::Parameter>(ov::element::i64, ov::PartialShape{-1});
 
     // Remove the position_ids input of AR model and replace with generated position_ids.
     auto position_ids = build_position_ids(inputs_embeds->output(0));
