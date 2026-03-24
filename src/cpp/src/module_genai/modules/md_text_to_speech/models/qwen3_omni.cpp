@@ -212,7 +212,7 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
 
 // Todo
 // layer_tokens: with shape=[batch_size, token_num].
-// update_value: with shape=[batch_size], value per batch, indicating the token id to be updated at current step for all tokens in input.
+// update_value: with shape=[batch_size, 1], value per batch, indicating the token id to be updated at current step for all tokens in input.
 // output: with shape=[batch_size, 1], and each value in output is the token id to be predicted at current step for all tokens in input.
 ov::Output<ov::Node> func_update_layer_token_ids(const ov::Output<ov::Node>& layer_tokens,
                                            const int& step,
@@ -236,10 +236,10 @@ ov::Output<ov::Node> func_update_layer_token_ids(const ov::Output<ov::Node>& lay
     auto col_idx_2d = std::make_shared<ov::op::v0::Unsqueeze>(col_idx, const_one_scalar);  // shape=[batch,1]
 
     auto indices = std::make_shared<ov::op::v0::Concat>(OutputVector{row_idx_2d, col_idx_2d}, 1);  // shape=[batch,2]
-    auto updates = std::make_shared<ov::op::v3::Broadcast>(update_value, batch_size);  // shape=[batch], value per batch
-    updates->set_friendly_name("updates");
 
-    auto scatter_nd_update_node = std::make_shared<ov::op::v15::ScatterNDUpdate>(layer_tokens, indices, updates);  // shape=[batch, token_num]
+    auto update_value_1d = std::make_shared<ov::op::v0::Squeeze>(update_value, const_one);  // shape=[batch]
+
+    auto scatter_nd_update_node = std::make_shared<ov::op::v15::ScatterNDUpdate>(layer_tokens, indices, update_value_1d);  // shape=[batch, token_num]
     return scatter_nd_update_node->output(0);
 }
 
@@ -325,6 +325,7 @@ std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_mod
     // output logits shape[batch, seq, fea]
     auto logits = ar_model->get_results()[0]->input_value(0);
 
+    // layer_token_id, shape=[batch, 1]
     auto layer_token_id = get_max_token_ids(logits);
 
     // Get indices for scatter update -> shape=[batch_id, step_id]
@@ -339,8 +340,8 @@ std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_mod
 }
 
 std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& model_1, std::shared_ptr<ov::Model>& model_2) {
-    // 2 inputs: inputs_embeds, current_layer_tokens
-    // 2 outputs: Embeddings, current_layer_tokens after append new token.
+    // 2 inputs: inputs_embeds[batch, seq, fea], current_layer_tokens[batch, seq]
+    // 2 outputs: Embeddings[batch, seq, fea], current_layer_tokens[batch, seq] after append new token.
     // model_1's output[Embeddings] -> model_2's input[inputs_embeds]
     // model_1's output[current_layer_tokens] -> model_2's input[current_layer_tokens]
 
@@ -368,6 +369,7 @@ void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std:
 
     std::shared_ptr<ov::Model> merged_model = merge_ar_sce_model(ar_models[0], sce_models[0], 0);
     for (size_t i = 1; i < ar_models.size(); ++i) {
+        GENAI_INFO("Merging AR model step " + std::to_string(i) + " with SCE model step " + std::to_string(i));
         auto tmp_model = merge_ar_sce_model(ar_models[i], sce_models[i], i);
         merged_model = merge_neighbor_models(merged_model, tmp_model);
     }
