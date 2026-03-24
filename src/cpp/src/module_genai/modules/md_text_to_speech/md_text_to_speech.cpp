@@ -223,7 +223,7 @@ int64_t TextToSpeechModule::sample_codec_token(const float* logits,
         top_sum += probs[i];
     }
 
-    // Random is not easy to implment for GPU. For simplicity, we only support random sampling on CPU. When running on GPU, we will do greedy decoding instead.
+    // Random sampling is implemented here; the choice between random sampling and greedy decoding is controlled by m_sample_codec_token_greedy_search at a higher level.
     std::uniform_real_distribution<float> distribution(0.0f, top_sum);
     const float random_value = distribution(rng);
     cumulative_sum = 0.0f;
