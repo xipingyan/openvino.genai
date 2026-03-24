@@ -43,6 +43,17 @@ private:
                                                   std::mt19937& rng,
                                                   std::vector<std::vector<int64_t>>& all_layer_tokens,
                                                   int num_layers_total);
+    std::vector<int64_t> code_predictor_ar_infers_cpp(int cp_steps,
+                                                      std::vector<float>& autoregressive_sequence,
+                                                      size_t batch,
+                                                      size_t hidden_size,
+                                                      size_t cp_vocab_size,
+                                                      float temperature,
+                                                      size_t top_k,
+                                                      float top_p,
+                                                      std::mt19937& rng,
+                                                      std::vector<std::vector<int64_t>>& all_layer_tokens,
+                                                      int num_layers_total);
 
     std::pair<ov::Tensor, int> qwen3_omni_text_to_speech(const std::string& text);
 
@@ -53,8 +64,8 @@ private:
     modeling::models::Qwen3TTSCodePredictorConfig m_cp_cfg;
     int m_cp_steps = 15;
 
-    bool m_merge_ov_models = false;
-    std::unique_ptr<ov::InferRequest> m_merged_infer_request = nullptr;  // Only used when m_merge_ov_models is true
+    bool m_enable_merge_ov_models = false;
+    std::unique_ptr<ov::InferRequest> m_merged_infer_request = nullptr;  // Only used when m_enable_merge_ov_models is true
 
     void load_code_predictor_models(const ov::AnyMap& tts_props);
     void merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,
@@ -64,10 +75,6 @@ private:
                                                             size_t batch,
                                                             size_t hidden_size,
                                                             size_t cp_vocab_size,
-                                                            float temperature,
-                                                            size_t top_k,
-                                                            float top_p,
-                                                            std::mt19937& rng,
                                                             std::vector<std::vector<int64_t>>& all_layer_tokens,
                                                             int num_layers_total);
 };

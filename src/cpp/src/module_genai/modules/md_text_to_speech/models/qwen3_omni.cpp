@@ -311,6 +311,7 @@ ov::Output<ov::Node> get_max_token_ids(const ov::Output<ov::Node>& logits) {
 // Model AR output: logits[b, token_num, vocab_size] (from where we can get the predicted token id)
 // Model SCE input: codec_input[b, token_num] (the predicted token ids from AR)
 // Model SCE output: codec_embed[b, token_num, feature_dim] (the embedding of predicted token)
+// Merged model return: codec_embed[batch, token_num, feature_dim], all_layer_token_id[batch, 15] (the predicted token id at all step)
 std::shared_ptr<ov::Model> merge_ar_sce_model(std::shared_ptr<ov::Model>& ar_model, std::shared_ptr<ov::Model>& sce_model, const int& step) {
     auto inputs_embeds = ar_model->get_parameters().at(0);
     const ov::PartialShape& inputs_embeds_shape = inputs_embeds->get_partial_shape();
@@ -355,14 +356,27 @@ std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& mod
 
     auto model_1_inputs = model_1->get_parameters();
 
-    auto inputs_embeds = model_1_inputs.at(0);
-    auto input_current_layer_tokens = model_1_inputs.at(1);
+    auto model_1_inputs_embeds = model_1_inputs.at(0);
+    auto model_1_input_current_layer_tokens = model_1_inputs.at(1);
+    auto model_1_output_embeddings = model_1->get_results()[0]->input_value(0);
+    auto model_1_output_layer_tokens = model_1->get_results()[1]->input_value(0);
 
-    model_2->inputs()[0].replace(inputs_embeds);
-    model_2->inputs()[1].replace(input_current_layer_tokens);
+    // Append model_1's output Embeddings to model_1's input inputs_embeds, and then take it as model_2's inputs_embeds.
+    auto merged_inputs_embeds = std::make_shared<ov::op::v0::Concat>(
+        ov::OutputVector{model_1_inputs_embeds->output(0), model_1_output_embeddings},
+        1);
 
-    return std::make_shared<ov::Model>(ov::ResultVector{model_2->get_results()[0], model_2->get_results()[1]},
-                                       ov::ParameterVector{inputs_embeds, input_current_layer_tokens},
+    model_2->inputs()[0].replace(merged_inputs_embeds);
+    model_2->inputs()[1].replace(model_1_output_layer_tokens);
+
+    auto model_2_output_embeddings = model_2->get_results()[0]->input_value(0);
+    auto merged_2_outputs_embeddings =
+        std::make_shared<ov::op::v0::Concat>(ov::OutputVector{merged_inputs_embeds, model_2_output_embeddings}, 1);
+    
+    auto merged_2_outputs_embeddings_result = std::make_shared<ov::op::v0::Result>(merged_2_outputs_embeddings);
+
+    return std::make_shared<ov::Model>(ov::ResultVector{merged_2_outputs_embeddings_result, model_2->get_results()[1]},
+                                       ov::ParameterVector{model_1_inputs_embeds, model_1_input_current_layer_tokens},
                                        "merged_model");
 };
 
@@ -384,6 +398,10 @@ void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std:
 
     m_merged_infer_request = std::make_unique<ov::InferRequest>(
         ::ov::genai::utils::singleton_core().compile_model(merged_model, m_device).create_infer_request());
+    m_enable_merge_ov_models = true;
+    m_cp_steps = ar_models.size();
+    GENAI_INFO("Finished merging code predictor AR and SCE models into one OV model with " +
+               std::to_string(m_cp_steps) + " steps. Will use merged model for inference.");
 }
 
 void TextToSpeechImpl_Qwen3Omni::run() {
@@ -440,26 +458,90 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers_merged
     size_t batch,
     size_t hidden_size,
     size_t cp_vocab_size,
+    std::vector<std::vector<int64_t>>& all_layer_tokens,
+    int num_layers_total) {
+    std::vector<int64_t> current_layer_tokens(batch * cp_steps, 0);  // shape=[batch*cp_steps]
+    ov::Tensor current_layer_tokens_tensor(ov::element::i64,
+                                           {batch, static_cast<size_t>(cp_steps)},
+                                           current_layer_tokens.data());
+
+    const size_t current_length = autoregressive_sequence.size() / hidden_size;
+    ov::Tensor ar_input(ov::element::f32, {batch, current_length, hidden_size}, autoregressive_sequence.data());
+
+    m_merged_infer_request->set_input_tensor(0, ar_input);
+    m_merged_infer_request->set_input_tensor(1, current_layer_tokens_tensor);
+    {
+        PROFILE(pm, "m_merged_infer_request infer");
+        m_merged_infer_request->infer();
+    }
+
+    auto merged_outputs = m_merged_infer_request->get_output_tensor(0);  // shape=[batch, cp_steps, hidden_size]
+    auto layer_tokens_output = m_merged_infer_request->get_output_tensor(1);  // shape=[batch, cp_steps]
+
+    // Return layer_tokens_output to current_layer_tokens
+    OPENVINO_ASSERT(layer_tokens_output.get_shape()[0] == batch &&
+                        layer_tokens_output.get_shape()[1] == static_cast<size_t>(cp_steps),
+                    "Merged model output shape mismatch. Expected [batch, cp_steps], got " +
+                        std::to_string(layer_tokens_output.get_shape()[0]) + ", " +
+                        std::to_string(layer_tokens_output.get_shape()[1]));
+    const int64_t* layer_tokens_ptr = layer_tokens_output.data<int64_t>();
+    std::copy(layer_tokens_ptr, layer_tokens_ptr + batch * cp_steps, current_layer_tokens.begin());
+
+    // Return to all_layer_tokens
+    for (size_t b = 0; b < batch; ++b) {
+        for (int step = 0; step < cp_steps; ++step) {
+            int64_t layer_token = current_layer_tokens[b * cp_steps + step];
+            if (step + 1 < num_layers_total) {
+                all_layer_tokens[step + 1].push_back(layer_token);
+            }
+        }
+    }
+
+    // Return to autoregressive_sequence
+    const float* merged_emb_ptr = merged_outputs.data<float>();
+    autoregressive_sequence.insert(autoregressive_sequence.end(),
+                                   merged_emb_ptr,
+                                   merged_emb_ptr + batch * cp_steps * hidden_size);
+
+    return current_layer_tokens;
+}
+
+std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
+    int cp_steps,
+    std::vector<float>& autoregressive_sequence,
+    size_t batch,
+    size_t hidden_size,
+    size_t cp_vocab_size,
     float temperature,
     size_t top_k,
     float top_p,
     std::mt19937& rng,
     std::vector<std::vector<int64_t>>& all_layer_tokens,
     int num_layers_total) {
-    return code_predictor_ar_infers(cp_steps,
-                                    autoregressive_sequence,
-                                    batch,
-                                    hidden_size,
-                                    cp_vocab_size,
-                                    temperature,
-                                    top_k,
-                                    top_p,
-                                    rng,
-                                    all_layer_tokens,
-                                    num_layers_total);
+    if (m_enable_merge_ov_models) {
+        return code_predictor_ar_infers_merged_ov(cp_steps,
+                                                  autoregressive_sequence,
+                                                  batch,
+                                                  hidden_size,
+                                                  cp_vocab_size,
+                                                  all_layer_tokens,
+                                                  num_layers_total);
+    }
+    // Fallback to origianl cpp implementation if merged OV model is not available for inference.
+    return code_predictor_ar_infers_cpp(cp_steps,
+                                        autoregressive_sequence,
+                                        batch,
+                                        hidden_size,
+                                        cp_vocab_size,
+                                        temperature,
+                                        top_k,
+                                        top_p,
+                                        rng,
+                                        all_layer_tokens,
+                                        num_layers_total);
 }
 
-std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
+std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers_cpp(
     int cp_steps,
     std::vector<float>& autoregressive_sequence,
     size_t batch,
@@ -528,8 +610,6 @@ std::vector<int64_t> TextToSpeechImpl_Qwen3Omni::code_predictor_ar_infers(
 }
 
 std::pair<ov::Tensor, int> TextToSpeechImpl_Qwen3Omni::qwen3_omni_text_to_speech(const std::string& text) {
-
-
     // --- Tokenize text ---
     auto tok_result = m_tokenizer->encode(text, ov::genai::add_special_tokens(false));
     auto tok_ids_tensor = tok_result.input_ids;
