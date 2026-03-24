@@ -203,7 +203,7 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
     }
     OPENVINO_ASSERT(!m_code_predictor_single_codec_embed_infers.empty(), "No single-codec-embed step models found in " + sce_dir.string());
 
-    if (m_sample_codec_token_greedy_search) {
+    if (m_sample_codec_token_greedy_search && m_merge_ar_and_sce_ov_models) {
         GENAI_INFO("TextToSpeechModule[" + module_desc->name +
                    "]: sample_codec_token_greedy_search is enabled, will use greedy decoding in sample_codec_token");
         merge_code_predictor_ov_models(ar_models, sce_models);
@@ -361,7 +361,7 @@ std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& mod
     auto model_1_output_embeddings = model_1->get_results()[0]->input_value(0);
     auto model_1_output_layer_tokens = model_1->get_results()[1]->input_value(0);
 
-    // Append model_1's output Embeddings to model_1's input inputs_embeds, and then take it as model_2's inputs_embeds.
+    // Append model_1's output embeddings (all previous steps) to inputs_embeds for model_2.
     auto merged_inputs_embeds = std::make_shared<ov::op::v0::Concat>(
         ov::OutputVector{model_1_inputs_embeds->output(0), model_1_output_embeddings},
         1);
@@ -370,12 +370,13 @@ std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& mod
     model_2->inputs()[1].replace(model_1_output_layer_tokens);
 
     auto model_2_output_embeddings = model_2->get_results()[0]->input_value(0);
-    auto merged_2_outputs_embeddings =
-        std::make_shared<ov::op::v0::Concat>(ov::OutputVector{merged_inputs_embeds, model_2_output_embeddings}, 1);
-    
-    auto merged_2_outputs_embeddings_result = std::make_shared<ov::op::v0::Result>(merged_2_outputs_embeddings);
+    auto merged_output_embeddings = std::make_shared<ov::op::v0::Concat>(
+        ov::OutputVector{model_1_output_embeddings, model_2_output_embeddings},
+        1);
 
-    return std::make_shared<ov::Model>(ov::ResultVector{merged_2_outputs_embeddings_result, model_2->get_results()[1]},
+    auto merged_output_embeddings_result = std::make_shared<ov::op::v0::Result>(merged_output_embeddings);
+
+    return std::make_shared<ov::Model>(ov::ResultVector{merged_output_embeddings_result, model_2->get_results()[1]},
                                        ov::ParameterVector{model_1_inputs_embeds, model_1_input_current_layer_tokens},
                                        "merged_model");
 };
