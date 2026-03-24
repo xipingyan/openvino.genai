@@ -59,6 +59,7 @@ void TextToSpeechModule::print_static_config() {
         codec_embedding_model_path: "codec_embedding_model.xml"                                               # codec embedding model IR xml path
         code_predictor_ar_model_path: "code_predictor_ar_model"                                               # code predictor autoregressive model directory path
         sample_codec_token_greedy_search: false                                                               # Eanble greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
+        merge_ar_and_sce_ov_models: false                                                                     # Merge AR and CSE models into one OV model for better performance. Requires "sample_codec_token_greedy_search=true.
         code_predictor_single_codec_embed_model_path: "code_predictor_single_codec_embed_model"               # code predictor single codec embedding model directory path
         code_predictor_single_codec_embedding_model_path: "code_predictor_single_codec_embedding_model.xml"   # code predictor single codec embedding model IR xml path
         speech_decoder_model_path: "speech_decoder_model.xml"                                                 # speech decoder model IR xml path
@@ -71,10 +72,8 @@ TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type),
       m_device(desc->device.empty() ? "CPU" : desc->device) {
-    auto sample_codec_token_greedy_search_str = get_optional_param("sample_codec_token_greedy_search");
-    if (!sample_codec_token_greedy_search_str.empty()) {
-        m_sample_codec_token_greedy_search = str_to_bool(sample_codec_token_greedy_search_str);
-    }
+    m_sample_codec_token_greedy_search = check_bool_param("sample_codec_token_greedy_search", false);
+    m_merge_ar_and_sce_ov_models = check_bool_param("merge_ar_and_sce_ov_models", false);
 }
 
 TextToSpeechModule::~TextToSpeechModule() = default;

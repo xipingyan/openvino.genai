@@ -77,17 +77,6 @@ size_t IBaseModule::str_to_size_t(const std::string& str) {
     }
 }
 
-// Convert string to bool. String "true", "True", "TRUE", "1" will be converted to true, and string "false",
-// "False", "FALSE", "0" will be converted to false. Other strings will throw an exception.
-bool IBaseModule::str_to_bool(const std::string& param_item) {
-    if (param_item == "true" || param_item == "True" || param_item == "TRUE" || param_item == "1") {
-        return true;
-    } else if (param_item == "false" || param_item == "False" || param_item == "FALSE" || param_item == "0") {
-        return false;
-    }
-    OPENVINO_THROW("Failed to parse bool from string: " + param_item);
-}
-
 void IBaseModule::init_ov_model() {
     if (m_ov_model == nullptr) {
         m_ov_model = get_ov_model_from_cfg_models_map("ov_model", false);
@@ -167,8 +156,8 @@ void IBaseModule::check_splitted_model() {
     }
 }
 
-bool IBaseModule::check_bool_param(const std::string& param_name, const bool& default_value) {
-    auto p = get_optional_param(param_name);
+bool IBaseModule::check_bool_param(const std::string& param_name, const bool& default_value, const bool& requires) {
+    auto p = requires ? get_param(param_name) : get_optional_param(param_name);
     if (p.empty()) {
         return default_value;
     }

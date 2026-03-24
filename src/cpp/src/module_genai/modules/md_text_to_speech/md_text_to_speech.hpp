@@ -70,6 +70,8 @@ protected:
     bool m_sample_codec_token_greedy_search =
         false;  // Eanble greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU
                 // inference since random sampling is not easy to implement on GPU.
+    bool m_merge_ar_and_sce_ov_models = false;  // Merge AR and CSE models into one OV model for better performance.
+                                                // Requires "sample_codec_token_greedy_search=true.
 };
 
 }
