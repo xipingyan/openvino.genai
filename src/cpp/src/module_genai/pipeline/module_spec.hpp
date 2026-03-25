@@ -25,7 +25,7 @@ public:
 
     struct ParamSpec {
         std::string name;
-        std::string example_value;
+        std::string default_value;
         bool optional = false;
         std::string comment;  // e.g. "[Optional], default true."
     };
@@ -65,13 +65,13 @@ public:
     }
 
     ModuleSpec& add_param(std::string name,
-                          std::string example_value,
+                          std::string default_value,
                           bool optional = false,
                           std::string comment = {}) {
         OPENVINO_ASSERT(!name.empty(), "ModuleSpec: param name must not be empty");
         ParamSpec spec;
         spec.name = std::move(name);
-        spec.example_value = std::move(example_value);
+        spec.default_value = std::move(default_value);
         spec.optional = optional;
         spec.comment = std::move(comment);
         m_params.emplace_back(std::move(spec));
@@ -116,7 +116,7 @@ public:
         if (!m_params.empty()) {
             os << "    params:\n";
             for (const auto& param : m_params) {
-                os << "      " << param.name << ": \"" << param.example_value << "\"";
+                os << "      " << param.name << ": \"" << param.default_value << "\"";
                 if (!param.comment.empty()) {
                     os << "    # " << param.comment;
                 }
