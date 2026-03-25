@@ -12,41 +12,29 @@ namespace ov::genai::module {
 
 GENAI_REGISTER_MODULE_SAME(RandomLatentImageModule);
 
+const ModuleSpec& RandomLatentImageModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("RandomLatentImageModule", "latent_image");
+        s.add_input("width", {DataType::Int});
+        s.add_input("height", {DataType::Int});
+        s.add_input("batch_size", {DataType::Int}, true);
+        s.add_input("num_images_per_prompt", {DataType::Int}, true);
+        s.add_input("seed", {DataType::Int}, true);
+        s.add_input("num_frames", {DataType::Int}, true);
+        s.add_output("latents", {DataType::OVTensor});
+        s.add_param("model_path", "model");
+        return s;
+    }();
+    return spec;
+}
+
 void RandomLatentImageModule::print_static_config() {
-    std::cout << R"(
-  latent_image:                       # Module Name
-    type: "RandomLatentImageModule"
-    description: "Create initial latent image"
-    device: "CPU"
-    inputs:
-      - name: "width"
-        type: "Int"                   # Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "height"
-        type: "Int"                   # Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "batch_size"
-        type: "Int"                   # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "num_images_per_prompt"
-        type: "Int"                   # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "seed"
-        type: "Int"                   # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "num_frames"
-        type: "Int"                   # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "latents"
-        type: "OVTensor"              # Support DataType: [OVTensor]
-    params:
-      model_path: "model"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 RandomLatentImageModule::RandomLatentImageModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     const auto &params = module_desc->params;
     auto it_path = params.find("model_path");
     if (it_path == params.end()) {

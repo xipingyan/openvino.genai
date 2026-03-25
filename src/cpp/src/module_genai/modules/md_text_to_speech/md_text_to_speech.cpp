@@ -17,6 +17,31 @@ namespace ov::genai::module {
 
 GENAI_REGISTER_MODULE_SAME(TextToSpeechModule);
 
+const ModuleSpec& TextToSpeechModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("TextToSpeechModule", "text_to_speech");
+        s.add_input("text", {DataType::String});
+        s.add_input("texts", {DataType::VecString});
+        s.add_output("audios", {DataType::VecOVTensor});
+        s.add_output("sample_rates", {DataType::VecInt});
+        s.add_output("generated_texts", {DataType::VecString});
+        s.add_param("config_path", "config_path");
+        s.add_param("tokenizer_path", "tokenizer_path");
+        s.add_param("embedding_model_path", "embedding_model.xml");
+        s.add_param("prefill_model_path", "prefill_model.xml");
+        s.add_param("decode_model_path", "decode_model.xml");
+        s.add_param("codec_embedding_model_path", "codec_embedding_model.xml");
+        s.add_param("code_predictor_ar_model_path", "code_predictor_ar_model");
+        s.add_param("sample_codec_token_greedy_search", "false");
+        s.add_param("merge_ar_and_sce_ov_models", "false");
+        s.add_param("code_predictor_single_codec_embed_model_path", "code_predictor_single_codec_embed_model");
+        s.add_param("code_predictor_single_codec_embedding_model_path", "code_predictor_single_codec_embedding_model.xml");
+        s.add_param("speech_decoder_model_path", "speech_decoder_model.xml");
+        return s;
+    }();
+    return spec;
+}
+
 TextToSpeechModule::PTR TextToSpeechModule::create(const IBaseModuleDesc::PTR& desc,
                                                    const PipelineDesc::PTR& pipeline_desc) {
     const VLMModelType model_type = to_vlm_model_type(desc->model_type);
@@ -32,38 +57,7 @@ TextToSpeechModule::PTR TextToSpeechModule::create(const IBaseModuleDesc::PTR& d
 }
 
 void TextToSpeechModule::print_static_config() {
-    std::cout << R"(
-  text_to_speech:
-    type: "TextToSpeechModule"
-    device: "GPU"
-    inputs:
-      - name: "text"
-        type: "String"                                                                                        # Support DataType: [String]
-        source: "ParentModuleName.OutputPortName"
-      - name: "texts"
-        type: "VecString"                                                                                     # Support DataType: [VecString]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "audios"
-        type: "VecOVTensor"                                                                                   # Support DataType: [VecOVTensor]
-      - name: "sample_rates"
-        type: "VecInt"                                                                                        # Support DataType: [VecInt]
-      - name: "generated_texts"
-        type: "VecString"                                                                                     # Support DataType: [VecString]
-    params:
-        config_path: "config_path"                                                                            # model config JSON file path
-        tokenizer_path: "tokenizer_path"                                                                      # tokenizer model path (e.g. SentencePiece model file)
-        embedding_model_path: "embedding_model.xml"                                                           # embedding model IR xml path
-        prefill_model_path: "prefill_model.xml"                                                               # prefill model IR xml path
-        decode_model_path: "decode_model.xml"                                                                 # decode model IR xml path
-        codec_embedding_model_path: "codec_embedding_model.xml"                                               # codec embedding model IR xml path
-        code_predictor_ar_model_path: "code_predictor_ar_model"                                               # code predictor autoregressive model directory path
-        sample_codec_token_greedy_search: false                                                               # Enable greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
-        merge_ar_and_sce_ov_models: false                                                                     # Merge AR and SCE models into one OV model for better performance. Requires "sample_codec_token_greedy_search=true".
-        code_predictor_single_codec_embed_model_path: "code_predictor_single_codec_embed_model"               # code predictor single codec embedding model directory path
-        code_predictor_single_codec_embedding_model_path: "code_predictor_single_codec_embedding_model.xml"   # code predictor single codec embedding model IR xml path
-        speech_decoder_model_path: "speech_decoder_model.xml"                                                 # speech decoder model IR xml path
-     )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
@@ -72,6 +66,7 @@ TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type),
       m_device(desc->device.empty() ? "CPU" : desc->device) {
+        check_params_with_spec(get_spec());
     m_sample_codec_token_greedy_search = check_bool_optional_param("sample_codec_token_greedy_search", false);
     m_merge_ar_and_sce_ov_models = check_bool_optional_param("merge_ar_and_sce_ov_models", false);
     m_force_ar_model_inference_precision_f32 = check_bool_optional_param("force_ar_model_inference_precision_f32", false);

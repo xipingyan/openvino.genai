@@ -12,6 +12,8 @@ class SaveImageModule : public IBaseModule {
     DeclareModuleConstructor(SaveImageModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     std::string m_filename_prefix;
     std::string m_output_folder;

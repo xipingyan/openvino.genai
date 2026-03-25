@@ -18,6 +18,8 @@ class TextEmbeddingModule : public IBaseModule {
     DeclareModuleConstructor(TextEmbeddingModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     std::shared_ptr<ov::genai::EmbeddingsModel> m_embedding_model;
 };

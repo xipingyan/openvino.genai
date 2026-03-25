@@ -16,6 +16,8 @@ class RandomLatentImageModule : public IBaseModule {
     DeclareModuleConstructor(RandomLatentImageModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     ov::Tensor prepare_latents(
         size_t batch_size,
         int num_channels,

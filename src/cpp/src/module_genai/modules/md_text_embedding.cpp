@@ -13,27 +13,25 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(TextEmbeddingModule);
 
+const ModuleSpec& TextEmbeddingModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("TextEmbeddingModule", "text_embedding");
+        s.add_input("input_ids", {DataType::OVTensor});
+        s.add_output("input_embedding", {DataType::OVTensor, DataType::OVRemoteTensor});
+        s.add_param("model_path", "path/to/text_embeddings_model_dir");
+        s.add_param("scale_emb", "1.0");
+        return s;
+    }();
+    return spec;
+}
+
 void TextEmbeddingModule::print_static_config() {
-    std::cout << R"(
-  text_embedding:                     # Module Name
-    type: "TextEmbeddingModule"
-    description: "Compute text embeddings from token ids."
-    device: "GPU"
-    inputs:
-      - name: "input_ids"
-        type: "OVTensor"              # Token ids tensor from TextEncoderModule
-        source: "ParentModuleName.input_ids"
-    outputs:
-      - name: "input_embedding"
-        type: "OVTensor"              # Or OVRemoteTensor depending on device / use case
-    params:
-      model_path: "path/to/text_embeddings_model_dir"
-      scale_emb: "1.0"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 TextEmbeddingModule::TextEmbeddingModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     VLMModelType model_type = to_vlm_model_type(desc->model_type);
     if (model_type != VLMModelType::QWEN2_VL && model_type != VLMModelType::QWEN2_5_VL) {
         GENAI_ERR("TextEmbeddingModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);

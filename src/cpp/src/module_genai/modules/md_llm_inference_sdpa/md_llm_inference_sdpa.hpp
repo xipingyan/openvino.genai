@@ -42,6 +42,7 @@ public:
     using PTR = std::shared_ptr<LLMInferenceSDPAModule>;
     static PTR create(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc);
     static void print_static_config();
+    static const ModuleSpec& get_spec();
 
     void run() override;
 

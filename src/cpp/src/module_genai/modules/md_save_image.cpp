@@ -18,24 +18,20 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(SaveImageModule);
 
+const ModuleSpec& SaveImageModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("SaveImageModule", "save_image");
+        s.add_input("raw_data", {DataType::OVTensor});
+        s.add_output("saved_image", {DataType::String});
+        s.add_output("saved_images", {DataType::VecString});
+        s.add_param("filename_prefix", "String");
+        return s;
+    }();
+    return spec;
+}
+
 void SaveImageModule::print_static_config() {
-    std::cout << R"(
-  save_image:          # Module Name
-    type: "SaveImageModule"
-    description: "Save images to the output folder. Supported DataType: [OVTensor]"
-    device: "CPU"
-    inputs:
-      - name: "raw_data"
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "saved_image"
-        type: "String"
-      - name: "saved_images"
-        type: "VecString"
-    params:
-      filename_prefix: "String"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 namespace {
@@ -118,6 +114,7 @@ bool write_bmp(const std::string& filepath, const uint8_t* data, int width, int 
 
 SaveImageModule::SaveImageModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     // Note: is_output_module should remain false since SaveImageModule is not a ResultModule.
     // It is a regular processing module that saves images as a side effect.
     if (!initialize()) {

@@ -34,6 +34,28 @@ namespace ov::genai::module {
 
 GENAI_REGISTER_MODULE_SAME(LLMInferenceSDPAModule);
 
+const ModuleSpec& LLMInferenceSDPAModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("LLMInferenceSDPAModule", "llm_inference_sdpa");
+        s.add_input("input_ids", {DataType::OVTensor});
+        s.add_input("visual_embeds", {DataType::OVTensor}, true);
+        s.add_input("visual_pos_mask", {DataType::OVTensor}, true);
+        s.add_input("grid_thw", {DataType::OVTensor}, true);
+        s.add_input("deepstack_embeds", {DataType::VecOVTensor}, true);
+        s.add_input("audio_embeds", {DataType::OVTensor}, true);
+        s.add_input("audio_pos_mask", {DataType::OVTensor}, true);
+        s.add_output("generated_text", {DataType::String});
+        s.add_param("model_path", "model_path", true, "Directory containing config.json + IR files");
+        s.add_param("cache_dir", "cache_dir", true,
+                    "Optional directory for caching compiled models, e.g. for GPU device, recommended to set this to a local disk path for better performance");
+        s.add_param("model_cfg_path", "model_config.json", true, "Optional fallback when model_path is not provided");
+        s.add_param("max_new_tokens", "256");
+        s.add_param("text_device", "", true, "Override device for text model (e.g. CPU for VL TDR avoidance)");
+        return s;
+    }();
+    return spec;
+}
+
 LLMInferenceSDPAModule::PTR LLMInferenceSDPAModule::create(const IBaseModuleDesc::PTR& desc,
                                                            const PipelineDesc::PTR& pipeline_desc) {
     // Model type.
@@ -57,48 +79,7 @@ LLMInferenceSDPAModule::PTR LLMInferenceSDPAModule::create(const IBaseModuleDesc
 // ============================================================================
 
 void LLMInferenceSDPAModule::print_static_config() {
-    std::cout << R"(
-global_context:
-  model_type: "qwen3_5"
-pipeline_modules:
-  llm_inference_sdpa:
-    type: "LLMInferenceSDPAModule"
-    description: "LLM module using SDPA (stateful) backend — supports text & VL modes"
-    device: "CPU"
-    inputs:
-      # ---- Text mode inputs (required) ----
-      - name: "input_ids"            # Tokenized input ids
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      # ---- VL mode inputs (additional, optional) ----
-      - name: "visual_embeds"        # [Optional] visual embeddings from vision encoder
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "visual_pos_mask"      # [Optional] boolean mask marking visual token positions
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "grid_thw"             # [Optional] grid dimensions [N,3] for 3D MRoPE position ids
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "deepstack_embeds"     # [Optional] deepstack visual embeddings for Qwen3-Omni
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "audio_embeds"      # [Optional] audio embeddings from audio preprocessor for Qwen3-Omni
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "audio_pos_mask"        # [Optional] boolean mask marking audio token positions for Qwen3-Omni
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "generated_text"
-        type: "String"
-    params:
-      model_path: "model_path"              # Directory containing config.json + IR files
-      cache_dir: "cache_dir"                # Optional directory for caching compiled models, e.g. for GPU device, recommended to set this to a local disk path for better performance
-      model_cfg_path: "model_config.json"   # Optional fallback when model_path is not provided
-      max_new_tokens: "256"
-      text_device: ""                       # Override device for text model (e.g. CPU for VL TDR avoidance)
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 // ============================================================================
@@ -109,6 +90,7 @@ LLMInferenceSDPAModule::LLMInferenceSDPAModule(const IBaseModuleDesc::PTR& desc,
                                                const VLMModelType& model_type)
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type) {
+    check_params_with_spec(get_spec());
     if (!initialize(model_type)) {
         GENAI_ERR("Failed to initialize LLMInferenceSDPAModule");
     }

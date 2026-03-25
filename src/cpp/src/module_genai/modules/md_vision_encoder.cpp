@@ -35,85 +35,49 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(VisionEncoderModule);
 
+const ModuleSpec& VisionEncoderModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("VisionEncoderModule", "vision_encoder");
+        s.add_input("preprocessed_image", {DataType::OVTensor, DataType::VecOVTensor});
+        s.add_input("source_size", {DataType::VecInt});
+        s.add_input("images_sequence", {DataType::VecInt});
+        s.add_input("input_ids", {DataType::OVTensor});
+        s.add_input("preprocessed_video", {DataType::OVTensor, DataType::VecOVTensor}, true);
+        s.add_input("image_grid_thw", {DataType::VecOVTensor}, true);
+        s.add_input("image_pos_embeds", {DataType::VecOVTensor}, true);
+        s.add_input("image_rotary_cos", {DataType::VecOVTensor}, true);
+        s.add_input("image_rotary_sin", {DataType::VecOVTensor}, true);
+        s.add_input("video_grid_thw", {DataType::VecOVTensor}, true);
+        s.add_input("video_pos_embeds", {DataType::VecOVTensor}, true);
+        s.add_input("video_rotary_cos", {DataType::VecOVTensor}, true);
+        s.add_input("video_rotary_sin", {DataType::VecOVTensor}, true);
+        s.add_input("attention_mask", {DataType::OVTensor}, true);
+        s.add_input("audio_features", {DataType::VecOVTensor}, true);
+        s.add_input("audio_feature_lengths", {DataType::OVTensor}, true);
+
+        s.add_output("image_embedding", {DataType::OVTensor});
+        s.add_output("video_embedding", {DataType::OVTensor});
+        s.add_output("position_ids", {DataType::OVTensor}, true);
+        s.add_output("rope_delta", {DataType::Int, DataType::OVTensor}, true);
+        s.add_output("visual_pos_mask", {DataType::OVTensor}, true);
+        s.add_output("deepstack_embeds", {DataType::VecOVTensor}, true);
+        s.add_output("audio_embedding", {DataType::OVTensor}, true);
+        s.add_output("audio_pos_mask", {DataType::OVTensor}, true);
+
+        s.add_param("model_path", "model");
+        s.add_param("vision_start_token_id", "100001");
+        return s;
+    }();
+    return spec;
+}
+
 void VisionEncoderModule::print_static_config() {
-    std::cout << R"(
-  vision_encoder:
-    type: "VisionEncoderModule"
-    device: "GPU"
-    inputs:
-      - name: "preprocessed_image"
-        type: "OVTensor | VecOVTensor"                     # Support DataType: [OVTensor | VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "source_size"                                # Used by Qwen 2.5-VL
-        type: "VecInt"                                     # Support DataType: [VecInt]
-        source: "ParentModuleName.OutputPortName"
-      - name: "images_sequence"                            # Used by Qwen 2.5-VL
-        type: "VecInt"                                     # Support DataType: [VecInt]
-        source: "ParentModuleName.OutputPortName"
-      - name: "input_ids"                                  # Required for Qwen 3.5. Optional for other models when position-related outputs are needed.
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "preprocessed_video"
-        type: "OVTensor | VecOVTensor"                     # Support DataType: [OVTensor | VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "image_grid_thw"                             # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "image_pos_embeds"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "image_rotary_cos"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "image_rotary_sin"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_grid_thw"                             # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_pos_embeds"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_rotary_cos"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_rotary_sin"                           # Used by Qwen 3.5
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "attention_mask"                             # Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "audio_features"                             # Used by Qwen 3-Omni
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "audio_feature_lengths"                      # Used by Qwen 3-Omni
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "image_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "video_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "position_ids"                               # [Optional], depends on input_ids
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "rope_delta"                                 # [Optional], depends on input_ids
-        type: "Int | OVTensor"                             # Support DataType: [Int (Qwen 2.5-VL) | OVTensor (Qwen 3.5)]
-      - name: "visual_pos_mask"                            # [Optional], depends on input_ids, Used by Qwen 3.5
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "deepstack_embeds"                           # [Optional], Used by Qwen 3-Omni
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-      - name: "audio_embedding"                            # [Optional], Used by Qwen 3-Omni
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-      - name: "audio_pos_mask"                            # [Optional], Used by Qwen 3-Omni
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-    params:
-      model_path: "model"
-      vision_start_token_id: 100001
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 VisionEncoderModule::VisionEncoderModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     VLMModelType model_type = to_vlm_model_type(desc->model_type);
     if (model_type != VLMModelType::QWEN2_VL && model_type != VLMModelType::QWEN2_5_VL &&
         model_type != VLMModelType::QWEN3_5 && model_type != VLMModelType::QWEN3_OMNI) {

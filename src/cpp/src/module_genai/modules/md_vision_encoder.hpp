@@ -22,6 +22,8 @@ class VisionEncoderModule : public IBaseModule {
     DeclareModuleConstructor(VisionEncoderModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     std::pair<ov::Tensor, ov::Tensor> embed(const EncodedImage &image, const std::vector<int>& images_sequence, const ov::Tensor& input_ids);
     Qwen3_5VisionEmbeddingResult embed(

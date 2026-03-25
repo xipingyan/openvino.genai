@@ -3,6 +3,7 @@
 
 #pragma once
 #include "module_genai/pipeline/module.hpp"
+#include "module_genai/pipeline/module_spec.hpp"
 #include "openvino/genai/image_generation/autoencoder_kl.hpp"
 #include "autoencoder_kl_wan.hpp"
 #include "module_genai/pipeline/diffusion_model_type.hpp"
@@ -15,6 +16,8 @@ class VAEDecoderModule : public IBaseModule {
     DeclareModuleConstructor(VAEDecoderModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     void create_vae_decoder(const std::filesystem::path &model_path,
                             const std::string &device,

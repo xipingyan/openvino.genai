@@ -10,34 +10,27 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(EmbeddingMergerModule);
 
+const ModuleSpec& EmbeddingMergerModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("EmbeddingMergerModule", "embedding_merger");
+        s.add_input("input_ids", {DataType::OVTensor});
+        s.add_input("input_embedding", {DataType::OVTensor});
+        s.add_input("image_embedding", {DataType::OVTensor});
+        s.add_input("video_embedding", {DataType::OVTensor});
+        s.add_output("merged_embedding", {DataType::OVTensor});
+        s.add_param("model_path", "model");
+        return s;
+    }();
+    return spec;
+}
+
 void EmbeddingMergerModule::print_static_config() {
-    std::cout << R"(
-  embedding_merger:
-    type: "EmbeddingMergerModule"
-    device: "GPU"
-    inputs:
-      - name: "input_ids"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.input_ids"
-      - name: "input_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.input_embedding"
-      - name: "image_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.image_embedding"
-      - name: "video_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.video_embedding"
-    outputs:
-      - name: "merged_embedding"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-    params:
-      model_path: "model"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 EmbeddingMergerModule::EmbeddingMergerModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     VLMModelType model_type = to_vlm_model_type(desc->model_type);
     if (model_type != VLMModelType::QWEN2_VL && model_type != VLMModelType::QWEN2_5_VL) {
         GENAI_ERR("EmbeddingMergerModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);

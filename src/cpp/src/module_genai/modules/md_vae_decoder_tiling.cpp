@@ -27,43 +27,35 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(VAEDecoderTilingModule);
 
-void VAEDecoderTilingModule::print_static_config() {
-    std::cout << R"(
-  vae_decoder_tiling:
-    type: "VAEDecoderTilingModule"
-    model_type: "zimage" or "wan2.1"           # Determines 4D (image) or 5D (video) processing
-    device: "CPU"
-    inputs:
-      - name: "latent"
-        type: "OVTensor"                       # 4D [N,C,H,W] or 5D [B,C,T,H,W]
-        source: "ParentModuleName.OutputPortName"
-      - name: "latents"
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "image"                          # For 4D image output [N,H,W,C] u8
-        type: "OVTensor"
-      - name: "video"                          # For 5D video output [B,T,H,W,C] u8
-        type: "OVTensor"
-      - name: "images"
-        type: "VecOVTensor"
-      - name: "videos"
-        type: "VecOVTensor"
-    params:
-      tile_overlap_factor: "0.25"              # [Optional] float, default is 0.25
-      sample_size: "1024"                      # [Optional] int, tiling size for images
-      tile_sample_min_height: "256"            # [Optional] tile size for videos
-      tile_sample_min_width: "256"
-      tile_sample_stride: "192"                # [Optional] stride for videos
-      spatial_compression_ratio: "8"           # [Optional] VAE spatial downsampling
-      model_path: "model"
-      sub_module_name: "sub_modules: name"     # sub-pipeline module name
+const ModuleSpec& VAEDecoderTilingModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("VAEDecoderTilingModule", "vae_decoder_tiling");
+        s.add_input("latent", {DataType::OVTensor}, true);
+        s.add_input("latents", {DataType::VecOVTensor}, true);
+        s.add_output("image", {DataType::OVTensor});
+        s.add_output("video", {DataType::OVTensor});
+        s.add_output("images", {DataType::VecOVTensor});
+        s.add_output("videos", {DataType::VecOVTensor});
+        s.add_param("tile_overlap_factor", "0.25", true, "[Optional] float, default is 0.25");
+        s.add_param("sample_size", "1024", true, "[Optional] int, tiling size for images");
+        s.add_param("tile_sample_min_height", "256", true, "[Optional] tile size for videos");
+        s.add_param("tile_sample_min_width", "256");
+        s.add_param("tile_sample_stride", "192", true, "[Optional] stride for videos");
+        s.add_param("spatial_compression_ratio", "8", true, "[Optional] VAE spatial downsampling");
+        s.add_param("model_path", "model");
+        s.add_param("sub_module_name", "sub_modules: name", true, "sub-pipeline module name");
+        return s;
+    }();
+    return spec;
+}
 
-    )" << std::endl;
+void VAEDecoderTilingModule::print_static_config() {
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 VAEDecoderTilingModule::VAEDecoderTilingModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     m_model_type = to_diffusion_model_type(desc->model_type);
 
     // Determine content type based on model type

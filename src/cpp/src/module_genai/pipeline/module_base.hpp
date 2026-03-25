@@ -6,6 +6,7 @@
 #include "module_genai/pipeline/module_print_config.hpp"
 #include "module_genai/pipeline/module_type.hpp"
 #include "module_genai/pipeline/module_desc.hpp"
+#include "module_genai/pipeline/module_spec.hpp"
 #include "openvino/core/any.hpp"
 #include "openvino/genai/visibility.hpp"
 #include "visual_language/vision_encoder.hpp"
@@ -70,6 +71,8 @@ public:
     }
 
 protected:
+    void check_params_with_spec(const ModuleSpec& spec);
+
     bool is_input_module = false;
     bool is_output_module = false;
     static thread_local std::chrono::steady_clock::time_point m_generate_start_time;
