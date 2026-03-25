@@ -83,7 +83,7 @@ bool DenoiserLoopModule::initialize() {
 
     check_splitted_model();
 
-    m_dynamic_load_weights = check_bool_param("dynamic_load_weights", false);
+    m_dynamic_load_weights = check_bool_optional_param("dynamic_load_weights", false);
 
     check_cache_dir();
     if (m_dynamic_load_weights && m_cache_dir.empty()) {

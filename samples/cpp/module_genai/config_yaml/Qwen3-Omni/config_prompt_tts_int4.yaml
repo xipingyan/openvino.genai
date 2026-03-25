@@ -1,0 +1,52 @@
+global_context:
+  model_type: "qwen3_omni"
+
+pipeline_modules:
+  pipeline_params:
+    type: "ParameterModule"
+    outputs:
+      - name: "prompts"
+        type: "String"
+
+  text_to_speech:
+    type: "TextToSpeechModule"
+    device: "CPU"
+    inputs:
+      - name: "text"
+        type: "String"
+        source: "pipeline_params.prompts"
+    outputs:
+      - name: "audios"
+        type: "VecOVTensor"
+      - name: "sample_rates"
+        type: "VecInt"
+      - name: "generated_texts"
+        type: "VecString"
+    params:
+      config_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/config.json"
+      tokenizer_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/"
+      embedding_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_talker_embedding_model.xml"
+      prefill_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_talker_prefill_model.xml"
+      decode_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_talker_decode_model.xml"
+      codec_embedding_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_talker_codec_embedding_model.xml"
+      code_predictor_ar_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4"
+      code_predictor_single_codec_embed_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4"
+      code_predictor_single_codec_embedding_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_code_predictor_codec_embed_model.xml"
+      speech_decoder_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_speech_decoder_model.xml"
+      sample_codec_token_greedy_search: true
+      merge_ar_and_sce_ov_models: true
+      force_ar_model_inference_precision_f32: false
+
+  pipeline_result:
+    type: "ResultModule"
+    description: "Collects final results and formats the output structure."
+    inputs:
+      - name: "audios"
+        type: "VecOVTensor"
+        source: "text_to_speech.audios"
+      - name: "sample_rates"
+        type: "VecInt"
+        source: "text_to_speech.sample_rates"
+      - name: "generated_texts"
+        type: "VecString"
+        source: "text_to_speech.generated_texts"

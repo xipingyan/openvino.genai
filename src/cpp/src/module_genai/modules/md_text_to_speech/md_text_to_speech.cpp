@@ -58,11 +58,12 @@ void TextToSpeechModule::print_static_config() {
         decode_model_path: "decode_model.xml"                                                                 # decode model IR xml path
         codec_embedding_model_path: "codec_embedding_model.xml"                                               # codec embedding model IR xml path
         code_predictor_ar_model_path: "code_predictor_ar_model"                                               # code predictor autoregressive model directory path
+        sample_codec_token_greedy_search: false                                                               # Enable greedy decoding in sample_codec_token, which is used for fast debugging and also for GPU inference since random sampling is not easy to implement on GPU.
+        merge_ar_and_sce_ov_models: false                                                                     # Merge AR and SCE models into one OV model for better performance. Requires "sample_codec_token_greedy_search=true".
         code_predictor_single_codec_embed_model_path: "code_predictor_single_codec_embed_model"               # code predictor single codec embedding model directory path
         code_predictor_single_codec_embedding_model_path: "code_predictor_single_codec_embedding_model.xml"   # code predictor single codec embedding model IR xml path
         speech_decoder_model_path: "speech_decoder_model.xml"                                                 # speech decoder model IR xml path
-     )"
-              << std::endl;
+     )" << std::endl;
 }
 
 TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
@@ -71,6 +72,9 @@ TextToSpeechModule::TextToSpeechModule(const IBaseModuleDesc::PTR& desc,
     : IBaseModule(desc, pipeline_desc),
       m_model_type(model_type),
       m_device(desc->device.empty() ? "CPU" : desc->device) {
+    m_sample_codec_token_greedy_search = check_bool_optional_param("sample_codec_token_greedy_search", false);
+    m_merge_ar_and_sce_ov_models = check_bool_optional_param("merge_ar_and_sce_ov_models", false);
+    m_force_ar_model_inference_precision_f32 = check_bool_optional_param("force_ar_model_inference_precision_f32", false);
 }
 
 TextToSpeechModule::~TextToSpeechModule() = default;
@@ -220,6 +224,7 @@ int64_t TextToSpeechModule::sample_codec_token(const float* logits,
         top_sum += probs[i];
     }
 
+    // Random sampling is implemented here; the choice between random sampling and greedy decoding is controlled by m_sample_codec_token_greedy_search at a higher level.
     std::uniform_real_distribution<float> distribution(0.0f, top_sum);
     const float random_value = distribution(rng);
     cumulative_sum = 0.0f;
@@ -231,6 +236,18 @@ int64_t TextToSpeechModule::sample_codec_token(const float* logits,
     }
 
     return static_cast<int64_t>(index[0]);
+}
+
+int64_t TextToSpeechModule::sample_codec_token_greedy(const float* logits, size_t vocab_size) {
+    size_t max_index = 0;
+    float max_logit = logits[0];
+    for (size_t i = 1; i < vocab_size; ++i) {
+        if (logits[i] > max_logit) {
+            max_logit = logits[i];
+            max_index = i;
+        }
+    }
+    return static_cast<int64_t>(max_index);
 }
 
 ov::Tensor TextToSpeechModule::make_decode_mask(size_t past_len, size_t batch) {
