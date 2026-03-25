@@ -209,7 +209,7 @@ void TextToSpeechImpl_Qwen3Omni::load_code_predictor_models(const ov::AnyMap& tt
     if (m_sample_codec_token_greedy_search && m_merge_ar_and_sce_ov_models) {
         GENAI_INFO("TextToSpeechModule[" + module_desc->name +
                    "]: sample_codec_token_greedy_search is enabled, will use greedy decoding in sample_codec_token");
-        merge_code_predictor_ov_models(ar_models, sce_models);
+        merge_code_predictor_ov_models(ar_models, sce_models, tts_props);
         if (m_enable_merge_ov_models) {
             // Release original infer requests to save memory since they won't be used anymore.
             m_code_predictor_ar_infers.clear();
@@ -387,7 +387,8 @@ std::shared_ptr<ov::Model> merge_neighbor_models(std::shared_ptr<ov::Model>& mod
 };
 
 void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std::shared_ptr<ov::Model>>& ar_models,
-                                                                std::vector<std::shared_ptr<ov::Model>>& sce_models) {
+                                                                std::vector<std::shared_ptr<ov::Model>>& sce_models,
+                                                                const ov::AnyMap& tts_props) {
     if (ar_models.size() < 2) {
         GENAI_WARN("TextToSpeechModule[" + module_desc->name + "]: Not enough AR models to merge (found " +
                    std::to_string(ar_models.size()) + "), will skip merging and use separate AR/SCE infer requests");

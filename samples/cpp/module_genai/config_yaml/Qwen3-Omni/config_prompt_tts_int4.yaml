@@ -34,7 +34,7 @@ pipeline_modules:
       code_predictor_single_codec_embedding_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_code_predictor_codec_embed_model.xml"
       speech_decoder_model_path: "./tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_speech_decoder_model.xml"
       sample_codec_token_greedy_search: true
-      merge_ar_and_sce_ov_models: false
+      merge_ar_and_sce_ov_models: true
       force_ar_model_inference_precision_f32: false
 
   pipeline_result:
