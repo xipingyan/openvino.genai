@@ -400,7 +400,7 @@ void TextToSpeechImpl_Qwen3Omni::merge_code_predictor_ov_models(std::vector<std:
     }
 
     m_merged_infer_request = std::make_unique<ov::InferRequest>(
-        ::ov::genai::utils::singleton_core().compile_model(merged_model, m_device).create_infer_request());
+        ::ov::genai::utils::singleton_core().compile_model(merged_model, m_device, tts_props).create_infer_request());
     m_enable_merge_ov_models = true;
     m_cp_steps = ar_models.size();
     GENAI_INFO("Finished merging code predictor AR and SCE models into one OV model with " +
