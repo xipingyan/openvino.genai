@@ -10,31 +10,26 @@ namespace ov::genai::module {
 
 GENAI_REGISTER_MODULE_SAME(AudioEncoderModule);
 
+const ModuleSpec& AudioEncoderModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("AudioEncoderModule", "audio_encoder");
+        s.add_input("input_features", {DataType::VecOVTensor});
+        s.add_input("feature_attention_mask", {DataType::VecOVTensor});
+        s.add_output("audio_features", {DataType::VecOVTensor});
+        s.add_output("audio_feature_lengths", {DataType::OVTensor});
+        s.add_param("model_path", "models_path");
+        return s;
+    }();
+    return spec;
+}
+
 void AudioEncoderModule::print_static_config() {
-    std::cout << R"(
-  audio_encoder:
-    type: "AudioEncoderModule"
-    description: "Encode raw audio to audio features."
-    device: "GPU"
-    inputs:
-      - name: "input_features"
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "feature_attention_mask"
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "audio_features"
-        type: "VecOVTensor"
-      - name: "audio_feature_lengths"
-        type: "OVTensor"
-    params:
-      model_path: "models_path"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 AudioEncoderModule::AudioEncoderModule(const IBaseModuleDesc::PTR &desc, const PipelineDesc::PTR &pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     if (!initialize()) {
         GENAI_ERR("Failed to initialize AudioEncoderModule");
     }

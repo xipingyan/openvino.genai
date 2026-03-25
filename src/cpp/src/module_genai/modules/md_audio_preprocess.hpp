@@ -19,6 +19,7 @@ class AudioPreprocessModule : public IBaseModule {
 private:
     VLMModelType _model_type;
     std::shared_ptr<WhisperFeatureExtractor> m_feature_extractor_ptr = nullptr;
+    static const ModuleSpec& get_spec();
 
     void preprocess_audio(const bool& has_audios_input);
 };

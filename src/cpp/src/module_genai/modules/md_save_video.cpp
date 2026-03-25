@@ -28,31 +28,24 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(SaveVideoModule);
 
+const ModuleSpec& SaveVideoModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("SaveVideoModule", "save_video");
+        s.add_input("raw_data", {DataType::OVTensor});
+        s.add_output("saved_video", {DataType::String});
+        s.add_output("saved_videos", {DataType::VecString});
+        s.add_param("filename_prefix", "output", true, "Default: \"output\"");
+        s.add_param("output_folder", "./output", true, "Default: \"./output\"");
+        s.add_param("fps", "25", true, "Default: 25");
+        s.add_param("quality", "85", true, "JPEG quality 0-100, Default: 85");
+        s.add_param("convert_bgr2rgb", "false", true, "Default: false");
+        return s;
+    }();
+    return spec;
+}
+
 void SaveVideoModule::print_static_config() {
-    std::cout << R"(
-  save_video:          # Module Name
-    type: "SaveVideoModule"
-    description: "Save video tensor to AVI file. Supports two input formats:
-                  1. [B, F, H, W, C] channels-last (e.g., from VideoProcessor)
-                  2. [B, C, F, H, W] channels-first (e.g., from VAE decoder)
-                  Supported DataTypes: [u8, f32, f16]"
-    device: "CPU"
-    inputs:
-      - name: "raw_data"
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "saved_video"
-        type: "String"
-      - name: "saved_videos"
-        type: "VecString"
-    params:
-      filename_prefix: "String"       # Default: "output"
-      output_folder: "String"         # Default: "./output"
-      fps: "Int"                      # Default: 25
-      quality: "Int"                  # JPEG quality 0-100, Default: 85
-      convert_bgr2rgb: "Bool"         # Default: false
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 namespace {
@@ -538,6 +531,7 @@ static inline void pack_chw_u8_strided_to_rgb_u8(const uint8_t* src, size_t C, s
 
 SaveVideoModule::SaveVideoModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     if (!initialize()) {
         GENAI_ERR("Failed to initialize SaveVideoModule");
     }

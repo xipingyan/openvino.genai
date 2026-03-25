@@ -23,6 +23,8 @@ class DenoiserLoopModule : public IBaseModule {
     DeclareModuleConstructor(DenoiserLoopModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     // Image generation
     ov::Tensor run(

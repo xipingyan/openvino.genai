@@ -20,6 +20,8 @@ class ImagePreprocessModule : public IBaseModule {
     DeclareModuleConstructor(ImagePreprocessModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     VLMModelType _model_type;
     VisionPreprocess::PTR _vision_preprocess_ptr = nullptr;
     VisionEncoder::Ptr _encoder_ptr = nullptr;

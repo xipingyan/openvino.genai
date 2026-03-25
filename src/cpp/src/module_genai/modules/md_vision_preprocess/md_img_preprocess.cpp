@@ -16,45 +16,33 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(ImagePreprocessModule);
 
+const ModuleSpec& ImagePreprocessModule::get_spec() {
+  static const ModuleSpec spec = []() {
+    ModuleSpec s("ImagePreprocessModule", "image_preprocessor");
+    s.add_input("image", {DataType::OVTensor}, true);
+    s.add_input("images", {DataType::VecOVTensor}, true);
+    s.add_output("raw_data", {DataType::OVTensor});
+    s.add_output("source_size", {DataType::VecInt});
+    s.add_output("raw_datas", {DataType::VecOVTensor});
+    s.add_output("source_sizes", {DataType::VecVecInt});
+    s.add_output("pixel_values", {DataType::VecOVTensor});
+    s.add_output("grid_thw", {DataType::VecOVTensor});
+    s.add_output("pos_embeds", {DataType::VecOVTensor});
+    s.add_output("rotary_cos", {DataType::VecOVTensor});
+    s.add_output("rotary_sin", {DataType::VecOVTensor});
+    s.add_param("model_path", "models/openvino_vision_embeddings_model.xml");
+    return s;
+  }();
+  return spec;
+}
+
 void ImagePreprocessModule::print_static_config() {
-    std::cout << R"(
-  image_preprocessor:           # Module Name
-    type: "ImagePreprocessModule"
-    device: "CPU"               # Optional, default to CPU
-    description: "Image preprocessing."
-    inputs:
-      - name: "image"           # [optional]
-        type: "OVTensor"        # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "images"          # [Optional] multiple images
-        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "raw_data"        # Output port name, used by Qwen 2.5-VL
-        type: "OVTensor"        # Support DataType: [OVTensor]
-      - name: "source_size"     # Output port name, used by Qwen 2.5-VL
-        type: "VecInt"          # Support DataType: [VecInt]
-      - name: "raw_datas"       # batch processed vision output, used by Qwen 2.5-VL
-        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
-      - name: "source_sizes"    # Output port name, used by Qwen 2.5-VL
-        type: "VecVecInt"       # Support DataType: [VecVecInt]
-      - name: "pixel_values"    # Output port name, used by Qwen 3.5
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-      - name: "grid_thw"        # Output port name, used by Qwen 3.5
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-      - name: "pos_embeds"      # Output port name, used by Qwen 3.5
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-      - name: "rotary_cos"      # Output port name, used by Qwen 3.5
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-      - name: "rotary_sin"      # Output port name, used by Qwen 3.5
-        type: "VecOVTensor"        # Support DataType: [VecOVTensor]
-    params:
-      model_path: "models/openvino_vision_embeddings_model.xml"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 ImagePreprocessModule::ImagePreprocessModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+  check_params_with_spec(get_spec());
     std::string model_path = desc->get_full_path(desc->params["model_path"]);
     std::string device = desc->device;
 

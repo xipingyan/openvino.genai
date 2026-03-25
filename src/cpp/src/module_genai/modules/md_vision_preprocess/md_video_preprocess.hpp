@@ -20,6 +20,8 @@ class VideoPreprocessModule : public IBaseModule {
     DeclareModuleConstructor(VideoPreprocessModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     VLMModelType _model_type;
     VisionPreprocess::PTR _vision_preprocess_ptr = nullptr;
     VisionEncoder::Ptr _encoder_ptr = nullptr;

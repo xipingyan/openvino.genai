@@ -36,6 +36,8 @@ public:
     };
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     bool init_tile_params(const std::filesystem::path& model_path);
     bool init_tile_params_from_config();

@@ -12,6 +12,8 @@ class AudioEncoderModule : public IBaseModule {
     DeclareModuleConstructor(AudioEncoderModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
 
     std::unique_ptr<CircularBufferQueue<ov::InferRequest>> m_request_queue;

@@ -15,31 +15,26 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(AudioPreprocessModule);
 
+const ModuleSpec& AudioPreprocessModule::get_spec() {
+  static const ModuleSpec spec = []() {
+    ModuleSpec s("AudioPreprocessModule", "audio_preprocessor");
+    s.add_input("audio", {DataType::OVTensor}, true);
+    s.add_input("audios", {DataType::VecOVTensor}, true);
+    s.add_output("input_features", {DataType::VecOVTensor});
+    s.add_output("feature_attention_mask", {DataType::VecOVTensor});
+    s.add_param("model_path", "models_path");
+    return s;
+  }();
+  return spec;
+}
+
 void AudioPreprocessModule::print_static_config() {
-    std::cout << R"(
-  audio_preprocessor:           # Module Name
-    type: "AudioPreprocessModule"
-    device: "CPU"               # Optional, default to CPU
-    description: "Audio preprocessing."
-    inputs:
-      - name: "audio"           # [optional]
-        type: "OVTensor"        # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "audios"          # [Optional] multiple audios
-        type: "VecOVTensor"     # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "input_features"          # Output port name.
-        type: "VecOVTensor"             # Support DataType: [VecOVTensor]
-      - name: "feature_attention_mask"  # Output port name
-        type: "VecOVTensor"             # Support DataType: [VecOVTensor]   
-    params:
-      model_path: "models_path"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 AudioPreprocessModule::AudioPreprocessModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+  check_params_with_spec(get_spec());
     std::string model_path = desc->get_full_path(desc->params["model_path"]);
 
     m_feature_extractor_ptr = std::make_shared<WhisperFeatureExtractor>(model_path);

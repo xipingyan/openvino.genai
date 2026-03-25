@@ -29,6 +29,8 @@ class SaveVideoModule : public IBaseModule {
     DeclareModuleConstructor(SaveVideoModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
 
     std::string m_filename_prefix;

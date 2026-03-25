@@ -15,6 +15,8 @@ class ParameterModule : public IBaseModule {
     DeclareModuleConstructor(ParameterModule);
 
 public:
+        static const ModuleSpec& get_spec();
+
     void run(ov::AnyMap& inputs);
 };
 
@@ -24,6 +26,8 @@ class ResultModule : public IBaseModule {
     DeclareModuleConstructor(ResultModule);
 
 public:
+        static const ModuleSpec& get_spec();
+
     void run(ov::AnyMap& outputs);
 };
 

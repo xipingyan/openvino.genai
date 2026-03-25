@@ -12,21 +12,44 @@ namespace module {
 GENAI_REGISTER_MODULE_SAME(ParameterModule);
 GENAI_REGISTER_MODULE_SAME(ResultModule);
 
+const ModuleSpec& ParameterModule::get_spec() {
+  static const ModuleSpec spec = []() {
+    ModuleSpec s("ParameterModule", "image");
+    const std::initializer_list<DataType> pass_through_types = {
+      DataType::OVTensor,
+      DataType::VecOVTensor,
+      DataType::String,
+      DataType::VecString,
+    };
+    s.add_output("image1_data", pass_through_types);
+    s.add_output("image2_data", pass_through_types);
+    return s;
+  }();
+  return spec;
+}
+
+const ModuleSpec& ResultModule::get_spec() {
+  static const ModuleSpec spec = []() {
+    ModuleSpec s("ResultModule", "pipeline_result");
+    const std::initializer_list<DataType> pass_through_types = {
+      DataType::OVTensor,
+      DataType::VecOVTensor,
+      DataType::String,
+      DataType::VecString,
+    };
+    s.add_input("raw_data", pass_through_types);
+    return s;
+  }();
+  return spec;
+}
+
 void ParameterModule::print_static_config() {
-    std::cout << R"(
-  image:                        # Module Name
-    type: "ParameterModule"
-    description: "Input parameters. Supported DataType: [OVTensor, VecOVTensor, String, VecString]"
-    outputs:
-      - name: "image1_data"     # Input Name, should algin with pipeline.generate inputs.
-        type: "OVTensor"
-      - name: "image2_data"
-        type: "OVTensor"
-        )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 ParameterModule::ParameterModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+  check_params_with_spec(get_spec());
     is_input_module = true;
     // std::cout << "ParameterModule:" << m_desc << std::endl;
 }
@@ -47,20 +70,12 @@ void ParameterModule::run() {
 }
 
 void ResultModule::print_static_config() {
-    std::cout << R"(
-  pipeline_result:          # Module Name
-    type: "ResultModule"
-    description: "Output result. Supported DataType: [OVTensor, VecOVTensor, String, VecString]"
-    device: "CPU"
-    inputs:
-      - name: "raw_data"
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 ResultModule::ResultModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+  check_params_with_spec(get_spec());
     is_output_module = true;
 }
 

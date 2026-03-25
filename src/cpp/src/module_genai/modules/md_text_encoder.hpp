@@ -27,6 +27,8 @@ private:
     size_t m_spatial_merge_size;
     int64_t m_position_id_per_seconds = 0;
 
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     std::pair<TokenizedInputs, std::vector<int>> run(const std::vector<std::string>& prompts, 
                         const std::vector<ov::Tensor>& encoded_images,

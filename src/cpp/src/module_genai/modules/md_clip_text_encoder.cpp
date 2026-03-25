@@ -18,48 +18,33 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(ClipTextEncoderModule);
 
+const ModuleSpec& ClipTextEncoderModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("ClipTextEncoderModule", "clip_text_encoder");
+        s.add_input("prompt", {DataType::String}, true);
+        s.add_input("prompts", {DataType::VecString}, true);
+        s.add_input("negative_prompt", {DataType::String}, true);
+        s.add_input("negative_prompts", {DataType::VecString}, true);
+        s.add_input("guidance_scale", {DataType::Float}, true);
+        s.add_input("max_sequence_length", {DataType::Int}, true);
+        s.add_input("num_images_per_prompt", {DataType::Int}, true);
+        s.add_output("prompt_embeds", {DataType::VecOVTensor});
+        s.add_output("negative_prompt_embeds", {DataType::VecOVTensor}, true);
+        s.add_param("model_path", "model_dir/");
+        s.add_param("dynamic_load_weights", "bool value", true, "[Optional], default false.");
+        s.add_param("cache_dir", "./cache_dir_text_encoder/", true, "[Optional], default is empty string.");
+        return s;
+    }();
+    return spec;
+}
+
 void ClipTextEncoderModule::print_static_config() {
-    std::cout << R"(
-  clip_text_encoder:                       # Module Name
-    type: "ClipTextEncoderModule"
-    description: "Encode positive prompt and negative prompt"
-    device: "GPU"
-    inputs:
-      - name: "prompt"
-        type: "String"            # [Optional] Support DataType: [String]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompts"
-        type: "VecString"         # [Optional] Support DataType: [VecString]
-        source: "ParentModuleName.OutputPortName"
-      - name: "negative_prompt"
-        type: "String"            # [Optional] Support DataType: [String]
-        source: "ParentModuleName.OutputPortName"
-      - name: "negative_prompts"
-        type: "VecString"         # [Optional] Support DataType: [VecString]
-        source: "ParentModuleName.OutputPortName"
-      - name: "guidance_scale"
-        type: "Float"             # [Optional] Support DataType: [Float]
-        source: "ParentModuleName.OutputPortName"
-      - name: "max_sequence_length"
-        type: "Int"               # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "num_images_per_prompt"
-        type: "Int"               # [Optional] Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "prompt_embeds"
-        type: "VecOVTensor"       # Support DataType: [VecOVTensor]
-      - name: "negative_prompt_embeds"
-        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
-    params:
-      model_path: "model_dir/"  # model directory
-      dynamic_load_weights: "bool value"    # [Optional], default false.
-      cache_dir: "./cache_dir_text_encoder/"  # [Optional], default is empty string.
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 ClipTextEncoderModule::ClipTextEncoderModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     if (!initialize()) {
         GENAI_ERR("Failed to initialize ClipTextEncoderModule");
     }

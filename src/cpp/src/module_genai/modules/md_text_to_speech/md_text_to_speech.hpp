@@ -33,6 +33,7 @@ public:
     void run() override;
 
 protected:
+    static const ModuleSpec& get_spec();
     std::vector<std::string> parse_input_texts();
 
     std::optional<std::filesystem::path> get_model_path(const std::string &param_name);

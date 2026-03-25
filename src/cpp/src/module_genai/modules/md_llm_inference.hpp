@@ -24,7 +24,8 @@ class LLMInferenceModule : public IBaseModule {
 
 private:
     std::shared_ptr<ov::Model> m_ov_model_embed = nullptr;
-    bool initialize();
+     static const ModuleSpec& get_spec();
+     bool initialize();
     bool load_generation_config(const std::filesystem::path& config_path);
 
     // Pipeline instances (only one will be initialized based on model type)

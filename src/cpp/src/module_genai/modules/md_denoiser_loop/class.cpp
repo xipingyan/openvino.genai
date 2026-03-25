@@ -20,47 +20,36 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(DenoiserLoopModule);
 
+const ModuleSpec& DenoiserLoopModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("DenoiserLoopModule", "denoiser_loop");
+        s.add_input("latents", {DataType::OVTensor});
+        s.add_input("prompt_embed", {DataType::OVTensor});
+        s.add_input("prompt_embeds", {DataType::VecOVTensor});
+        s.add_input("prompt_embed_negative", {DataType::OVTensor});
+        s.add_input("prompt_embeds_negative", {DataType::VecOVTensor});
+        s.add_input("num_inference_steps", {DataType::Int}, true);
+        s.add_input("guidance_scale", {DataType::Float}, true);
+        s.add_output("latents", {DataType::OVTensor});
+        s.add_param("model_path", "model");
+        s.add_param("splitted_model", "false", true, "[Optional], default false.");
+        s.add_param("cache_dir", "./cache_dir_transformer/", true,
+                    "[Optional], default is empty string. But `splitted_model` and `dynamic_load_weights` depend on it.");
+        s.add_param("dynamic_load_weights", "false", true,
+                    "[Optional], default false. Whether to dynamically load/release model weights during inference to save GPU memory.");
+        return s;
+    }();
+    return spec;
+}
+
 void DenoiserLoopModule::print_static_config() {
-    std::cout << R"(
-  denoiser_loop:
-    type: "DenoiserLoopModule"
-    device: "GPU"
-    inputs:
-      - name: "latents"                                    
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompt_embed"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompt_embeds"
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompt_embed_negative"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompt_embeds_negative"
-        type: "VecOVTensor"                                # Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "num_inference_steps"                        # [optional]
-        type: "Int"                                        # Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-      - name: "guidance_scale"                             # [optional]
-        type: "Float"                                      # Support DataType: [Int]
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "latents"
-        type: "OVTensor"                                   # Support DataType: [OVTensor]
-    params:
-      model_path: "model"
-      splitted_model: "bool value"          # [Optional], default false.
-      cache_dir: "./cache_dir_transformer/" # [Optional], default is empty string. But `splitted_model` and `dynamic_load_weights` depend on it.
-      dynamic_load_weights: "bool value"    # [Optional], default false. Whether to dynamically load/release model weights during inference to save GPU memory.
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 DenoiserLoopModule::DenoiserLoopModule(const IBaseModuleDesc::PTR& desc,
                                                    const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc), m_cfg_truncation(1.0f), m_cfg_normalization(false) {
+    check_params_with_spec(get_spec());
     m_model_type = to_diffusion_model_type(desc->model_type);
     if (m_model_type == DiffusionModelType::UNKNOWN) {
         GENAI_ERR("TransformerModule[" + desc->name + "]: Unsupported model type: " + desc->model_type);

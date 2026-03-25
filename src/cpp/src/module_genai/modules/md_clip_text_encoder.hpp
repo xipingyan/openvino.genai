@@ -52,6 +52,8 @@ class ClipTextEncoderModule : public IBaseModule {
     DeclareModuleConstructor(ClipTextEncoderModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     bool do_classifier_free_guidance(float guidance_scale);
 

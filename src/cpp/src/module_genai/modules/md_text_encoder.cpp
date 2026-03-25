@@ -18,63 +18,39 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(TextEncoderModule);
 
+const ModuleSpec& TextEncoderModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("TextEncoderModule", "prompt_encoder");
+        s.add_input("prompt", {DataType::String}, true);
+        s.add_input("prompts", {DataType::VecString}, true);
+        s.add_input("encoded_image", {DataType::OVTensor}, true);
+        s.add_input("encoded_images", {DataType::VecOVTensor}, true);
+        s.add_input("source_size", {DataType::VecInt}, true);
+        s.add_input("source_sizes", {DataType::VecVecInt}, true);
+        s.add_input("image_grid_thw", {DataType::VecOVTensor}, true);
+        s.add_input("audio_features", {DataType::VecOVTensor}, true);
+        s.add_input("video_grid_thw", {DataType::VecOVTensor}, true);
+        s.add_input("use_audio_in_video", {DataType::VecInt}, true);
+        s.add_input("video_second_per_grid", {DataType::VecInt}, true);
+        s.add_output("input_ids", {DataType::OVTensor, DataType::OVRemoteTensor});
+        s.add_output("mask", {DataType::OVTensor, DataType::OVRemoteTensor});
+        s.add_output("images_sequence", {DataType::VecInt});
+        s.add_param("model_path", "models/text_encoder.xml", true, "Optional. OpenVINO IR");
+        return s;
+    }();
+    return spec;
+}
+
 const std::string NATIVE_TAG = "<|vision_start|><|image_pad|><|vision_end|>";
 const std::string NATIVE_VIDEO_TAG = "<|vision_start|><|video_pad|><|vision_end|>";
 
 void TextEncoderModule::print_static_config() {
-    std::cout << R"(
-  prompt_encoder:                       # Module Name
-    type: "TextEncoderModule"
-    description: "Encode prompt to prompt ids."
-    device: "GPU"
-    inputs:
-      - name: "prompt"
-        type: "String"            # [Optional] Support DataType: [String]
-        source: "ParentModuleName.OutputPortName"
-      - name: "prompts"
-        type: "VecString"         # [Optional] Support DataType: [VecString]
-        source: "ParentModuleName.OutputPortName"
-      - name: "encoded_image"     # Used by Qwen 2.5-VL
-        type: "OVTensor"          # [Optional] Support DataType: [OVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "encoded_images"    # Used by Qwen 2.5-VL
-        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "source_size"       # Used by Qwen 2.5-VL
-        type: "VecInt"            # [Optional] Support DataType: [VecInt]
-        source: "ParentModuleName.OutputPortName"
-      - name: "source_sizes"      # Used by Qwen 2.5-VL
-        type: "VecVecInt"         # [Optional] Support DataType: [VecVecInt]
-        source: "ParentModuleName.OutputPortName"
-      - name: "image_grid_thw"    # Used by Qwen 3.5
-        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "audio_features"    # Used by Qwen 3-Omni
-        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_grid_thw"    # Used by Qwen 3.5
-        type: "VecOVTensor"       # [Optional] Support DataType: [VecOVTensor]
-        source: "ParentModuleName.OutputPortName"
-      - name: "use_audio_in_video"
-        type: "VecInt"
-        source: "ParentModuleName.OutputPortName"
-      - name: "video_second_per_grid"
-        type: "VecInt"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "input_ids"
-        type: "OVTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
-      - name: "mask"
-        type: "OVTensor"     # Support DataType: [OVTensor, OVRemoteTensor]
-      - name: "images_sequence"    # Output by Qwen 2.5-VL
-        type: "VecInt"             # Support DataType: [VecInt]
-    params:
-      model_path: "models/text_encoder.xml"  # Optional. OpenVINO IR
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 TextEncoderModule::TextEncoderModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     if (!initialize()) {
         GENAI_ERR("Failed to initiate TextEncoderModule");
     }

@@ -13,54 +13,39 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(LLMInferenceModule);
 
+const ModuleSpec& LLMInferenceModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("LLMInferenceModule", "llm_inference");
+        s.add_input("embeds", {DataType::OVTensor}, true);
+        s.add_input("position_ids", {DataType::OVTensor}, true);
+        s.add_input("rope_delta", {DataType::Int}, true);
+        s.add_input("embeds_list", {DataType::VecOVTensor}, true);
+        s.add_input("position_ids_list", {DataType::VecOVTensor}, true);
+        s.add_input("rope_delta_list", {DataType::VecInt}, true);
+        s.add_output("generated_text", {DataType::String});
+        s.add_output("generated_texts", {DataType::VecString});
+        s.add_param("model_path", "model_path", true,
+                    "Optional, if 'model_path' is not provided, model will be loaded from 'models_map', refer: ModulePipeline constructor.");
+        s.add_param("model_cfg_path", "model_config.json", true,
+                    "Optional, if model_path is not provided, model_cfg_path is required, else it will be ignored.");
+        s.add_param("max_new_tokens", "256");
+        s.add_param("do_sample", "false");
+        s.add_param("top_p", "1.0");
+        s.add_param("top_k", "50");
+        s.add_param("temperature", "1.0");
+        s.add_param("repetition_penalty", "1.0");
+        return s;
+    }();
+    return spec;
+}
+
 void LLMInferenceModule::print_static_config() {
-    std::cout << R"(
-global_context:
-  model_type: "qwen2_5_vl"
-pipeline_modules:
-  llm_inference:
-    type: "LLMInferenceModule"
-    description: "LLM module for Continuous Batch pipeline"
-    device: "CPU"
-    inputs:
-      - name: "embeds"              # [Optional] embedding feature.
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "position_ids"        # [Optional]
-        type: "OVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "rope_delta"          # [Optional]
-        type: "Int"
-        source: "ParentModuleName.OutputPortName"
-      - name: "embeds_list"         # [Optional]
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "position_ids_list"   # [Optional]
-        type: "VecOVTensor"
-        source: "ParentModuleName.OutputPortName"
-      - name: "rope_delta_list"     # [Optional]
-        type: "VecInt"
-        source: "ParentModuleName.OutputPortName"
-    outputs:
-      - name: "generated_text"      # Correspoding input: embeds
-        type: "String"
-      - name: "generated_texts"     # Correspoding input: embeds_list
-        type: "VecString"
-    params:
-      model_path: "model_path"              # Optional, if 'model_path' is not provided, model will be loaded from 'models_map', refer: ModulePipeline constructor.
-                                            # 'ov_model_embed', 'ov_model' should be provided in models_map in this case.
-      model_cfg_path: "model_config.json"   # Optional, if model_path is not provided, model_cfg_path is required, else it will be ignored.
-      max_new_tokens: "256"
-      do_sample: "false"
-      top_p: "1.0"
-      top_k: "50"
-      temperature: "1.0"
-      repetition_penalty: "1.0"
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 LLMInferenceModule::LLMInferenceModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
+    check_params_with_spec(get_spec());
     if (!initialize()) {
         GENAI_ERR("Failed to initialize LLMInferenceModule");
     }

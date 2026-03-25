@@ -19,6 +19,8 @@ class EmbeddingMergerModule : public IBaseModule {
     DeclareModuleConstructor(EmbeddingMergerModule);
 
 private:
+    static const ModuleSpec& get_spec();
+
     bool initialize();
     Tokenizer m_tokenizer;
     VLMConfig m_vlm_config;
