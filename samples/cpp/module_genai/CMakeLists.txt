@@ -65,6 +65,7 @@ endfunction()
 
 set (SAMPLE_LIST
     md_image_generation
+    md_print_models_spec
     md_video_generation
     md_visual_language_chat
     md_omni)

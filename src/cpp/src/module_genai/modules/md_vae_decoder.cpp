@@ -14,29 +14,45 @@ namespace module {
 
 GENAI_REGISTER_MODULE_SAME(VAEDecoderModule);
 
+const ModuleSpec& VAEDecoderModule::get_spec() {
+    static const ModuleSpec spec = []() {
+        ModuleSpec s("VAEDecoderModule", "VAE_decoder");
+        // Register inputs
+        s.add_input("latents", {DataType::OVTensor});
+        // Register outputs
+        s.add_output("image", {DataType::OVTensor});
+        // Register params
+        s.add_param("model_path", "model");
+        s.add_param("enable_postprocess", "bool value", true, "[Optional], default true.");
+        s.add_param("enable_tiling",
+                    "bool value",
+                    true,
+                    "[Optional], default false. Enable spatial tiling for Wan 2.1 VAE.");
+        s.add_param("tile_sample_min_height",
+                    "256",
+                    true,
+                    "[Optional], default 256. Minimum tile height in sample space.");
+        s.add_param("tile_sample_min_width",
+                    "256",
+                    true,
+                    "[Optional], default 256. Minimum tile width in sample space.");
+        s.add_param("tile_sample_stride_height",
+                    "192",
+                    true,
+                    "[Optional], default 192. Tile stride height (overlap = min - stride).");
+        s.add_param("tile_sample_stride_width", "192", true, "[Optional], default 192. Tile stride width.");
+        return s;
+    }();
+    return spec;
+}
+
 void VAEDecoderModule::print_static_config() {
-    std::cout << R"(
-  - name: "VAE_decoder"
-    type: "VAEDecoderModule"
-    inputs:
-      - name: "latents"
-        type: "OVTensor"
-    outputs:
-      - name: "image"
-        type: "OVTensor"
-    params:
-      model_path: "model"
-      enable_postprocess: "bool value"    # [Optional], default true.
-      enable_tiling: "bool value"         # [Optional], default false. Enable spatial tiling for Wan 2.1 VAE.
-      tile_sample_min_height: "256"       # [Optional], default 256. Minimum tile height in sample space.
-      tile_sample_min_width: "256"        # [Optional], default 256. Minimum tile width in sample space.
-      tile_sample_stride_height: "192"    # [Optional], default 192. Tile stride height (overlap = min - stride).
-      tile_sample_stride_width: "192"     # [Optional], default 192. Tile stride width.
-    )" << std::endl;
+    std::cout << get_spec().to_yaml_template_string() << std::endl;
 }
 
 VAEDecoderModule::VAEDecoderModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
-    : IBaseModule(desc, pipeline_desc) {
+        : IBaseModule(desc, pipeline_desc),
+            m_spec(get_spec()) {
     if (!initialize()) {
     	 OPENVINO_THROW("Failed to initialize VAEDecoderModule");
     }
