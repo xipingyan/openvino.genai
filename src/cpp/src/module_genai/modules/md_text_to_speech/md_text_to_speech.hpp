@@ -72,6 +72,10 @@ protected:
                 // Useful for fast debugging and deterministic behavior.
     bool m_merge_ar_and_sce_ov_models = false;  // Merge AR and SCE models into one OV model for better performance.
                                                 // Requires "sample_codec_token_greedy_search=true".
+    bool m_force_ar_model_inference_precision_f32 =
+        false;  // Force AR model inference precision to f32, which can improve the performance of AR model inference
+                // and also is required for some models (e.g. Qwen3-Omni) to get correct results when
+                // "merge_ar_and_sce_ov_models" is enabled.
 };
 
 }

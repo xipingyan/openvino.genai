@@ -52,7 +52,10 @@ bool TextToSpeechImpl_Qwen3Omni::initialize() {
     // Using reduced precision (fp16/bf16) for the talker causes audio quality
     // degradation. The speech decoder always runs on CPU for the same reason
     // (GPU fp16 SnakeBeta accumulation causes ~10x amplitude loss → noise).
-    const ov::AnyMap tts_props = {{ov::hint::inference_precision.name(), ov::element::f32}};
+    ov::AnyMap tts_props;
+    if (m_force_ar_model_inference_precision_f32) {
+        tts_props.insert({ov::hint::inference_precision.name(), ov::element::f32});
+    }
 
     const std::optional<std::filesystem::path> embedding_model_path = get_model_path("embedding_model_path");
     if (!embedding_model_path.has_value()) {
