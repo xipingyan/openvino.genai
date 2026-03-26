@@ -49,9 +49,8 @@ void ParameterModule::print_static_config() {
 
 ParameterModule::ParameterModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
-  check_params_with_spec(get_spec());
+    // Parameter's inputs are from pipeline, not from other modules, so we don't check input spec here.
     is_input_module = true;
-    // std::cout << "ParameterModule:" << m_desc << std::endl;
 }
 ParameterModule::~ParameterModule() {}
 
@@ -75,7 +74,7 @@ void ResultModule::print_static_config() {
 
 ResultModule::ResultModule(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc)
     : IBaseModule(desc, pipeline_desc) {
-  check_params_with_spec(get_spec());
+    // ResultModule's outputs are to pipeline, not to other modules, so we don't check output spec here.
     is_output_module = true;
 }
 
