@@ -179,30 +179,41 @@ bool IBaseModule::check_bool_optional_param(const std::string& param_name, const
 }
 
 void IBaseModule::check_params_with_spec(const ModuleSpec& spec) {
+    auto error_tip = [this](const std::string& name) {
+        return "Module[" + ModuleTypeConverter::toString(module_desc->type) + "(" + module_desc->name + ")" + "]: '" +
+               name + "' ";
+    };
+
     // Check Inputs
     const auto& inputs = module_desc->inputs;
     for (const auto& input : inputs) {
         // Find input.name in spec.inputs()
-        auto it = std::find_if(spec.inputs().begin(), spec.inputs().end(),
-                               [&input](const auto& input_spec) { return input_spec.name == input.name; });
-        OPENVINO_ASSERT (it != spec.inputs().end(), "Module[" + module_desc->name + "]: input '" + input.name + "' is not defined in ModuleSpec");
+        auto it = std::find_if(spec.inputs().begin(), spec.inputs().end(), [&input](const auto& input_spec) {
+            return input_spec.name == input.name;
+        });
+        OPENVINO_ASSERT(it != spec.inputs().end(), error_tip(input.name) + "is not defined in ModuleSpec");
+
         // Check input.dt_type in it->supported_types
         auto& supported_types = it->supported_types;
-        OPENVINO_ASSERT(std::find(supported_types.begin(), supported_types.end(), input.dt_type) != supported_types.end(),
-                        "Module[" + module_desc->name + "]: input '" + input.name + "' has unsupported data type");
+        OPENVINO_ASSERT(
+            std::find(supported_types.begin(), supported_types.end(), input.dt_type) != supported_types.end(),
+            error_tip(input.name) + "has unsupported data type");
     }
 
     // Check Outputs
     const auto& outputs = module_desc->outputs;
     for (const auto& output : outputs) {
         // Find output.name in spec.outputs()
-        auto it = std::find_if(spec.outputs().begin(), spec.outputs().end(),
-                               [&output](const auto& output_spec) { return output_spec.name == output.name; });
-        OPENVINO_ASSERT (it != spec.outputs().end(), "Module[" + module_desc->name + "]: output '" + output.name + "' is not defined in ModuleSpec");
+        auto it = std::find_if(spec.outputs().begin(), spec.outputs().end(), [&output](const auto& output_spec) {
+            return output_spec.name == output.name;
+        });
+        OPENVINO_ASSERT(it != spec.outputs().end(), error_tip(output.name) + "is not defined in ModuleSpec");
+
         // Check output.dt_type in it->supported_types
         auto& supported_types = it->supported_types;
-        OPENVINO_ASSERT(std::find(supported_types.begin(), supported_types.end(), output.dt_type) != supported_types.end(),
-                        "Module[" + module_desc->name + "]: output '" + output.name + "' has unsupported data type");
+        OPENVINO_ASSERT(
+            std::find(supported_types.begin(), supported_types.end(), output.dt_type) != supported_types.end(),
+            error_tip(output.name) + "has unsupported data type");
     }
 }
 

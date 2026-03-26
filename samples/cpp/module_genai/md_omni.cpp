@@ -91,6 +91,9 @@ int main(int argc, char* argv[]) {
         bool perf = std::stoi(utils::get_input_arg(argc, argv, "-perf", std::string("0")));
         bool use_tts = std::stoi(utils::get_input_arg(argc, argv, "-tts", std::string("0"))) != 0;
 
+        std::cout << "Config YAML: " << std::endl;
+        std::cout << "  - " << config_path << std::endl;
+
         utils::OmniInputParams input_params = utils::parse_omni_input_params(argc, argv);
         ov::AnyMap inputs = parse_inputs_for_omni(input_params);
 
@@ -119,9 +122,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "[Generation] Running main generation..." << std::endl;
         auto t1 = std::chrono::high_resolution_clock::now();
-
         pipe.generate(inputs);
-
         auto t2 = std::chrono::high_resolution_clock::now();
         if (perf) {
             auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
