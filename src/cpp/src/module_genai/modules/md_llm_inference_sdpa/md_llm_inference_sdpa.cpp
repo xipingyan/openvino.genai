@@ -38,6 +38,8 @@ const ModuleSpec& LLMInferenceSDPAModule::get_spec() {
     static const ModuleSpec spec = []() {
         ModuleSpec s("LLMInferenceSDPAModule", "llm_inference_sdpa");
         s.add_input("input_ids", {DataType::OVTensor});
+        s.add_input("position_ids", {DataType::OVTensor}, true);
+        s.add_input("rope_delta", {DataType::OVTensor}, true);
         s.add_input("visual_embeds", {DataType::OVTensor}, true);
         s.add_input("visual_pos_mask", {DataType::OVTensor}, true);
         s.add_input("grid_thw", {DataType::OVTensor}, true);
