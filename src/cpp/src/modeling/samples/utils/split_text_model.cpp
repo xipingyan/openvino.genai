@@ -1,5 +1,7 @@
 #include "split_text_model.hpp"
 
+#include <algorithm>
+
 namespace ov::genai::modeling::samples {
 
 // DFS search for the selece node.
@@ -143,6 +145,7 @@ std::set<std::shared_ptr<ov::Node>> find_parameters(const std::shared_ptr<ov::No
 std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_model,
                                                       std::shared_ptr<ov::Node> split_node,
                                                       std::shared_ptr<ov::Node> input_ids_node,
+                                                      const std::set<std::shared_ptr<ov::Node>>& parameters,
                                                       const std::shared_ptr<ov::Node>& gather_node) {
     OPENVINO_ASSERT(gather_node != nullptr, "find_embedding_merge_model: gather_node is null");
     OPENVINO_ASSERT(split_node != nullptr, "find_embedding_merge_model: split_node is null");
@@ -151,10 +154,14 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
     // gather_node's output as new model's input.
     auto text_embedding_input = std::make_shared<ov::op::v0::Parameter>(gather_node->get_element_type(),
                                                                         gather_node->get_output_partial_shape(0));
-    text_embedding_input->set_friendly_name("text_embedding_input");
+    text_embedding_input->set_friendly_name("text_embeds");
     ov::ParameterVector new_parameters{text_embedding_input};
-    // Keep all original parameters except input_ids to preserve graph dependencies.
-    for (const auto& parameter : original_model.get_parameters()) {
+    // Use exact nodes referenced by split_node subgraph to avoid undeclared-parameter mismatch.
+    for (const auto& parameter_node : parameters) {
+        auto parameter = ov::as_type_ptr<ov::op::v0::Parameter>(parameter_node);
+        if (parameter == nullptr) {
+            continue;
+        }
         if (parameter->get_friendly_name() == input_ids_node->get_friendly_name()) {
             continue;
         }
@@ -250,11 +257,13 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         auto text_embed_model = std::make_shared<ov::Model>(results,
                                                             ov::ParameterVector{input_ids_node},
                                                             "input_ids_embed_model");
+        ov::serialize(text_embed_model, "text_embed_model.xml", "text_embed_model.bin");
         result["text_embed_model"] = text_embed_model;
     }
 
     // Find merger model.
-    auto embedding_merge_model = find_embedding_merge_model(original_model, split_node, input_ids_node, gather_node);
+    auto embedding_merge_model =
+        find_embedding_merge_model(original_model, split_node, input_ids_node, parameters, gather_node);
     result["embedding_merge_model"] = embedding_merge_model;
 
     // Get LLM model with embedding input.
@@ -262,12 +271,18 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         // Replace original model's input with split node's output, and replace original model's output with split
         // node's output.
         ov::ParameterVector new_parameters;
+        const auto& embedding_merge_parameters = embedding_merge_model->get_parameters();
         for (const auto& parameter : original_model.get_parameters()) {
+            // Skip input_ids node, as it will be replaced by the embedding input. To preserve graph dependencies, keep all other original parameters.
             if (parameter->get_friendly_name() == input_ids_node->get_friendly_name()) {
                 continue;
             }
-            new_parameters.push_back(std::make_shared<ov::op::v0::Parameter>(parameter->get_element_type(),
-                                                                             parameter->get_output_partial_shape(0)));
+            // Skip Model(embedding_merge_model)'s parameters, as they will be replaced by the embedding input.
+            if (std::find(embedding_merge_parameters.begin(), embedding_merge_parameters.end(), parameter) !=
+                embedding_merge_parameters.end()) {
+                continue;
+            }
+            new_parameters.push_back(parameter);
         }
 
         auto embedding_input = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
