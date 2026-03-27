@@ -2,7 +2,10 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
+
+#include <openvino/openvino.hpp>
 
 namespace ov::genai::modeling::samples {
 

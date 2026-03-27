@@ -13,8 +13,10 @@ std::shared_ptr<ov::Node> dfs_search_select_node(const std::shared_ptr<ov::Node>
     }
     for (const auto& output : current_node->outputs()) {
         for (const auto& target_input : output.get_target_inputs()) {
-            const auto& next_node = target_input.get_node();
-            auto result = dfs_search_select_node(next_node, max_search_depth - 1);
+            const auto* next_node = target_input.get_node();
+            auto result =
+                dfs_search_select_node(std::const_pointer_cast<ov::Node>(next_node->shared_from_this()),
+                                       max_search_depth - 1);
             if (result != nullptr) {
                 return result;
             }
@@ -25,31 +27,36 @@ std::shared_ptr<ov::Node> dfs_search_select_node(const std::shared_ptr<ov::Node>
 
 std::shared_ptr<ov::Node> dfs_search_gather_node(const std::shared_ptr<ov::Node>& current_node, int max_search_depth) {
     if (max_search_depth < 0) {
+        std::cout << "DFS search gather node reach max search depth, current node: " << current_node->get_friendly_name() << std::endl;
         return nullptr;
     }
     // Name is not fix, just check the type is "Gather"
     if (current_node->get_type_name() == std::string("Gather")) {
         return current_node;
     }
-    // Towards parent node searching
-    for (const auto& input : current_node->inputs()) {
-        const auto& next_node = input.get_source_output().get_node();
-        auto result = dfs_search_gather_node(next_node, max_search_depth - 1);
-        if (result != nullptr) {
-            return result;
+    // Towards son node.
+    for (const auto& output : current_node->outputs()) {
+        for (const auto& target_input : output.get_target_inputs()) {
+            const auto* next_node = target_input.get_node();
+            auto result = dfs_search_gather_node(std::const_pointer_cast<ov::Node>(next_node->shared_from_this()),
+                                                 max_search_depth - 1);
+            if (result != nullptr) {
+                return result;
+            }
         }
     }
-}
-return nullptr;
+    return nullptr;
 }
 
-std::shared_ptr<ov::Node> find_parameter_node_by_name(const ov::Model& model, const std::string& parameter_name) {
-    std::shared_ptr<ov::Node> parameter_node = nullptr;
-    model.get_parameters().for_each([&](const ov::Output<const ov::Node>& parameter) {
-        if (parameter.get_node()->get_friendly_name() == parameter_name) {
-            parameter_node = parameter.get_node_shared_ptr();
+std::shared_ptr<ov::op::v0::Parameter> find_parameter_node_by_name(const ov::Model& model,
+                                                                    const std::string& parameter_name) {
+    std::shared_ptr<ov::op::v0::Parameter> parameter_node = nullptr;
+    for (const auto& parameter : model.get_parameters()) {
+        if (parameter->get_friendly_name() == parameter_name) {
+            parameter_node = parameter;
+            break;
         }
-    });
+    }
     return parameter_node;
 }
 
@@ -61,9 +68,9 @@ std::shared_ptr<ov::Node> find_last_select_node(std::shared_ptr<ov::Node> select
         bool found_next_select = false;
         for (const auto& output : last_select_node->outputs()) {
             for (const auto& target_input : output.get_target_inputs()) {
-                const auto& next_node = target_input.get_node();
+                const auto* next_node = target_input.get_node();
                 if (next_node->get_type_name() == std::string("Select")) {
-                    last_select_node = next_node;
+                    last_select_node = std::const_pointer_cast<ov::Node>(next_node->shared_from_this());
                     found_next_select = true;
                     break;
                 }
@@ -85,11 +92,13 @@ std::shared_ptr<ov::Node> find_last_select_node(std::shared_ptr<ov::Node> select
 // to the same select node. Pattern 3: If "input_ids" has 2 sons in the graph, if one of the sons is a "shapeof"
 // node. The "gather" node should be between the other son and the select node. Pattern 4: Search max deep should be
 // less than 10, to avoid wrong split point from other branches.
-std::shared_ptr<ov::Node> search_split_point(const ov::Model& original_model,
-                                             const std::shared_ptr<ov::Node>& input_node,
+std::shared_ptr<ov::Node> search_split_point(const std::shared_ptr<ov::Node>& input_node,
                                              const int max_search_depth = 10) {
     // Step 1: DFS search for the select node with the expected pattern
     auto select_node = dfs_search_select_node(input_node, max_search_depth);
+    if (select_node == nullptr) {
+        return nullptr;
+    }
     auto last_select_node = find_last_select_node(select_node);
 
     return last_select_node;
@@ -121,7 +130,7 @@ std::set<std::shared_ptr<ov::Node>> find_parameters(const std::shared_ptr<ov::No
             parameters.insert(current_node);
         }
         for (const auto& input : current_node->inputs()) {
-            const auto& next_node = input.get_source_output().get_node();
+            const auto next_node = input.get_source_output().get_node_shared_ptr();
             stack.push_back(next_node);
         }
     }
@@ -148,18 +157,21 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
         if (parameter->get_friendly_name() == input_ids_node->get_friendly_name()) {
             continue;
         }
-        new_parameters.push_back(std::make_shared<ov::op::v0::Parameter>(parameter->get_element_type(),
-                                                                         parameter->get_output_partial_shape(0)));
+        auto parameter_node = ov::as_type_ptr<ov::op::v0::Parameter>(parameter);
+        OPENVINO_ASSERT(parameter_node != nullptr,
+                        "find_embedding_merge_model: non-Parameter node in parameter set: ",
+                        parameter->get_friendly_name());
+        new_parameters.push_back(parameter_node);
     }
 
     // replace gather_node->output->input to text_embedding_input, only need replace current edge.
     for (const auto& output : gather_node->outputs()) {
-        for (const auto& target_input : output.get_target_inputs()) {
-            const auto& next_node = target_input.get_node();
-            if (next_node->get_friendly_name() != gather_node->get_friendly_name()) {
+        for (auto target_input : output.get_target_inputs()) {
+            const auto* next_node = target_input.get_node();
+            if (next_node != split_node.get()) {
                 continue;
             }
-            next_node->input(target_input.get_index()).replace_source_output(text_embedding_input->output(0));
+            target_input.replace_source_output(text_embedding_input->output(0));
         }
     }
 
@@ -178,20 +190,25 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
 
     // Find split point based on input_ids.
     auto input_ids_node = find_parameter_node_by_name(original_model, input_ids_node_name);
-    auto input_ids_select_node = search_split_point(original_model, input_ids_node, 10);
+    auto input_ids_select_node = search_split_point(input_ids_node, 10);
     if (input_ids_select_node == nullptr) {
+        std::cout << "Cannot find split point based on input_ids node: " << input_ids_node_name << std::endl;
         return {};
     }
 
     // Find split point based on visual_embeds.
     if (!visual_embeds_node_name.empty()) {
         auto visual_embeds_node = find_parameter_node_by_name(original_model, visual_embeds_node_name);
-        auto visual_embeds_select_node = dfs_search_select_node(visual_embeds_node, 5);
+        auto visual_embeds_select_node = search_split_point(visual_embeds_node, 5);
         if (visual_embeds_select_node == nullptr) {
+            std::cout << "Cannot find select node based on visual_embeds node: " << visual_embeds_node_name << std::endl;
             return {};
         }
         // Check if input_ids_select_node and visual_embeds_select_node are the same node, if not, return empty.
         if (input_ids_select_node->get_friendly_name() != visual_embeds_select_node->get_friendly_name()) {
+            std::cout << "The select node based on input_ids and visual_embeds are different, input_ids_select_node: "
+                      << input_ids_select_node->get_friendly_name()
+                      << ", visual_embeds_select_node: " << visual_embeds_select_node->get_friendly_name() << std::endl;
             return {};
         }
     }
@@ -199,12 +216,16 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
     // Find split point based on audio_embeds.
     if (!audio_embeds_node_name.empty()) {
         auto audio_embeds_node = find_parameter_node_by_name(original_model, audio_embeds_node_name);
-        auto audio_embeds_select_node = dfs_search_select_node(audio_embeds_node, 5);
+        auto audio_embeds_select_node = search_split_point(audio_embeds_node, 5);
         if (audio_embeds_select_node == nullptr) {
+            std::cout << "Cannot find select node based on audio_embeds node: " << audio_embeds_node_name << std::endl;
             return {};
         }
         // Check if input_ids_select_node and audio_embeds_select_node are the same node, if not, return empty.
         if (input_ids_select_node->get_friendly_name() != audio_embeds_select_node->get_friendly_name()) {
+            std::cout << "The select node based on input_ids and audio_embeds are different, input_ids_select_node: "
+                      << input_ids_select_node->get_friendly_name()
+                      << ", audio_embeds_select_node: " << audio_embeds_select_node->get_friendly_name() << std::endl;
             return {};
         }
     }
@@ -220,12 +241,15 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         // DFS search for the gather node.
         gather_node = dfs_search_gather_node(input_ids_node, 5);
         if (gather_node == nullptr) {
+            std::cout << "Cannot find gather node based on input_ids node: " << input_ids_node_name << std::endl;
             return {};
         }
 
         // Create a new model with gather node as output and input_ids node as input.
         ov::ResultVector results{std::make_shared<ov::op::v0::Result>(gather_node->output(0))};
-        auto text_embed_model = std::make_shared<ov::Model>(results, {input_ids_node}, "input_ids_embed_model");
+        auto text_embed_model = std::make_shared<ov::Model>(results,
+                                                            ov::ParameterVector{input_ids_node},
+                                                            "input_ids_embed_model");
         result["text_embed_model"] = text_embed_model;
     }
 
@@ -248,14 +272,13 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         }
 
         auto embedding_input = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
-                                                                    split_node->get_output_partial_shape(0)));
+                                        split_node->get_output_partial_shape(0));
         new_parameters.push_back(embedding_input);
 
         // Replace split_node's output's input with embedding_input.
         for (const auto& output : split_node->outputs()) {
-            for (const auto& target_input : output.get_target_inputs()) {
-                const auto& next_node = target_input.get_node();
-                next_node->input(target_input.get_index()).replace_source_output(embedding_input->output(0));
+            for (auto target_input : output.get_target_inputs()) {
+                target_input.replace_source_output(embedding_input->output(0));
             }
         }
 
@@ -263,10 +286,10 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         // as well.
         if (input_ids_node->outputs().size() == 2) {
             for (const auto& output : input_ids_node->outputs()) {
-                for (const auto& target_input : output.get_target_inputs()) {
+                for (auto target_input : output.get_target_inputs()) {
                     const auto& next_node = target_input.get_node();
                     if (next_node->get_type_name() == std::string("ShapeOf")) {
-                        next_node->input(target_input.get_index()).replace_source_output(embedding_input->output(0));
+                        target_input.replace_source_output(embedding_input->output(0));
                     }
                 }
             }

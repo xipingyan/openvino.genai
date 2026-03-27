@@ -7,6 +7,7 @@
 
 int main() {
     ov::Core core;
+    core.get_versions("CPU");
 
     std::string text_model_path_1 = "/mnt/xiping/mygithub/modular_genai/openvino.genai/tests/module_genai/cpp/test_models/Qwen3-Omni-4B-Instruct-multilingual-int4/qwen3_omni_text_model.xml";
     // Load original model, in real case, it should be loaded from file.
@@ -19,6 +20,7 @@ int main() {
     for (const auto& [name, model] : sub_models) {
         std::cout << "Sub-model name: " << name << std::endl;
     }
+
 
     return 0;
 }
