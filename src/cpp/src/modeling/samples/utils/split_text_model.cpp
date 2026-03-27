@@ -152,6 +152,7 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
     // gather_node's output as new model's input.
     auto text_embedding_input = std::make_shared<ov::op::v0::Parameter>(gather_node->get_element_type(),
                                                                         gather_node->get_output_partial_shape(0));
+    text_embedding_input->set_friendly_name("text_embedding_input");
     ov::ParameterVector new_parameters{text_embedding_input};
     for (const auto& parameter : parameters) {
         if (parameter->get_friendly_name() == input_ids_node->get_friendly_name()) {
@@ -164,13 +165,9 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
         new_parameters.push_back(parameter_node);
     }
 
-    // replace gather_node->output->input to text_embedding_input, only need replace current edge.
+    // replace gather_node output consumers with text_embedding_input.
     for (const auto& output : gather_node->outputs()) {
         for (auto target_input : output.get_target_inputs()) {
-            const auto* next_node = target_input.get_node();
-            if (next_node != split_node.get()) {
-                continue;
-            }
             target_input.replace_source_output(text_embedding_input->output(0));
         }
     }
