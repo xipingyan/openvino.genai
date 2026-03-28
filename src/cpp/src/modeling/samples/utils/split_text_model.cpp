@@ -168,24 +168,36 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
         new_parameters.push_back(parameter);
     }
 
-    // replace gather_node output consumers with text_embedding_input.
+    // Temporarily replace gather_node output consumers with text_embedding_input.
+    std::vector<ov::Input<ov::Node>> gather_consumers;
     for (const auto& output : gather_node->outputs()) {
         for (auto target_input : output.get_target_inputs()) {
-            target_input.replace_source_output(text_embedding_input->output(0));
+            gather_consumers.push_back(target_input);
         }
+    }
+    for (auto& target_input : gather_consumers) {
+        target_input.replace_source_output(text_embedding_input->output(0));
     }
 
     // Debug: show all parameters of the new model.
-    std::cout << "New model parameters: " << std::endl;
-    for (const auto& parameter : new_parameters) {
-        std::cout << " - Parameter name: " << parameter->get_friendly_name() << std::endl;
-    }
+    // std::cout << "New model parameters: " << std::endl;
+    // for (const auto& parameter : new_parameters) {
+    //     std::cout << " - Parameter name: " << parameter->get_friendly_name() << std::endl;
+    // }
 
     // split_node's output as new model's output.
-    ov::ResultVector new_results{std::make_shared<ov::op::v0::Result>(split_node->output(0))};
-    auto embedding_merge_model = std::make_shared<ov::Model>(new_results, new_parameters, "embedding_merge_model");
-    ov::serialize(embedding_merge_model, "embedding_merge_model.xml", "embedding_merge_model.bin");
-    return embedding_merge_model;
+    auto merged_embeds = std::make_shared<ov::op::v0::Result>(split_node->output(0));
+    merged_embeds->set_friendly_name("merged_embeds");
+    auto merged_ebmeds_model =
+        std::make_shared<ov::Model>(ov::ResultVector{merged_embeds}, new_parameters, "embedding_merge_model");
+    auto detached_merged_embeds = merged_ebmeds_model->clone();
+
+    // Restore original graph edges to avoid introducing undeclared text_embeds into llm model construction.
+    for (auto& target_input : gather_consumers) {
+        target_input.replace_source_output(gather_node->output(0));
+    }
+
+    return detached_merged_embeds;
 }
 
 // Split ov::model into text embed model, embedding merge model, and LLM model with embedding input.
@@ -253,61 +265,77 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         }
 
         // Create a new model with gather node as output and input_ids node as input.
-        ov::ResultVector results{std::make_shared<ov::op::v0::Result>(gather_node->output(0))};
-        auto text_embed_model = std::make_shared<ov::Model>(results,
+        auto text_embeds = std::make_shared<ov::op::v0::Result>(gather_node->output(0));
+        text_embeds->set_friendly_name("text_embeds");
+        auto text_embed_model = std::make_shared<ov::Model>(ov::ResultVector{text_embeds},
                                                             ov::ParameterVector{input_ids_node},
                                                             "input_ids_embed_model");
-        ov::serialize(text_embed_model, "text_embed_model.xml", "text_embed_model.bin");
         result["text_embed_model"] = text_embed_model;
     }
 
     // Find merger model.
-    auto embedding_merge_model =
+    auto merged_embeds_model =
         find_embedding_merge_model(original_model, split_node, input_ids_node, parameters, gather_node);
-    result["embedding_merge_model"] = embedding_merge_model;
+    result["merged_embeds_model"] = merged_embeds_model;
 
-    // Get LLM model with embedding input.
+    // Get LLM model from original model(exclude embedding merge part, and text embedding part).
     {
-        // Replace original model's input with split node's output, and replace original model's output with split
-        // node's output.
+        // Get new parameters for the LLM model. It includes all parameters in the original model except the parameters
+        // in the embedding merge model and the input_ids parameter. And add a new parameter as the input of the LLM
+        // model, which is the output of the embedding merge model.
         ov::ParameterVector new_parameters;
-        const auto& embedding_merge_parameters = embedding_merge_model->get_parameters();
+
         for (const auto& parameter : original_model.get_parameters()) {
-            // Skip input_ids node, as it will be replaced by the embedding input. To preserve graph dependencies, keep all other original parameters.
+            // Skip input_ids node, as it will be replaced by the embedding input.
             if (parameter->get_friendly_name() == input_ids_node->get_friendly_name()) {
                 continue;
             }
-            // Skip Model(embedding_merge_model)'s parameters, as they will be replaced by the embedding input.
-            if (std::find(embedding_merge_parameters.begin(), embedding_merge_parameters.end(), parameter) !=
-                embedding_merge_parameters.end()) {
+
+            // Skip model(embedding_merge_model)'s parameters, if the parameter only has one child node,
+            // as they will be moved to the new embedding merge model.
+            bool parameter_only_one_output = parameter->output(0).get_target_inputs().size() == 1u;
+            bool parameter_in_merged_embeds_model = std::find_if(merged_embeds_model->get_parameters().begin(),
+                                                                 merged_embeds_model->get_parameters().end(),
+                                                                 [&parameter](const std::shared_ptr<ov::op::v0::Parameter>& merged_embeds_parameter) {
+                                                                     return parameter->get_friendly_name() ==
+                                                                            merged_embeds_parameter->get_friendly_name();
+                                                                 }) != merged_embeds_model->get_parameters().end();
+            if (parameter_only_one_output && parameter_in_merged_embeds_model) {
                 continue;
             }
             new_parameters.push_back(parameter);
         }
 
-        auto embedding_input = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
+        auto input_embeds = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
                                         split_node->get_output_partial_shape(0));
-        new_parameters.push_back(embedding_input);
+        input_embeds->set_friendly_name("input_embeds");
+        new_parameters.push_back(input_embeds);
 
-        // Replace split_node's output's input with embedding_input.
+        // Replace split_node's output's input with input_embeds.
         for (const auto& output : split_node->outputs()) {
             for (auto target_input : output.get_target_inputs()) {
-                target_input.replace_source_output(embedding_input->output(0));
+                target_input.replace_source_output(input_embeds->output(0));
             }
         }
 
-        // If input_ids_node have 2 outputs, the one is shapeof node, replace shapeof node's input with embedding_input
+        // If input_ids_node have 2 outputs, the one is shapeof node, replace shapeof node's input with input_embeds
         // as well.
         if (input_ids_node->outputs().size() == 2) {
             for (const auto& output : input_ids_node->outputs()) {
                 for (auto target_input : output.get_target_inputs()) {
                     const auto& next_node = target_input.get_node();
                     if (next_node->get_type_name() == std::string("ShapeOf")) {
-                        target_input.replace_source_output(embedding_input->output(0));
+                        target_input.replace_source_output(input_embeds->output(0));
                     }
                 }
             }
         }
+
+        // Debug: show all parameters of the new model.
+        // std::cout << "LLM model parameters: " << std::endl;
+        // for (const auto& parameter : new_parameters) {
+        //     std::cout << " - Parameter name: " << parameter->get_friendly_name() << std::endl;
+        // }
 
         auto llm_model = std::make_shared<ov::Model>(original_model.get_results(), new_parameters, "llm_model");
         result["llm_model"] = llm_model;
