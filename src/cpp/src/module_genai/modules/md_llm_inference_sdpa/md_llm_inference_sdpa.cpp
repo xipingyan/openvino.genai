@@ -42,7 +42,7 @@ const ModuleSpec& LLMInferenceSDPAModule::get_spec() {
         s.add_input("rope_delta", {DataType::OVTensor}, true);
         s.add_input("visual_embeds", {DataType::OVTensor}, true);
         s.add_input("visual_pos_mask", {DataType::OVTensor}, true);
-        s.add_input("grid_thw", {DataType::OVTensor}, true);
+        s.add_input("grid_thw", {DataType::OVTensor, DataType::VecOVTensor}, true);
         s.add_input("deepstack_embeds", {DataType::VecOVTensor}, true);
         s.add_input("audio_embeds", {DataType::OVTensor}, true);
         s.add_input("audio_pos_mask", {DataType::OVTensor}, true);

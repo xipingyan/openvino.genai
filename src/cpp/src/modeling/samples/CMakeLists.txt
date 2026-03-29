@@ -30,7 +30,6 @@ add_dependencies(modeling_qwen3_vl openvino_genai)
 
 add_executable(test_split_text_model
     test_split_text_model.cpp
-    utils/split_text_model.cpp
     "${OpenVINOGenAI_SOURCE_DIR}/samples/cpp/visual_language_chat/load_image.cpp"
     $<TARGET_OBJECTS:openvino_genai_obj>)
 
