@@ -116,12 +116,10 @@ void LLMInferenceSDPAImpl_Qwen3Omni::run() {
 
 ov::Tensor LLMInferenceSDPAImpl_Qwen3Omni::infer_text_embeds(const ov::Tensor& input_ids) {
     using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
-    const auto& model_config = m_model_config;
 
     m_infer_request_text_embeds.set_tensor(TIO::kInputIds, input_ids);
     m_infer_request_text_embeds.infer();
-    auto text_embeds = m_infer_request_text_embeds.get_tensor("text_embeds");
-    return text_embeds;
+    return m_infer_request_text_embeds.get_output_tensor(0);
 }
 
 ov::Tensor LLMInferenceSDPAImpl_Qwen3Omni::infer_merge_embeds(const ov::Tensor& text_embeds,
@@ -130,7 +128,6 @@ ov::Tensor LLMInferenceSDPAImpl_Qwen3Omni::infer_merge_embeds(const ov::Tensor& 
                                                               const ov::Tensor& audio_embeds,
                                                               const ov::Tensor& audio_pos_mask) {
     using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
-    const auto& model_config = m_model_config;
 
     m_infer_request_merge_embeds.set_tensor("text_embeds", text_embeds);
     m_infer_request_merge_embeds.set_tensor(TIO::kVisualEmbeds, visual_embeds);
@@ -138,8 +135,7 @@ ov::Tensor LLMInferenceSDPAImpl_Qwen3Omni::infer_merge_embeds(const ov::Tensor& 
     m_infer_request_merge_embeds.set_tensor(TIO::kAudioFeatures, audio_embeds);
     m_infer_request_merge_embeds.set_tensor(TIO::kAudioPosMask, audio_pos_mask);
     m_infer_request_merge_embeds.infer();
-    auto merge_embeds = m_infer_request_merge_embeds.get_tensor("merged_embeds");
-    return merge_embeds;
+    return m_infer_request_merge_embeds.get_output_tensor(0);
 }
 
 int64_t LLMInferenceSDPAImpl_Qwen3Omni::infer_llm(const ov::Tensor& merged_embeds,

@@ -164,6 +164,7 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
     auto text_embedding_input = std::make_shared<ov::op::v0::Parameter>(gather_node->get_element_type(),
                                                                         gather_node->get_output_partial_shape(0));
     text_embedding_input->set_friendly_name("text_embeds");
+    text_embedding_input->output(0).get_tensor().set_names({"text_embeds"});
     ov::ParameterVector new_parameters{text_embedding_input};
     // Use exact nodes referenced by split_node subgraph to avoid undeclared-parameter mismatch.
     for (const auto& parameter_node : parameters) {
@@ -197,6 +198,7 @@ std::shared_ptr<ov::Model> find_embedding_merge_model(const ov::Model& original_
     // split_node's output as new model's output.
     auto merged_embeds = std::make_shared<ov::op::v0::Result>(split_node->output(0));
     merged_embeds->set_friendly_name("merged_embeds");
+    merged_embeds->output(0).get_tensor().set_names({"merged_embeds"});
     auto merged_ebmeds_model =
         std::make_shared<ov::Model>(ov::ResultVector{merged_embeds}, new_parameters, "embedding_merge_model");
     auto detached_merged_embeds = merged_ebmeds_model->clone();
@@ -276,6 +278,7 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         // Create a new model with gather node as output and input_ids node as input.
         auto text_embeds = std::make_shared<ov::op::v0::Result>(gather_node->output(0));
         text_embeds->set_friendly_name("text_embeds");
+        text_embeds->output(0).get_tensor().set_names({"text_embeds"});
         auto text_embeds_model = std::make_shared<ov::Model>(ov::ResultVector{text_embeds},
                                                             ov::ParameterVector{input_ids_node},
                                                             "input_ids_embed_model");
@@ -315,26 +318,27 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
             new_parameters.push_back(parameter);
         }
 
-        auto input_embeds = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
-                                        split_node->get_output_partial_shape(0));
-        input_embeds->set_friendly_name("input_embeds");
-        new_parameters.push_back(input_embeds);
+        auto merged_embeds_input = std::make_shared<ov::op::v0::Parameter>(split_node->get_element_type(),
+                                split_node->get_output_partial_shape(0));
+        merged_embeds_input->set_friendly_name("merged_embeds");
+        merged_embeds_input->output(0).get_tensor().set_names({"merged_embeds"});
+        new_parameters.push_back(merged_embeds_input);
 
-        // Replace split_node's output's input with input_embeds.
+        // Replace split_node's output's input with merged_embeds_input.
         for (const auto& output : split_node->outputs()) {
             for (auto target_input : output.get_target_inputs()) {
-                target_input.replace_source_output(input_embeds->output(0));
+                target_input.replace_source_output(merged_embeds_input->output(0));
             }
         }
 
-        // If input_ids_node have 2 outputs, the one is shapeof node, replace shapeof node's input with input_embeds
+        // If input_ids_node have 2 outputs, the one is shapeof node, replace shapeof node's input with merged_embeds_input
         // as well.
         if (input_ids_node->outputs().size() == 2) {
             for (const auto& output : input_ids_node->outputs()) {
                 for (auto target_input : output.get_target_inputs()) {
                     const auto& next_node = target_input.get_node();
                     if (next_node->get_type_name() == std::string("ShapeOf")) {
-                        target_input.replace_source_output(input_embeds->output(0));
+                        target_input.replace_source_output(merged_embeds_input->output(0));
                     }
                 }
             }
