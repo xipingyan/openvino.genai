@@ -6,6 +6,9 @@ namespace ov::genai::modeling::samples {
 
 // DFS search for the selece node.
 std::shared_ptr<ov::Node> dfs_search_select_node(const std::shared_ptr<ov::Node>& current_node, int max_search_depth) {
+    if (current_node == nullptr) {
+        return nullptr;
+    }
     if (max_search_depth < 0) {
         return nullptr;
     }
@@ -28,6 +31,9 @@ std::shared_ptr<ov::Node> dfs_search_select_node(const std::shared_ptr<ov::Node>
 }
 
 std::shared_ptr<ov::Node> dfs_search_gather_node(const std::shared_ptr<ov::Node>& current_node, int max_search_depth) {
+    if (current_node == nullptr) {
+        return nullptr;
+    }
     if (max_search_depth < 0) {
         std::cout << "DFS search gather node reach max search depth, current node: " << current_node->get_friendly_name() << std::endl;
         return nullptr;
@@ -96,6 +102,9 @@ std::shared_ptr<ov::Node> find_last_select_node(std::shared_ptr<ov::Node> select
 // less than 10, to avoid wrong split point from other branches.
 std::shared_ptr<ov::Node> search_split_point(const std::shared_ptr<ov::Node>& input_node,
                                              const int max_search_depth = 10) {
+    if (input_node == nullptr) {
+        return nullptr;
+    }
     // Step 1: DFS search for the select node with the expected pattern
     auto select_node = dfs_search_select_node(input_node, max_search_depth);
     if (select_node == nullptr) {
@@ -267,16 +276,16 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         // Create a new model with gather node as output and input_ids node as input.
         auto text_embeds = std::make_shared<ov::op::v0::Result>(gather_node->output(0));
         text_embeds->set_friendly_name("text_embeds");
-        auto text_embed_model = std::make_shared<ov::Model>(ov::ResultVector{text_embeds},
+        auto text_embeds_model = std::make_shared<ov::Model>(ov::ResultVector{text_embeds},
                                                             ov::ParameterVector{input_ids_node},
                                                             "input_ids_embed_model");
-        result["text_embed_model"] = text_embed_model;
+        result["text_embeds_model"] = text_embeds_model;
     }
 
     // Find merger model.
-    auto merged_embeds_model =
+    auto merge_embeds_model =
         find_embedding_merge_model(original_model, split_node, input_ids_node, parameters, gather_node);
-    result["merged_embeds_model"] = merged_embeds_model;
+    result["merge_embeds_model"] = merge_embeds_model;
 
     // Get LLM model from original model(exclude embedding merge part, and text embedding part).
     {
@@ -294,12 +303,12 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
             // Skip model(embedding_merge_model)'s parameters, if the parameter only has one child node,
             // as they will be moved to the new embedding merge model.
             bool parameter_only_one_output = parameter->output(0).get_target_inputs().size() == 1u;
-            bool parameter_in_merged_embeds_model = std::find_if(merged_embeds_model->get_parameters().begin(),
-                                                                 merged_embeds_model->get_parameters().end(),
+            bool parameter_in_merged_embeds_model = std::find_if(merge_embeds_model->get_parameters().begin(),
+                                                                 merge_embeds_model->get_parameters().end(),
                                                                  [&parameter](const std::shared_ptr<ov::op::v0::Parameter>& merged_embeds_parameter) {
                                                                      return parameter->get_friendly_name() ==
                                                                             merged_embeds_parameter->get_friendly_name();
-                                                                 }) != merged_embeds_model->get_parameters().end();
+                                                                 }) != merge_embeds_model->get_parameters().end();
             if (parameter_only_one_output && parameter_in_merged_embeds_model) {
                 continue;
             }

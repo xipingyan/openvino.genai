@@ -46,11 +46,11 @@ LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModule
 
     auto llm_model = ov::genai::utils::singleton_core().read_model(m_models_ir);
     if (g_enable_split_model) {
-        GENAI_INFO("Splitting original model into text_embed_model, merge_embed_model, and llm_model for better performance with Qwen3-Omni.");
-        auto splited_models = modeling::samples::split_text_model(*llm_model, "input_ids", "visual_embeds", "audio_embeds");
-        auto compiled_model_text_embeds = ov::genai::utils::singleton_core().compile_model(splited_models["text_embed_model"], m_device, properties);
+        GENAI_INFO("Splitting original model into text_embeds_model, merge_embed_model, and llm_model for better performance with Qwen3-Omni.");
+        auto splited_models = modeling::samples::split_text_model(*llm_model, "input_ids", "visual_embeds", "audio_features");
+        auto compiled_model_text_embeds = ov::genai::utils::singleton_core().compile_model(splited_models["text_embeds_model"], m_device, properties);
         m_infer_request_text_embeds = compiled_model_text_embeds.create_infer_request();
-        auto compiled_model_merge_embeds = ov::genai::utils::singleton_core().compile_model(splited_models["merge_embed_model"], m_device, properties);
+        auto compiled_model_merge_embeds = ov::genai::utils::singleton_core().compile_model(splited_models["merge_embeds_model"], m_device, properties);
         m_infer_request_merge_embeds = compiled_model_merge_embeds.create_infer_request();
         auto compiled_model_llm = ov::genai::utils::singleton_core().compile_model(splited_models["llm_model"], m_device, properties);
         m_infer_request_llm = compiled_model_llm.create_infer_request();
