@@ -20,7 +20,7 @@
 
 #define ENABLE_SPLIT_MODEL 1
 
-static bool g_enable_split_model = []() {
+static bool g_enable_split_text_llm_model = []() {
     const char* env_var = std::getenv("ENABLE_SPLIT_MODEL");
     return env_var != nullptr && std::string(env_var) == "1";
 }();
@@ -45,7 +45,7 @@ LLMInferenceSDPAImpl_Qwen3Omni::LLMInferenceSDPAImpl_Qwen3Omni(const IBaseModule
     }
 
     auto llm_model = ov::genai::utils::singleton_core().read_model(m_models_ir);
-    if (g_enable_split_model) {
+    if (g_enable_split_text_llm_model) {
         GENAI_INFO("Splitting original model into text_embeds_model, merge_embed_model, and llm_model for better performance with Qwen3-Omni.");
         auto splited_models = modeling::samples::split_text_model(*llm_model, "input_ids", "visual_embeds", "audio_features");
         auto compiled_model_text_embeds = ov::genai::utils::singleton_core().compile_model(splited_models["text_embeds_model"], m_device, properties);
@@ -101,47 +101,17 @@ void LLMInferenceSDPAImpl_Qwen3Omni::run() {
     prepare_inputs();
     auto inputs_params = std::dynamic_pointer_cast<InputsParamsQwen3Omni>(parse_inputs());
 
-    std::string generated_text;
-    if (g_enable_split_model) {
-        generated_text = run_qwen3_omni_decode_split_models(inputs_params->input_ids,
-                                                            inputs_params->attention_mask,
-                                                            inputs_params->position_ids,
-                                                            inputs_params->rope_deltas,
-                                                            inputs_params->visual_embeds,
-                                                            inputs_params->visual_pos_mask,
-                                                            inputs_params->deepstack_embeds,
-                                                            inputs_params->audio_embeds,
-                                                            inputs_params->audio_pos_mask);
-    } else {
-        generated_text = run_qwen3_omni_decode(inputs_params->input_ids,
-                                               inputs_params->attention_mask,
-                                               inputs_params->position_ids,
-                                               inputs_params->rope_deltas,
-                                               inputs_params->visual_embeds,
-                                               inputs_params->visual_pos_mask,
-                                               inputs_params->deepstack_embeds,
-                                               inputs_params->audio_embeds,
-                                               inputs_params->audio_pos_mask);
-    }
+    std::string generated_text = run_qwen3_omni_decode(inputs_params->input_ids,
+                                                       inputs_params->attention_mask,
+                                                       inputs_params->position_ids,
+                                                       inputs_params->rope_deltas,
+                                                       inputs_params->visual_embeds,
+                                                       inputs_params->visual_pos_mask,
+                                                       inputs_params->deepstack_embeds,
+                                                       inputs_params->audio_embeds,
+                                                       inputs_params->audio_pos_mask);
     GENAI_INFO("LLM output: " + generated_text);
     this->outputs["generated_text"].data = generated_text;
-}
-
-std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode_split_models(
-    const ov::Tensor& input_ids,
-    const ov::Tensor& attention_mask,
-    const ov::Tensor& position_ids,
-    const ov::Tensor& rope_deltas,
-    const std::optional<ov::Tensor>& visual_embeds,
-    const std::optional<ov::Tensor>& visual_pos_mask,
-    const std::optional<std::vector<ov::Tensor>>& deepstack_embeds,
-    const std::optional<ov::Tensor>& audio_embeds,
-    const std::optional<ov::Tensor>& audio_pos_mask) {
-    using TIO = ov::genai::modeling::models::Qwen3OmniTextIO;
-    const auto& model_config = m_model_config;
-
-    const size_t batch = input_ids.get_shape()[0];
-    const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
 }
 
 ov::Tensor LLMInferenceSDPAImpl_Qwen3Omni::infer_text_embeds(const ov::Tensor& input_ids) {
@@ -212,7 +182,13 @@ int64_t LLMInferenceSDPAImpl_Qwen3Omni::llm_prefill(const ov::Tensor& input_ids,
     const int64_t prompt_len = static_cast<int64_t>(input_ids.get_shape()[1]);
 
     auto beam_idx = LLMInferenceSDPAModule_Utils::make_beam_idx(batch);
-    m_infer_request.reset_state();
+    if (g_enable_split_text_llm_model) {
+        m_infer_request_text_embeds.reset_state();
+        m_infer_request_merge_embeds.reset_state();
+        m_infer_request_llm.reset_state();
+    } else {
+        m_infer_request.reset_state();
+    }
 
     int64_t next_id = 0;
     auto t1 = std::chrono::steady_clock::now();
@@ -239,7 +215,7 @@ int64_t LLMInferenceSDPAImpl_Qwen3Omni::llm_prefill(const ov::Tensor& input_ids,
             : LLMInferenceSDPAModule_Utils::make_zeros(ov::element::boolean, {batch, static_cast<size_t>(prompt_len)});
 
     // --- Prefill ---
-    if (m_splitted_model) {
+    if (g_enable_split_text_llm_model) {
         auto text_embeds = infer_text_embeds(input_ids);
         auto merged_embeds = infer_merge_embeds(text_embeds,
                                                 real_visual_embeds,
@@ -369,7 +345,7 @@ std::string LLMInferenceSDPAImpl_Qwen3Omni::run_qwen3_omni_decode(
         ov::Tensor pos =
             ov::genai::modeling::models::Qwen3OmniInputPlanner::build_decode_position_ids(rope_deltas, past_len, 1);
 
-        if (m_splitted_model) {
+        if (g_enable_split_text_llm_model) {
             auto text_embeds = infer_text_embeds(step_ids);
             auto merged_embeds =
                 infer_merge_embeds(text_embeds, dec_vis, dec_vis_mask, decode_audio_features, decode_audio_pos_mask);

@@ -80,15 +80,6 @@ protected:
     ov::InferRequest m_infer_request_text_embeds;
     ov::InferRequest m_infer_request_merge_embeds;
     ov::InferRequest m_infer_request_llm;
-    std::string run_qwen3_omni_decode_split_models(const ov::Tensor& input_ids,
-                                      const ov::Tensor& attention_mask,
-                                      const ov::Tensor& position_ids,
-                                      const ov::Tensor& rope_deltas,
-                                      const std::optional<ov::Tensor>& visual_embeds = std::nullopt,
-                                      const std::optional<ov::Tensor>& visual_pos_mask = std::nullopt,
-                                      const std::optional<std::vector<ov::Tensor>>& deepstack_embeds = std::nullopt,
-                                      const std::optional<ov::Tensor>& audio_embeds = std::nullopt,
-                                      const std::optional<ov::Tensor>& audio_pos_mask = std::nullopt);
 };
 
 }  // namespace ov::genai::module
