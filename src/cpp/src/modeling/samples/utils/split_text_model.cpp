@@ -350,7 +350,10 @@ std::map<std::string, std::shared_ptr<ov::Model>> split_text_model(const ov::Mod
         //     std::cout << " - Parameter name: " << parameter->get_friendly_name() << std::endl;
         // }
 
-        auto llm_model = std::make_shared<ov::Model>(original_model.get_results(), new_parameters, "llm_model");
+        auto llm_model = std::make_shared<ov::Model>(original_model.get_results(),
+                                                     original_model.get_sinks(),
+                                                     new_parameters,
+                                                     "llm_model");
         result["llm_model"] = llm_model;
     }
 
