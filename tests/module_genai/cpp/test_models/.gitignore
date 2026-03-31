@@ -5,3 +5,4 @@ ov_models
 Qwen3.5-35B-A3B-Base_VL_OV_IR
 Qwen3.5-0.8B*
 Qwen3-Omni-4B-Instruct-multilingual*
+DeepSeek-R1-Distill-Qwen-1.5B-int4-ov*

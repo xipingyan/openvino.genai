@@ -59,7 +59,7 @@ protected:
         llm_pa["outputs"] = outputs;
 
         YAML::Node params;
-        params["model_path"] = TEST_MODEL::Qwen2_5_VL_3B_Instruct_INT4();
+        params["model_path"] = TEST_MODEL::DeepseekR1_Distill_Qwen_1_5B_INT4();
         params["max_new_tokens"] = "16";
         llm_pa["params"] = params;
 

@@ -22,6 +22,10 @@ std::string Qwen2_5_VL_3B_Instruct_INT4() {
     return utils::get_model_path() + "/Qwen2.5-VL-3B-Instruct/INT4/";
 }
 
+std::string DeepseekR1_Distill_Qwen_1_5B_INT4() {
+    return utils::get_model_path() + "/DeepSeek-R1-Distill-Qwen-1.5B-int4-ov/";
+}
+
 std::string ZImage_Turbo_fp16_ov() {
     return utils::get_model_path() + "/Z-Image-Turbo-fp16-ov/";
 }

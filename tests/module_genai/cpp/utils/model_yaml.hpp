@@ -36,6 +36,8 @@ std::string get_device();
 // Return model full path for Qwen2.5-VL-3B-Instruct INT4 model.
 std::string Qwen2_5_VL_3B_Instruct_INT4();
 
+std::string DeepseekR1_Distill_Qwen_1_5B_INT4();
+
 // Return model full path for Z-Image-Turbo-fp16-ov model.
 std::string ZImage_Turbo_fp16_ov();
 
