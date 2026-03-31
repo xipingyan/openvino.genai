@@ -16,14 +16,25 @@ const ModuleSpec& LLMInferencePAModule::get_spec() {
 	static const ModuleSpec spec = []() {
 		ModuleSpec s("LLMInferencePAModule", "llm_inference_pa");
 		s.add_input("input_ids", {DataType::OVTensor}, true);
-		s.add_input("input_embeds", {DataType::OVTensor}, true);
-		s.add_input("deepstacks", {DataType::VecOVTensor}, true);
-		s.add_input("merged_embeds", {DataType::OVTensor}, true);
+
+		s.add_input("visual_embeds", {DataType::OVTensor}, true);
+		s.add_input("visual_pos_mask", {DataType::OVTensor}, true);
+		s.add_input("grid_thw", {DataType::VecOVTensor}, true);
+		s.add_input("position_ids", {DataType::OVTensor}, true);
+		s.add_input("rope_delta", {DataType::OVTensor}, true);
+		s.add_input("deepstack_embeds", {DataType::VecOVTensor}, true);
+		s.add_input("audio_embeds", {DataType::OVTensor}, true);
+		s.add_input("audio_pos_mask", {DataType::OVTensor}, true);
 		s.add_output("generated_text", {DataType::String});
-		s.add_param("model_path", "model_path", false, "Directory containing model and tokenizer files");
+
+		s.add_param("text_model_path", "text_model_path", true, "Directory containing text model and tokenizer files, need to be provided if text_embeds_model_path and llm_model_path are not provided");
+		s.add_param("text_embeds_model_path", "text_embeds_model_path", true, "Directory containing text_embeds model and tokenizer files, text_embeds_model_path and llm_model_path need to be provided together");
+		s.add_param("llm_model_path", "llm_model_path", true, "Directory containing llm model and tokenizer files, text_embeds_model_path and llm_model_path need to be provided together");
+
 		s.add_param("cache_dir", "cache_dir", true, "Optional OpenVINO cache directory");
 		s.add_param("max_new_tokens", "256", true, "Maximum number of new tokens to generate");
 		s.add_param("device", "CPU", true, "Optional device override");
+		s.add_param("split_text_model", "false", true, "Whether to split text model for better performance, only effective when text_model_path is provided");
 		return s;
 	}();
 	return spec;
