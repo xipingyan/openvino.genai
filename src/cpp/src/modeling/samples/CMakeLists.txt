@@ -27,6 +27,28 @@ target_compile_definitions(modeling_qwen3_vl PRIVATE
 
 add_dependencies(modeling_qwen3_vl openvino_genai)
 
+
+add_executable(test_split_text_model
+    test_split_text_model.cpp
+    "${OpenVINOGenAI_SOURCE_DIR}/samples/cpp/visual_language_chat/load_image.cpp"
+    $<TARGET_OBJECTS:openvino_genai_obj>)
+
+target_include_directories(test_split_text_model PRIVATE
+    "${CMAKE_BINARY_DIR}"
+    "${OpenVINOGenAI_SOURCE_DIR}/samples/cpp/visual_language_chat"
+    "${OpenVINOGenAI_SOURCE_DIR}/src/cpp/src"
+    "${OpenVINOGenAI_SOURCE_DIR}/openvino/thirdparty/json/nlohmann_json/include"
+    $<TARGET_PROPERTY:openvino::genai,INTERFACE_INCLUDE_DIRECTORIES>)
+
+target_link_libraries(test_split_text_model PRIVATE
+    $<TARGET_PROPERTY:openvino_genai_obj,LINK_LIBRARIES>
+    ${YAML_CPP_TARGET})
+
+target_compile_definitions(test_split_text_model PRIVATE
+    openvino_genai_EXPORTS)
+
+add_dependencies(test_split_text_model openvino_genai)
+
 # Standalone video frame extraction tool (replaces Python extract_video_frames.py)
 find_package(OpenCV QUIET COMPONENTS videoio imgcodecs imgproc core)
 if(OpenCV_FOUND)

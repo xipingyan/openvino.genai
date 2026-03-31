@@ -41,6 +41,30 @@ protected:
     };
     InputsParams::PTR parse_inputs(InputsParams::PTR inputs_params = nullptr) override;
 
+    double m_ttft_ms = 0.0;
+    int64_t llm_prefill(const ov::Tensor& input_ids,
+                        const ov::Tensor& attention_mask,
+                        const ov::Tensor& position_ids,
+                        const ov::Tensor& rope_deltas,
+                        const std::optional<ov::Tensor>& visual_embeds,
+                        const std::optional<ov::Tensor>& visual_pos_mask,
+                        const std::optional<std::vector<ov::Tensor>>& deepstack_embeds,
+                        const std::optional<ov::Tensor>& audio_embeds,
+                        const std::optional<ov::Tensor>& audio_pos_mask);
+
+    ov::Tensor infer_text_embeds(const ov::Tensor& input_ids);
+    ov::Tensor infer_merge_embeds(const ov::Tensor& text_embeds,
+                                  const ov::Tensor& visual_embeds,
+                                  const ov::Tensor& visual_pos_mask,
+                                  const ov::Tensor& audio_embeds,
+                                  const ov::Tensor& audio_pos_mask);
+    int64_t infer_llm(const ov::Tensor& merged_embeds,
+                      const ov::Tensor& attention_mask,
+                      const ov::Tensor& position_ids,
+                      const ov::Tensor& beam_idx,
+                      const ov::Tensor& visual_pos_mask,
+                      const std::vector<ov::Tensor>& deepstack_embeds);
+
     std::string run_qwen3_omni_decode(const ov::Tensor& input_ids,
                                       const ov::Tensor& attention_mask,
                                       const ov::Tensor& position_ids,
@@ -50,6 +74,12 @@ protected:
                                       const std::optional<std::vector<ov::Tensor>>& deepstack_embeds = std::nullopt,
                                       const std::optional<ov::Tensor>& audio_embeds = std::nullopt,
                                       const std::optional<ov::Tensor>& audio_pos_mask = std::nullopt);
+
+    // Original model is split into 3 models:
+    // 1: text embeds, 2: text/vision/audio embeds merge, 3: LLM with input_embeds.
+    ov::InferRequest m_infer_request_text_embeds;
+    ov::InferRequest m_infer_request_merge_embeds;
+    ov::InferRequest m_infer_request_llm;
 };
 
 }  // namespace ov::genai::module
