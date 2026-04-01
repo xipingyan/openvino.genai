@@ -268,6 +268,10 @@ GenerationHandle ContinuousBatchingPipeline::add_request(uint64_t request_id, co
     return m_impl->add_request(request_id, prompt, images, videos, sampling_params);
 }
 
+GenerationHandle ContinuousBatchingPipeline::add_request(uint64_t request_id, const ov::AnyMap& input_params, const ov::genai::GenerationConfig& sampling_params) {
+    return m_impl->add_request(request_id, input_params, sampling_params);
+}
+
 void ContinuousBatchingPipeline::step() {
     m_impl->step();
 }
@@ -359,6 +363,13 @@ std::vector<VLMDecodedResults> ContinuousBatchingPipeline::generate(
     const StreamerVariant& streamer
 ) {
     return m_impl->generate(histories, images, videos, sampling_params, streamer);
+}
+
+std::vector<EncodedGenerationResult> ContinuousBatchingPipeline::generate(
+    const std::vector<ov::AnyMap>& input_params,
+    const std::vector<ov::genai::GenerationConfig>& sampling_params,
+    const ov::genai::StreamerVariant& streamer) {
+    return m_impl->generate(input_params, sampling_params, streamer);
 }
 
 void ContinuousBatchingPipeline::start_chat(const std::string& system_message) {

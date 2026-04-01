@@ -179,6 +179,7 @@ public:
     GenerationHandle add_request(uint64_t request_id, const std::string& prompt, const ov::genai::GenerationConfig& sampling_params);
     GenerationHandle add_request(uint64_t request_id, const std::string& prompt, const std::vector<ov::Tensor>& images, const std::vector<ov::Tensor>& videos, const ov::genai::GenerationConfig& sampling_params);
     GenerationHandle add_request(uint64_t request_id, const std::string& prompt, const std::vector<ov::Tensor>& images, const ov::genai::GenerationConfig& sampling_params);
+    GenerationHandle add_request(uint64_t request_id, const ov::AnyMap& input_params, const ov::genai::GenerationConfig& sampling_params);
 
     void step();
 
@@ -235,6 +236,9 @@ public:
         const std::optional<std::vector<ov::Tensor>>& token_type_ids,
         const std::optional<std::vector<std::pair<ov::Tensor, std::optional<int64_t>>>>& position_ids);
 
+    std::vector<EncodedGenerationResult> generate(const std::vector<ov::AnyMap>& input_params,
+                                                  const std::vector<ov::genai::GenerationConfig>& sampling_params,
+                                                  const ov::genai::StreamerVariant& streamer = std::monostate{});
     /**
     * @brief start chat with keeping history in kv cache.
     * @param system_message optional system message.

@@ -87,6 +87,10 @@ public:
                                          std::optional<ov::Tensor> prompt_ids = std::nullopt,
                                          std::optional<std::unordered_map<std::string, ov::Tensor>> lm_extra_inputs = std::nullopt) = 0;
 
+    virtual GenerationHandle add_request(uint64_t request_id,
+                                         const ov::AnyMap& input_params,
+                                         const GenerationConfig& sampling_params);
+
     /**
      * Adds request to running queue based on string input
      * This step also performs tokenization's encode
@@ -136,6 +140,10 @@ public:
              const std::optional<std::vector<ov::Tensor>>& prompt_ids = std::nullopt,
              const std::optional<std::vector<std::unordered_map<std::string, ov::Tensor>>>& lm_extra_inputs_list = std::nullopt) = 0;
 
+    virtual std::vector<EncodedGenerationResult>
+    generate(const std::vector<ov::AnyMap>& input_params,
+             const std::vector<GenerationConfig>& sampling_params,
+             const StreamerVariant& streamer);
     /**
      * Performs monolitic generation based on text prompts
      */

@@ -269,6 +269,19 @@ ContinuousBatchingPipeline::IContinuousBatchingPipeline::generate(
     return generate(prompts, images_vector, empty_videos_vector, sampling_params, streamer);
 }
 
+std::vector<EncodedGenerationResult> ContinuousBatchingPipeline::IContinuousBatchingPipeline::generate(
+    const std::vector<ov::AnyMap>& input_params,
+    const std::vector<GenerationConfig>& sampling_params,
+    const StreamerVariant& streamer) {
+    std::cout << "generate(input_params) Base pipeline received input params with keys: " << std::endl;
+    for (const auto& params : input_params) {
+        for (const auto& [key, value] : params) {
+            std::cout << "  - Key: " << key << std::endl;
+        }
+    }
+    OPENVINO_THROW("generate(input_params) is not implemented for this pipeline");
+}
+
 std::vector<VLMDecodedResults>
 ContinuousBatchingPipeline::IContinuousBatchingPipeline::generate(
              const std::vector<std::string>& prompts,
@@ -635,6 +648,20 @@ ContinuousBatchingPipeline::IContinuousBatchingPipeline::add_request(
         lm_extra_inputs = deep_copy_tensors_map(m_inputs_embedder->get_lm_extra_inputs());
     }
     return add_request(request_id, inputs, std::move(sampling_params), token_type_ids, prompt_ids, lm_extra_inputs);
+}
+
+GenerationHandle ContinuousBatchingPipeline::IContinuousBatchingPipeline::add_request(
+    uint64_t request_id,
+    const ov::AnyMap& input_params,
+    const GenerationConfig& sampling_params) {
+    std::cout << "Base pipeline add_request(input_params) received input params with keys: " << std::endl;
+    for (const auto& [key, value] : input_params) {
+        std::cout << "  - Key: " << key << std::endl;
+    }
+    const auto prompt_it = input_params.find("prompt");
+    OPENVINO_ASSERT(prompt_it != input_params.end(), "Input params must contain 'prompt' key.");
+    std::string prompt = prompt_it->second.as<std::string>();
+    return add_request(request_id, prompt, std::vector<ov::Tensor>{}, sampling_params);
 }
 
 void ContinuousBatchingPipeline::IContinuousBatchingPipeline::stream_tokens(
