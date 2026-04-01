@@ -4,7 +4,7 @@
 #include "md_llm_inference_pa.hpp"
 
 #include "module_genai/pipeline/module_factory.hpp"
-
+#include "module_genai/modules/m_llm_inference_pa/models/qwen3_omni.hpp"
 #include "openvino/runtime/properties.hpp"
 #include "utils.hpp"
 
@@ -41,9 +41,16 @@ const ModuleSpec& LLMInferencePAModule::get_spec() {
 }
 
 LLMInferencePAModule::PTR LLMInferencePAModule::create(const IBaseModuleDesc::PTR& desc,
-													   const PipelineDesc::PTR& pipeline_desc) {
-	const VLMModelType model_type = to_vlm_model_type(desc->model_type);
-	return PTR(new LLMInferencePAModule(desc, pipeline_desc, model_type));
+                                                       const PipelineDesc::PTR& pipeline_desc) {
+    const VLMModelType model_type = to_vlm_model_type(desc->model_type);
+    switch (model_type) {
+    case VLMModelType::QWEN3_VL:
+    case VLMModelType::QWEN3_OMNI:
+        return std::make_shared<ov::genai::module::LLMInferencePAModule_Qwen3Omni>(desc, pipeline_desc, model_type);
+    default:
+        break;
+    }
+    return PTR(new LLMInferencePAModule(desc, pipeline_desc, model_type));
 }
 
 void LLMInferencePAModule::print_static_config() {

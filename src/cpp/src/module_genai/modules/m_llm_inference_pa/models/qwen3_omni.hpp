@@ -12,9 +12,9 @@
 namespace ov::genai::module {
 
 
-class LLMInferencePAModule_Qwen3OMNI : public LLMInferencePAModule {
+class LLMInferencePAModule_Qwen3Omni : public LLMInferencePAModule {
 public:
-    LLMInferencePAModule_Qwen3OMNI(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc, const VLMModelType& model_type);
+    LLMInferencePAModule_Qwen3Omni(const IBaseModuleDesc::PTR& desc, const PipelineDesc::PTR& pipeline_desc, const VLMModelType& model_type);
 
     void run() override;
 
