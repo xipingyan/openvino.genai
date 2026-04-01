@@ -37,7 +37,7 @@ public:
 protected:
     std::string get_yaml_content() override {
         YAML::Node config;
-        config["global_context"]["model_type"] = "qwen2_5_vl";
+        config["global_context"]["model_type"] = "deepseek_r1_distill_qwen_1_5b";
 
         YAML::Node pipeline_modules = config["pipeline_modules"];
 

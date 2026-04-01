@@ -64,7 +64,7 @@ protected:
 	};
 
 	virtual InputsParams::PTR parse_inputs(InputsParams::PTR inputs_params = nullptr);
-	bool initialize();
+	virtual bool initialize();
 	std::string decode_first_result(const std::vector<ov::genai::EncodedGenerationResult>& results) const;
 
 protected:
