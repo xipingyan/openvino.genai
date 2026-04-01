@@ -34,7 +34,9 @@ protected:
     };
     InputsParams::PTR parse_inputs(InputsParams::PTR inputs_params = nullptr) override;
 
+    bool initialize() override;
 private:
+    ov::InferRequest m_merge_embeds_infer_request;
 };
 
 namespace LLMInferencePAModule_Utils {

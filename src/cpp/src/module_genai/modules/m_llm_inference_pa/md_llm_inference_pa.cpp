@@ -30,21 +30,14 @@ const ModuleSpec& LLMInferencePAModule::get_spec() {
         s.add_input("audio_pos_mask", {DataType::OVTensor}, true);
         s.add_output("generated_text", {DataType::String});
 
-        s.add_param("text_model_path",
-                    "text_model_path",
+        s.add_param("model_path",
+                    "model_path",
                     true,
-                    "Directory containing text model and tokenizer files, need to be provided if "
-                    "text_embeds_model_path and llm_model_path are not provided");
-        s.add_param("text_embeds_model_path",
-                    "text_embeds_model_path",
+                    "Directory containing text model and tokenizer files, need to be provided.");
+        s.add_param("merge_embeds_model_path",
+                    "merge_embeds_model_path",
                     true,
-                    "Directory containing text_embeds model and tokenizer files, text_embeds_model_path and "
-                    "llm_model_path need to be provided together");
-        s.add_param("llm_model_path",
-                    "llm_model_path",
-                    true,
-                    "Directory containing llm model and tokenizer files, text_embeds_model_path and llm_model_path "
-                    "need to be provided together");
+                    "Directory containing merged embeds model, need to be provided together with llm_model_path");
 
         s.add_param("cache_dir", "cache_dir", true, "Optional OpenVINO cache directory");
         s.add_param("max_new_tokens", "256", true, "Maximum number of new tokens to generate");
@@ -105,12 +98,11 @@ bool LLMInferencePAModule::initialize() {
         m_device = device_param;
     }
 
-    m_models_path = get_param("model_path");
-    OPENVINO_ASSERT(!m_models_path.empty(), "LLMInferencePAModule: model_path is empty");
-    OPENVINO_ASSERT(std::filesystem::is_directory(m_models_path),
+    std::filesystem::path models_path = get_param("model_path");
+    OPENVINO_ASSERT(!models_path.empty(), "LLMInferencePAModule: model_path is empty");
+    OPENVINO_ASSERT(std::filesystem::is_directory(models_path),
                     "LLMInferencePAModule: model_path must be an existing directory: ",
-                    m_models_path.string());
-
+                    models_path.string());
     check_cache_dir();
 
     const auto max_new_tokens_param = get_optional_param("max_new_tokens");
@@ -130,7 +122,7 @@ bool LLMInferencePAModule::initialize() {
     const auto scheduler_config = ov::genai::utils::get_latency_oriented_scheduler_config();
 
     m_pipeline =
-        std::make_unique<ov::genai::ContinuousBatchingPipeline>(m_models_path, scheduler_config, m_device, properties);
+        std::make_unique<ov::genai::ContinuousBatchingPipeline>(models_path, scheduler_config, m_device, properties);
     const auto eos_id = m_pipeline->get_tokenizer().get_eos_token_id();
     if (eos_id >= 0) {
         m_stop_ids.insert(eos_id);

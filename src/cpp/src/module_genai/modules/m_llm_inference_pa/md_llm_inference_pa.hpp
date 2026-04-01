@@ -72,7 +72,6 @@ protected:
 	ov::genai::GenerationConfig m_generation_config;
 
 	std::set<int64_t> m_stop_ids;
-	std::filesystem::path m_models_path;
 	std::string m_device = "CPU";
 	size_t m_max_new_tokens = 256;
 	VLMModelType m_model_type;

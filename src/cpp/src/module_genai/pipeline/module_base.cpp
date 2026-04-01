@@ -69,6 +69,12 @@ std::string IBaseModule::get_optional_param(const std::string& param_item) {
     return it_models_path->second;
 }
 
+bool IBaseModule::exists_param(const std::string& param_item) {
+    const auto& params = module_desc->params;
+    auto it = params.find(param_item);
+    return it != params.end();
+}
+
 size_t IBaseModule::str_to_size_t(const std::string& str) {
     try {
         return std::stoull(str);

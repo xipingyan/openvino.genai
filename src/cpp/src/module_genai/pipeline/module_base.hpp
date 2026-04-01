@@ -65,6 +65,7 @@ public:
     // Return empty string if param not found.
     std::string get_param(const std::string& param_item);
     std::string get_optional_param(const std::string& param_item);
+    bool exists_param(const std::string& param_item);
     size_t str_to_size_t(const std::string& param_item);
     static void start_generate() {
         m_generate_start_time = std::chrono::steady_clock::now();

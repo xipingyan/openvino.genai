@@ -4,6 +4,7 @@
 #include "qwen3_omni.hpp"
 
 #include "openvino/core/except.hpp"
+#include "utils.hpp"
 
 namespace ov::genai::module {
 
@@ -44,6 +45,68 @@ LLMInferencePAModule::InputsParams::PTR LLMInferencePAModule_Qwen3Omni::parse_in
     }
 
     return std::static_pointer_cast<InputsParams>(cur_inputs);
+}
+
+bool LLMInferencePAModule_Qwen3Omni::initialize() {
+    m_device = module_desc->device.empty() ? "CPU" : module_desc->device;
+
+    const auto device_param = get_optional_param("device");
+    if (!device_param.empty()) {
+        m_device = device_param;
+    }
+
+    check_cache_dir();
+
+    std::filesystem::path model_path;
+    if (exists_param("model_path")) {
+        model_path = get_param("model_path");
+        if (std::filesystem::is_regular_file(model_path)) {
+            model_path = model_path.parent_path();
+        }
+        std::filesystem::path text_embeds_model_path = model_path / "openvino_text_embeddings_model.xml";
+        std::filesystem::path llm_model_path = model_path / "openvino_language_model.xml";
+        OPENVINO_ASSERT(std::filesystem::exists(text_embeds_model_path),
+                        "LLMInferencePAModule: openvino_text_embeddings_model.xml not found: ",
+                        text_embeds_model_path.string());
+        OPENVINO_ASSERT(std::filesystem::exists(llm_model_path),
+                        "LLMInferencePAModule: openvino_language_model.xml not found: ",
+                        llm_model_path.string());
+        // Temp solution: embeds merger is called in this module, not continuseous batching pipeline, so the text embeddings model must be loaded together with language model as a single model.
+        // In the future, if we want to load text embeddings model and language model separately, we can implement the embeds merger as a separate module and load text embeddings model in that module.
+        std::filesystem::path merge_embeds_model_path = get_param("merge_embeds_model_path");
+        OPENVINO_ASSERT(std::filesystem::is_regular_file(merge_embeds_model_path),
+                        "LLMInferencePAModule: merge_embeds_model_path is not regular file: ",
+                        merge_embeds_model_path.string());
+        auto merge_embeds_model = utils::singleton_core().read_model(merge_embeds_model_path.string());
+        auto merge_embeds_cm = utils::singleton_core().compile_model(merge_embeds_model, m_device);
+        m_merge_embeds_infer_request = merge_embeds_cm.create_infer_request();
+    } else {
+        OPENVINO_THROW("LLMInferencePAModule: either text_model_path or both openvino_text_embeddings_model.xml and "
+                       "openvino_language_model.xml must be provided");
+    }
+
+    const auto max_new_tokens_param = get_optional_param("max_new_tokens");
+    if (!max_new_tokens_param.empty()) {
+        m_max_new_tokens = str_to_size_t(max_new_tokens_param);
+    }
+    OPENVINO_ASSERT(m_max_new_tokens > 0, "LLMInferencePAModule: max_new_tokens must be > 0");
+
+    m_generation_config = ov::genai::GenerationConfig{};
+    m_generation_config.max_new_tokens = m_max_new_tokens;
+
+    ov::AnyMap properties{};
+    if (!m_cache_dir.empty()) {
+        properties.insert({ov::cache_dir.name(), m_cache_dir});
+    }
+
+    const auto scheduler_config = ov::genai::utils::get_latency_oriented_scheduler_config();
+
+    m_pipeline =
+        std::make_unique<ov::genai::ContinuousBatchingPipeline>(model_path, scheduler_config, m_device, properties);
+    const auto eos_id = m_pipeline->get_tokenizer().get_eos_token_id();
+    if (eos_id >= 0) {
+        m_stop_ids.insert(eos_id);
+    }
 }
 
 void LLMInferencePAModule_Qwen3Omni::run() {

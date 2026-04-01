@@ -26,12 +26,11 @@ bool LLMInferencePAModule_DeepSeekR1DistillQwen1_5B::initialize() {
         m_device = device_param;
     }
 
-    m_models_path = get_param("model_path");
-    OPENVINO_ASSERT(!m_models_path.empty(), "LLMInferencePAModule: model_path is empty");
-    OPENVINO_ASSERT(std::filesystem::is_directory(m_models_path),
+    std::filesystem::path models_path = get_param("model_path");
+    OPENVINO_ASSERT(!models_path.empty(), "LLMInferencePAModule: model_path is empty");
+    OPENVINO_ASSERT(std::filesystem::is_directory(models_path),
                     "LLMInferencePAModule: model_path must be an existing directory: ",
-                    m_models_path.string());
-
+                    models_path.string());
     check_cache_dir();
 
     const auto max_new_tokens_param = get_optional_param("max_new_tokens");
@@ -50,8 +49,8 @@ bool LLMInferencePAModule_DeepSeekR1DistillQwen1_5B::initialize() {
 
     const auto scheduler_config = ov::genai::utils::get_latency_oriented_scheduler_config();
 
-    const auto llm_model_xml_path = m_models_path / "openvino_model.xml";
-    const auto llm_model_bin_path = m_models_path / "openvino_model.bin";
+    const auto llm_model_xml_path = models_path / "openvino_model.xml";
+    const auto llm_model_bin_path = models_path / "openvino_model.bin";
 
     OPENVINO_ASSERT(std::filesystem::exists(llm_model_xml_path),
                     "LLMInferencePAModule: model XML not found: ",
@@ -89,7 +88,7 @@ bool LLMInferencePAModule_DeepSeekR1DistillQwen1_5B::initialize() {
     ModelsMap models_map;
     models_map["language"] = std::make_pair(llm_model_str, std::move(llm_weights));
 
-    const ov::genai::Tokenizer tokenizer(m_models_path);
+    const ov::genai::Tokenizer tokenizer(models_path);
     m_pipeline = std::make_unique<ov::genai::ContinuousBatchingPipeline>(
         models_map,
         tokenizer,
